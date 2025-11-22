@@ -119,7 +119,7 @@ const poiStore = usePoiStore();
 const localSettings = ref({ ...poiStore.colorSettings });
 const colorDiscreteCount = ref(5);
 const discreteMethod = ref('quantile');
-const currentRibbonIndex = ref(0);
+const currentRibbonIndex = ref(2); // 默认使用第三个配色方案（索引2）
 
 // 当前色带
 const currentRibbon = computed(() => {
@@ -169,11 +169,12 @@ watch(
           if (index !== -1) {
             currentRibbonIndex.value = index;
           } else {
-            // 如果没有匹配，使用第一个方案并更新store
-            currentRibbonIndex.value = 0;
+            // 如果没有匹配，使用第三个方案（索引2，如果存在）并更新store
+            const defaultIndex = Math.min(2, availableRibbons.value.length - 1);
+            currentRibbonIndex.value = defaultIndex;
             if (availableRibbons.value.length > 0) {
               poiStore.updateColorSettings({
-                palette: availableRibbons.value[0],
+                palette: availableRibbons.value[defaultIndex],
                 discreteCount: newCount,
               });
             }
@@ -242,8 +243,10 @@ const handleColorCountChange = () => {
   if (countChangeTimer) clearTimeout(countChangeTimer);
   countChangeTimer = setTimeout(() => {
     if (availableRibbons.value.length > 0) {
-      currentRibbonIndex.value = 0;
-      handleRibbonSchemeSelect(0);
+      // 使用第三个方案（索引2，如果存在）
+      const defaultIndex = Math.min(2, availableRibbons.value.length - 1);
+      currentRibbonIndex.value = defaultIndex;
+      handleRibbonSchemeSelect(defaultIndex);
       poiStore.updateColorSettings({
         discreteCount: colorDiscreteCount.value,
       });
@@ -269,22 +272,27 @@ const handleRibbonSchemeSelect = (index) => {
   });
 };
 
-// 初始化时确保使用第一个配色方案（如果当前palette不匹配任何方案）
+// 初始化时确保使用第三个配色方案（如果当前palette不匹配任何方案）
 onMounted(() => {
   nextTick(() => {
     if (availableRibbons.value.length > 0) {
       const currentPalette = poiStore.colorSettings.palette || [];
       const paletteStr = JSON.stringify(currentPalette);
-      const matched = availableRibbons.value.some(scheme => {
-        return JSON.stringify(scheme) === paletteStr;
+      const matched = availableRibbons.value.some((scheme, index) => {
+        if (JSON.stringify(scheme) === paletteStr) {
+          currentRibbonIndex.value = index;
+          return true;
+        }
+        return false;
       });
       
-      // 如果没有匹配的方案，使用第一个方案
+      // 如果没有匹配的方案，使用第三个方案（索引2，如果存在）
       if (!matched) {
-        const firstScheme = availableRibbons.value[0];
-        currentRibbonIndex.value = 0;
+        const defaultIndex = Math.min(2, availableRibbons.value.length - 1);
+        const defaultScheme = availableRibbons.value[defaultIndex];
+        currentRibbonIndex.value = defaultIndex;
         poiStore.updateColorSettings({
-          palette: firstScheme,
+          palette: defaultScheme,
           discreteCount: colorDiscreteCount.value,
         });
       }

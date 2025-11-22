@@ -1,17 +1,24 @@
 <template>
   <div class="map-wrapper">
     <header class="map-head">
-      <el-dropdown trigger="click" @command="handleDrawCommand">
+      <el-dropdown 
+        trigger="click" 
+        @command="handleDrawCommand"
+      >
         <span class="el-dropdown-link dropdown-btn">
           数据筛选
           <el-icon><ArrowDown /></el-icon>
         </span>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item command="drawCircle">圆形筛选</el-dropdown-item>
-            <el-dropdown-item command="drawRectangle">矩形筛选</el-dropdown-item>
-            <el-dropdown-item command="drawPolygon">多边形筛选</el-dropdown-item>
-            <el-dropdown-item divided command="clearDrawing">
+            <el-dropdown-item command="drawCircle" :disabled="poiStore.hasDrawing">圆形筛选</el-dropdown-item>
+            <el-dropdown-item command="drawRectangle" :disabled="poiStore.hasDrawing">矩形筛选</el-dropdown-item>
+            <el-dropdown-item command="drawPolygon" :disabled="poiStore.hasDrawing">多边形筛选</el-dropdown-item>
+            <el-dropdown-item 
+              divided 
+              command="clearDrawing"
+              :disabled="!poiStore.hasDrawing"
+            >
               清除绘制
             </el-dropdown-item>
           </el-dropdown-menu>
@@ -218,13 +225,30 @@ const resetDrawing = () => {
   }
 };
 
+// 暴露清除绘制函数给父组件
+const clearDrawing = () => {
+  if (!amapGlobal || !mapInstance) return;
+  // 清除地图覆盖物
+  resetDrawing();
+  // 清除POI选择
+  poiStore.showAll();
+  poiStore.applySelection([]);
+  // 清除标签云（通过事件通知TagCloudCanvas）
+  poiStore.clearTagCloud();
+  updateLayerByView();
+};
+
 const handleDrawCommand = (command) => {
   if (!amapGlobal || !mapInstance) return;
+  
+  // 如果已经有绘制且不是清除操作，直接返回
+  if (poiStore.hasDrawing && command !== 'clearDrawing') {
+    return;
+  }
+  
   resetDrawing();
   if (command === 'clearDrawing') {
-    poiStore.showAll();
-    poiStore.applySelection([]);
-    updateLayerByView();
+    clearDrawing();
     return;
   }
   mouseTool = new amapGlobal.MouseTool(mapInstance);
@@ -232,6 +256,8 @@ const handleDrawCommand = (command) => {
     drawObj = event.obj;
     mouseTool.close(false);
     filterPOIByGeometry(drawObj);
+    // 绘制完成后，通知store更新状态
+    poiStore.setHasDrawing(true);
   });
   const drawStyle = {
     fillColor: '#00b0ff',
@@ -246,6 +272,11 @@ const handleDrawCommand = (command) => {
     mouseTool.polygon(drawStyle);
   }
 };
+
+// 暴露给父组件
+defineExpose({
+  clearDrawing,
+});
 
 const filterPOIByGeometry = (geometry) => {
   if (!geometry) return;
@@ -344,6 +375,11 @@ onBeforeUnmount(() => {
 .dropdown-btn:hover {
   background: #f5f7fa !important;
   border-color: #c0c4cc;
+}
+
+.dropdown-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .map-canvas {

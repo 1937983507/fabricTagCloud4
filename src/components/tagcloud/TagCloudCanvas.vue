@@ -114,11 +114,11 @@ let canvasInstance;
 let resolutionScale = 1;
 let resizeObserver;
 let isRendering = false; // 标记是否正在渲染
-let isPanning = ref(false); // 是否启用漫游
+let isPanning = ref(true); // 是否启用漫游（默认开启）
 let vpt = [1, 0, 0, 1, 0, 0]; // viewport transform
 let originalCenterX = 0;
 let originalCenterY = 0;
-let maxDistance = 0; // 最大距离（米）
+const maxDistance = ref(0); // 最大距离（米）- 使用ref以便响应式更新
 let poisPyramid = []; // POI数据金字塔
 let tagCloudScale = 0; // 当前显示层级
 
@@ -128,12 +128,12 @@ const canvasHeight = ref(900);
 const baseAngles = [-15, -10, -5, 0, 5, 10, 15];
 const stepDistance = 22;
 const maxIterations = 220;
-const POI_THRESHOLD = 100; // POI数量阈值
+const POI_THRESHOLD = 100; // POI数量阈值（首次渲染数量）
 
 // 最大距离文本
 const maxDistanceText = computed(() => {
-  if (maxDistance === 0) return '0 km';
-  return `${(maxDistance / 1000).toFixed(2)} km`;
+  if (maxDistance.value === 0) return '0 km';
+  return `${(maxDistance.value / 1000).toFixed(2)} km`;
 });
 
 const initCanvas = () => {
@@ -147,6 +147,11 @@ const initCanvas = () => {
     selection: false,
     defaultCursor: isPanning.value ? 'grab' : 'default',
   });
+  
+  // 如果漫游已开启，立即设置鼠标样式
+  if (isPanning.value) {
+    canvasInstance.defaultCursor = 'grab';
+  }
   canvasInstance.setWidth(canvasWidth.value);
   canvasInstance.setHeight(canvasHeight.value);
   
@@ -188,6 +193,20 @@ function handleRenderCloud() {
   allowRenderCloud.value = true;
   renderCloud();
 }
+
+// 清除标签云
+const clearTagCloud = () => {
+  allowRenderCloud.value = false;
+  maxDistance.value = 0;
+  poisPyramid = [];
+  tagCloudScale = 0;
+  isRendering = false;
+  if (canvasInstance) {
+    canvasInstance.clear();
+    canvasInstance.dispose();
+    canvasInstance = null;
+  }
+};
 
 // 计算两点之间的经纬度距离（使用Haversine公式，返回米）
 const calculateDistance = (lat1, lng1, lat2, lng2) => {
@@ -540,7 +559,7 @@ const drawLabel = (entry, originX, originY) => {
   
   for (const item of selectFrom) {
     const tempDis = (item.x - originX) * (item.x - originX) + 
-                    (item.y - originY) * (item.y - originY);
+      (item.y - originY) * (item.y - originY);
     if (tempDis < theMinDistance) {
       // 更新最近距离
       theMinDistance = tempDis;
@@ -606,13 +625,6 @@ const renderCloud = async (forceReinitPyramid = false) => {
   const center = computeCenter(sourceList);
   const bounds = computeBounds(sourceList);
   
-  // 计算最大距离
-  maxDistance = 0;
-  currentData.forEach((poi) => {
-    const dist = calculateDistance(center.lat, center.lng, poi.lat, poi.lng);
-    if (dist > maxDistance) maxDistance = dist;
-  });
-  
   // 将中心位置转换为屏幕坐标
   const width = canvasInstance.getWidth();
   const height = canvasInstance.getHeight();
@@ -633,6 +645,14 @@ const renderCloud = async (forceReinitPyramid = false) => {
     center,
     poiStore.colorSettings,
   );
+  
+  // 计算最大距离（基于构建后的entries，因为entries已经计算了距离）
+  maxDistance.value = 0;
+  entries.forEach((entry) => {
+    if (entry.distance > maxDistance.value) {
+      maxDistance.value = entry.distance;
+    }
+  });
 
   // 逐步渲染标签
   for (let i = 0; i < entries.length; i++) {
@@ -652,56 +672,61 @@ const upRank = (a, b) => a.rank - b.rank;
 // 按距离升序排列
 const upDis = (a, b) => a.distance - b.distance;
 
-// 初始化POI金字塔
+// 初始化POI金字塔（参考原有项目算法）
 const initPoisPyramid = (data) => {
   poisPyramid = [];
   const dataLength = data.length;
   
-  // 先按排名排序（用于构建金字塔层级）
-  const sortedByRank = [...data].sort(upRank);
+  // 计算中心位置（用于计算距离）
+  const center = computeCenter(data);
   
-  // 确定初始scale
-  tagCloudScale = 0;
-  if (dataLength > POI_THRESHOLD) {
-    // 如果数据量大于阈值，找到第一个小于等于100的层级
-    let scale = 0;
-    let currentLength = dataLength;
-    while (currentLength > POI_THRESHOLD) {
-      scale++;
-      currentLength = Math.round(currentLength / 2);
-      if (currentLength <= POI_THRESHOLD) {
-        tagCloudScale = scale;
-        break;
-      }
+  // 为每个POI计算距离（如果还没有）
+  const dataWithDistance = data.map((poi) => {
+    if (!poi.distance) {
+      poi.distance = calculateDistance(center.lat, center.lng, poi.lat, poi.lng);
     }
-  }
+    return poi;
+  });
+  
+  // 第一步：先按距离排序，第一层是全部数据（按距离排序）
+  const sortedByDistance = [...dataWithDistance].sort(upDis);
+  poisPyramid[0] = sortedByDistance;
+  
+  // 第二步：按排名排序，用于构建后续层级
+  const sortedByRank = [...dataWithDistance].sort(upRank);
+  
+  // 确定初始scale（首次渲染约100个POI）
+  tagCloudScale = 0;
   
   // 构建金字塔：每一层都是按排名取前N个，然后按距离排序
   let currentData = sortedByRank;
   let currentLength = dataLength;
   let scale = 0;
   
-  while (currentLength > 10) {
-    // 当前层级的数据（按排名取前N个）
-    const layerData = scale === 0 
-      ? [...currentData]  // 第一层：全部数据
-      : currentData.slice(0, Math.round(currentLength / 2));  // 其他层：取前一半
-    
-    // 按距离排序
-    const sorted = [...layerData].sort(upDis);
-    poisPyramid[scale] = sorted;
-    
-    // 准备下一层：更新currentData和currentLength
-    if (scale === 0) {
-      // 第一层后，准备第二层的数据
-      currentLength = Math.round(currentLength / 2);
-    } else {
-      // 其他层，继续切片
-      currentData = currentData.slice(0, Math.round(currentLength / 2));
-      currentLength = currentData.length;
+  // 定义函数用于判断是否达到了数据量小于10的条件
+  const shouldStopSplitting = (length) => length <= 10;
+  
+  // 自定义划分分层数据
+  while (!shouldStopSplitting(currentLength)) {
+    // 当数据量还大于10的时候，继续构建层级
+    if (tagCloudScale === 0 && currentLength <= POI_THRESHOLD) {
+      // 当数据量已经小于等于100的时候，设置tagCloudScale
+      tagCloudScale = scale;
     }
     
     scale++;
+    // 进行数据划分（取前一半）
+    currentData = currentData.slice(0, Math.round(currentLength / 2));
+    currentLength = currentData.length;
+    
+    // 按距离排序后存入金字塔
+    const sorted = [...currentData].sort(upDis);
+    poisPyramid[scale] = sorted;
+  }
+  
+  // 如果tagCloudScale还是0，说明数据量小于等于100，使用第0层
+  if (tagCloudScale === 0 && dataLength <= POI_THRESHOLD) {
+    tagCloudScale = 0;
   }
   
   console.log('POI金字塔构建完成:', {
@@ -963,6 +988,17 @@ onMounted(() => {
   initCanvasSize();
   // 不再监听窗口大小变化，canvas尺寸固定
 });
+
+// 监听清除标签云事件
+watch(
+  () => poiStore.hasDrawing,
+  (hasDrawing) => {
+    if (!hasDrawing && allowRenderCloud.value) {
+      // 当hasDrawing变为false时，清除标签云
+      clearTagCloud();
+    }
+  },
+);
 
 // 监听数据列表变化（需要重新渲染）
 watch(

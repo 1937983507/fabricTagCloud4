@@ -11,15 +11,17 @@ export const usePoiStore = defineStore('poiStore', {
     selectedIds: [],
     selectionCenter: null,
     selectionGeometry: null,
+    hasDrawing: false, // 是否有绘制覆盖物
     fontSettings: {
       levelCount: 5,
       fontSizes: [64, 52, 44, 36, 28, 24, 20],
       fontFamily: '等线',
-      fontWeight: '600',
+      fontWeight: '700',
     },
     colorSettings: {
       background: '#0c1024',
-      palette: ['#4F8DF5', '#45C4F9', '#F4B740', '#F8684A', '#9A6BFF'],
+      // 默认使用第三个配色方案（5类的第三个方案，索引2）
+      palette: ['rgb(240,249,232)', 'rgb(186,228,188)', 'rgb(123,204,196)', 'rgb(67,162,202)', 'rgb(8,104,172)'],
       inverted: false,
       discreteMethod: 'quantile',
       discreteCount: 5,
@@ -130,6 +132,13 @@ export const usePoiStore = defineStore('poiStore', {
     setSelectionContext(context) {
       this.selectionCenter = context?.center ?? null;
       this.selectionGeometry = context?.geometry ?? null;
+    },
+    setHasDrawing(hasDrawing) {
+      this.hasDrawing = hasDrawing;
+    },
+    clearTagCloud() {
+      // 清除标签云状态，触发TagCloudCanvas清除
+      this.hasDrawing = false;
     },
   },
 });
