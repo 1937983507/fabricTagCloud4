@@ -61,7 +61,7 @@ const handleNavigate = (route) => {
 .workspace {
   padding: 24px 0px 24px 24px;
   background: #f7f9fc;
-  overflow-y: auto;
+  /* overflow-y: auto; */
   min-height: 0;
   height: 100%;
 }

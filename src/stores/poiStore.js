@@ -14,13 +14,15 @@ export const usePoiStore = defineStore('poiStore', {
     fontSettings: {
       levelCount: 5,
       fontSizes: [64, 52, 44, 36, 28, 24, 20],
-      fontFamily: 'Source Han Sans',
+      fontFamily: '等线',
       fontWeight: '600',
     },
     colorSettings: {
       background: '#0c1024',
       palette: ['#4F8DF5', '#45C4F9', '#F4B740', '#F8684A', '#9A6BFF'],
       inverted: false,
+      discreteMethod: 'quantile',
+      discreteCount: 5,
     },
   }),
   getters: {
