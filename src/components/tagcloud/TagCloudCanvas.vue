@@ -452,16 +452,23 @@ const buildLayoutEntries = (list, bounds, center, colorSettings) => {
   });
 };
 
+// 多角度径向偏移策略（参考原有项目strategy 3）
 const simulateDirection = (entry, originX, originY, angle) => {
+  // 初始位置为圆形中心
   let newX = originX;
   let newY = originY;
+  
+  // 计算旋转后的目标方向
   const target = rotate(originX, originY, entry.screenX, entry.screenY, angle);
-  const offsetX = target[0] - originX;
-  const offsetY = target[1] - originY;
-  const dist = Math.hypot(offsetX, offsetY) || 1;
-  const stepX = (offsetX / dist) * stepDistance;
-  const stepY = (offsetY / dist) * stepDistance;
+  const offsetXX = target[0] - originX;
+  const offsetYY = target[1] - originY;
+  
+  // 计算单位方向向量和步长（对应原有项目的20像素）
+  const xie = Math.sqrt(offsetXX * offsetXX + offsetYY * offsetYY);
+  const stepX = (offsetXX / xie) * stepDistance;
+  const stepY = (offsetYY / xie) * stepDistance;
 
+  // 创建临时标签用于碰撞检测
   const temp = new Textbox(entry.textValue, {
     originX: 'center',
     originY: 'center',
@@ -475,49 +482,83 @@ const simulateDirection = (entry, originX, originY, angle) => {
   });
   canvasInstance.add(temp);
 
+  // 开始偏移（沿着旋转后的方向，参考原有项目strategy 3）
   let iterations = 0;
-  let collision = true;
-  while (collision && iterations < maxIterations) {
-    collision = false;
+  while (iterations < maxIterations) {
+    // 默认不需要偏移
+    let isShift = false;
+    
+    // 遍历画布上所有元素，检查碰撞
     canvasInstance.forEachObject((obj) => {
+      // 排除当前正在移动的元素
       if (obj === temp) return;
+      
+      // 检查对象是否与另一个对象相交
       if (temp.intersectsWithObject(obj)) {
-        collision = true;
+        // 有重叠，得继续偏移
+        isShift = true;
+        // 计算偏移后的坐标（沿着旋转后的方向）
+        newX = newX + stepX;
+        newY = newY + stepY;
+        // 更新临时标签位置
+        temp.set({ left: newX, top: newY });
+        temp.setCoords();
       }
     });
-    if (collision) {
-      newX += stepX;
-      newY += stepY;
-      temp.set({ left: newX, top: newY });
-      temp.setCoords();
-      iterations += 1;
+    
+    // 如果不需要偏移了，退出循环
+    if (!isShift) {
+      break;
     }
+    
+    iterations++;
   }
 
-  const result = { x: temp.left, y: temp.top, collision };
+  const result = { 
+    x: temp.left, 
+    y: temp.top, 
+    collision: iterations >= maxIterations // 如果达到最大迭代次数，认为有碰撞
+  };
   canvasInstance.remove(temp);
   return result;
 };
 
+// 多角度径向偏移策略绘制标签（参考原有项目strategy 3）
 const drawLabel = (entry, originX, originY) => {
+  // 对每个角度进行模拟，找到所有可行的位置
   const candidates = baseAngles.map((angle) =>
     simulateDirection(entry, originX, originY, angle),
   );
+  
+  // 优先选择没有碰撞的位置
   const viable = candidates.filter((c) => !c.collision);
-  const selectFrom = viable.length ? viable : candidates;
-  const chosen = selectFrom.reduce((best, item) => {
-    const dist =
-      (item.x - originX) * (item.x - originX) +
-      (item.y - originY) * (item.y - originY);
-    if (!best || dist < best.dist) return { ...item, dist };
-    return best;
-  }, null);
+  const selectFrom = viable.length > 0 ? viable : candidates;
+  
+  // 寻找距离中心最近的位置
+  let theMinDistance = Infinity;
+  let theNewLocation = null;
+  
+  for (const item of selectFrom) {
+    const tempDis = (item.x - originX) * (item.x - originX) + 
+                    (item.y - originY) * (item.y - originY);
+    if (tempDis < theMinDistance) {
+      // 更新最近距离
+      theMinDistance = tempDis;
+      theNewLocation = { x: item.x, y: item.y };
+    }
+  }
+  
+  // 如果没有找到合适的位置，使用原始屏幕坐标
+  if (!theNewLocation) {
+    theNewLocation = { x: entry.screenX, y: entry.screenY };
+  }
 
+  // 正式绘制标签
   const text = new Textbox(entry.textValue, {
     originX: 'center',
     originY: 'center',
-    left: chosen?.x ?? entry.screenX,
-    top: chosen?.y ?? entry.screenY,
+    left: theNewLocation.x,
+    top: theNewLocation.y,
     fill: entry.fontColor,
     fontSize: entry.fontSize,
     fontFamily: entry.fontFamily,
@@ -597,8 +638,8 @@ const renderCloud = async (forceReinitPyramid = false) => {
   for (let i = 0; i < entries.length; i++) {
     drawLabel(entries[i], originalCenterX, originalCenterY);
     // 每绘制10个标签后暂停一下，实现逐步渲染效果
-    if (i % 10 === 0 && i > 0) {
-      await sleep(10); // 10ms延迟
+    if (i % 5 === 0 && i > 0) {
+      await sleep(5); // 10ms延迟
     }
   }
 
@@ -844,7 +885,13 @@ const updateLabelColors = () => {
   const sourceList = poiStore.visibleList;
   if (!sourceList.length || poisPyramid.length === 0) return;
   
-  const currentData = poisPyramid[tagCloudScale] || poisPyramid[0] || sourceList;
+  // 使用当前的tagCloudScale，不要重置
+  const currentData = poisPyramid[tagCloudScale];
+  if (!currentData) {
+    console.warn(`tagCloudScale ${tagCloudScale} 超出范围，使用第0层`);
+    return;
+  }
+  
   const center = computeCenter(sourceList);
   const bounds = computeBounds(sourceList);
   
@@ -920,10 +967,18 @@ onMounted(() => {
 // 监听数据列表变化（需要重新渲染）
 watch(
   () => poiStore.visibleList,
-  () => {
+  (newList, oldList) => {
     if (allowRenderCloud.value) {
-      // 数据变化时需要重新初始化金字塔
-      renderCloud(true);
+      // 只有当数据真正变化时才重新初始化金字塔
+      // 通过比较长度和第一个元素的id来判断是否真的变化了
+      const isDataChanged = !oldList || 
+        newList.length !== oldList.length ||
+        (newList.length > 0 && oldList.length > 0 && newList[0].id !== oldList[0].id);
+      
+      if (isDataChanged) {
+        // 数据变化时需要重新初始化金字塔
+        renderCloud(true);
+      }
     }
   },
   { deep: false },
