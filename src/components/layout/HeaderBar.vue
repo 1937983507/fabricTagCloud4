@@ -46,10 +46,6 @@
 <script setup>
 const navButtons = [
   { key: 'home', label: '首页' },
-  { key: 'file', label: '文件' },
-  { key: 'save', label: '保存' },
-  { key: 'upload', label: '上传到云端' },
-  { key: 'share', label: '分享' },
   { key: 'help', label: '帮助' },
   { key: 'tutorial', label: '引导教程' },
   { key: 'feedback', label: '意见反馈' },
