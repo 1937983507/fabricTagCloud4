@@ -7,9 +7,10 @@
       <el-button
         v-for="item in navButtons"
         :key="item.key"
+        :data-intro-tutorial="item.key === 'tutorial' ? 'tutorial-btn' : undefined"
         size="small"
         text
-        @click="$emit('navigate', item.key)"
+        @click="handleNavClick(item.key)"
       >
         {{ item.label }}
       </el-button>
@@ -50,9 +51,20 @@ const navButtons = [
   { key: 'upload', label: '上传到云端' },
   { key: 'share', label: '分享' },
   { key: 'help', label: '帮助' },
+  { key: 'tutorial', label: '引导教程' },
   { key: 'feedback', label: '意见反馈' },
   { key: 'about', label: '关于我们' },
 ];
+
+const emit = defineEmits(['navigate', 'start-tutorial']);
+
+const handleNavClick = (key) => {
+  if (key === 'tutorial') {
+    emit('start-tutorial');
+  } else {
+    emit('navigate', key);
+  }
+};
 </script>
 
 <style scoped>
