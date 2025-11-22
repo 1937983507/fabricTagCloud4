@@ -8,20 +8,23 @@
           <el-button @click="switchResolution('fine')">精细显示</el-button>
         </el-button-group>
         <div class="toolbar-options">
-          <el-checkbox v-model="showRank">显示排名信息</el-checkbox>
-          <el-checkbox v-model="showTime" disabled>显示通行时间（待接入）</el-checkbox>
+          <el-checkbox v-model="showRank" class="first-checkbox">显示排名信息</el-checkbox>
+          <el-checkbox v-model="showTime">显示通行时间(min)</el-checkbox>
           <el-button @click="exportAsImage">导出图片</el-button>
+          <span class="label-count">标签数量: {{ renderedLabelCount }}</span>
         </div>
       </div>
     </header>
     <div class="canvas-wrapper" ref="wrapperRef">
       <canvas
-        v-if="allowRenderCloud && poiStore.visibleList.length > 0"
+        :key="canvasKey"
         ref="canvasRef"
         :width="canvasWidth"
         :height="canvasHeight"
       ></canvas>
-      <div v-else class="empty-cloud-hint">请先筛选数据并点击"运行生成标签云"</div>
+      <div v-if="!allowRenderCloud || poiStore.visibleList.length === 0" class="empty-cloud-hint">
+        {{ allowRenderCloud ? '请先筛选数据' : '请先筛选数据并点击"运行生成标签云"' }}
+      </div>
       
       <!-- 距离图例 -->
       <div class="distance-legend">
@@ -85,7 +88,7 @@
 </template>
 
 <script setup>
-import { Canvas, Textbox, Point } from 'fabric';
+import { Canvas, Text, Textbox, Point } from 'fabric';
 import {
   nextTick,
   onBeforeUnmount,
@@ -95,6 +98,7 @@ import {
   computed,
 } from 'vue';
 import { usePoiStore } from '@/stores/poiStore';
+import AMapLoader from '@amap/amap-jsapi-loader';
 import {
   RefreshLeft,
   FullScreen,
@@ -121,10 +125,15 @@ let originalCenterY = 0;
 const maxDistance = ref(0); // 最大距离（米）- 使用ref以便响应式更新
 let poisPyramid = []; // POI数据金字塔
 let tagCloudScale = 0; // 当前显示层级
+let amapGlobal = null; // 高德地图全局对象
+let drivingInstance = null; // 高德地图驾车路径规划实例
 
 const allowRenderCloud = ref(false);
 const canvasWidth = ref(900);
 const canvasHeight = ref(900);
+const canvasKey = ref(0); // 用于强制重新渲染canvas
+const isClearing = ref(false); // 标记是否正在清除，用于防止watch触发重新渲染
+const renderedLabelCount = ref(0); // 当前渲染的标签数量
 const baseAngles = [-15, -10, -5, 0, 5, 10, 15];
 const stepDistance = 22;
 const maxIterations = 220;
@@ -137,6 +146,8 @@ const maxDistanceText = computed(() => {
 });
 
 const initCanvas = () => {
+  if (!canvasRef.value) return; // 确保canvas元素存在
+  
   if (canvasInstance) {
     // 保存当前的viewport transform
     vpt = canvasInstance.viewportTransform;
@@ -169,9 +180,9 @@ watch(
   () => poiStore.colorSettings.background,
   (newColor) => {
     if (canvasInstance && newColor) {
-      canvasInstance.setBackgroundColor(newColor, () => {
-        canvasInstance.renderAll();
-      });
+      // Fabric.js v6 中直接设置 backgroundColor 属性
+      canvasInstance.backgroundColor = newColor;
+      canvasInstance.renderAll();
     }
   },
   { immediate: false }
@@ -191,21 +202,126 @@ const initCanvasSize = () => {
 
 function handleRenderCloud() {
   allowRenderCloud.value = true;
-  renderCloud();
+  // 每次点击【运行生成标签云】时，强制重新构建POI金字塔，使用最新的筛选数据
+  renderCloud(true);
 }
 
 // 清除标签云
 const clearTagCloud = () => {
+  // 设置清除标志，防止watch触发重新渲染
+  isClearing.value = true;
   allowRenderCloud.value = false;
   maxDistance.value = 0;
   poisPyramid = [];
   tagCloudScale = 0;
   isRendering = false;
+  renderedLabelCount.value = 0; // 重置标签数量
+  
+  // 完全销毁canvas实例
   if (canvasInstance) {
-    canvasInstance.clear();
-    canvasInstance.dispose();
+    try {
+      // 先移除所有对象
+      const objects = canvasInstance.getObjects();
+      objects.forEach(obj => {
+        canvasInstance.remove(obj);
+      });
+      canvasInstance.dispose();
+    } catch (e) {
+      console.warn('Canvas dispose error:', e);
+    }
     canvasInstance = null;
   }
+  
+  // 通过更新key来强制Vue删除旧的canvas元素并创建新的
+  canvasKey.value += 1;
+  
+  // 等待Vue重新创建canvas元素后，初始化新的canvas实例
+  nextTick(() => {
+    if (canvasRef.value) {
+      initCanvas();
+    }
+    // 清除完成后，重置标志
+    isClearing.value = false;
+  });
+};
+
+// 初始化高德地图和Driving实例
+const initAMapDriving = async () => {
+  if (amapGlobal && drivingInstance) return; // 已经初始化
+  
+  try {
+    amapGlobal = await AMapLoader.load({
+      key: '80838eddfb922202b289fd1ad6fa4e58',
+      version: '2.0',
+      plugins: ['AMap.Driving'],
+    });
+    
+    // 创建驾车路径规划实例
+    drivingInstance = new amapGlobal.Driving({
+      policy: amapGlobal.DrivingPolicy.LEAST_TIME, // 最便捷的驾车策略
+    });
+  } catch (error) {
+    console.warn('高德地图加载失败:', error);
+  }
+};
+
+// 计算通行时间（使用高德地图Driving API）- 保留原方法
+const calculateTravelTimeAPI = (centerLng, centerLat, poiLng, poiLat) => {
+  return new Promise((resolve, reject) => {
+    if (!drivingInstance || !amapGlobal) {
+      resolve(null);
+      return;
+    }
+    
+    try {
+      drivingInstance.search(
+        new amapGlobal.LngLat(centerLng, centerLat),
+        new amapGlobal.LngLat(poiLng, poiLat),
+        (status, result) => {
+          if (status === 'complete' && result.routes && result.routes.length > 0) {
+            // 时间单位：秒，转换为分钟
+            const timeInSeconds = result.routes[0].time;
+            const timeInMinutes = Math.round(timeInSeconds / 60);
+            resolve(timeInMinutes);
+          } else {
+            resolve(null);
+          }
+        }
+      );
+    } catch (error) {
+      console.warn('计算通行时间失败:', error);
+      resolve(null);
+    }
+  });
+};
+
+// 计算通行时间（基于经纬度估算）- 新方法
+const calculateTravelTime = (centerLng, centerLat, poiLng, poiLat) => {
+  // 计算直线距离（米）
+  const distanceInMeters = calculateDistance(centerLat, centerLng, poiLat, poiLng);
+  
+  // 实际道路距离通常比直线距离长，使用系数1.4（考虑城市道路的绕行）
+  const roadDistanceFactor = 1.4;
+  const roadDistanceKm = (distanceInMeters / 1000) * roadDistanceFactor;
+  
+  // 根据距离选择不同的平均车速
+  // 短距离（<10km）：城市道路，平均30km/h
+  // 中距离（10-50km）：混合道路，平均45km/h
+  // 长距离（>50km）：高速公路为主，平均70km/h
+  let averageSpeed;
+  if (roadDistanceKm < 10) {
+    averageSpeed = 30; // 城市道路
+  } else if (roadDistanceKm < 50) {
+    averageSpeed = 45; // 混合道路
+  } else {
+    averageSpeed = 70; // 高速公路为主
+  }
+  
+  // 计算时间：时间(分钟) = 距离(km) / 速度(km/h) * 60
+  const timeInMinutes = Math.round((roadDistanceKm / averageSpeed) * 60);
+  
+  // 至少返回1分钟
+  return Math.max(1, timeInMinutes);
 };
 
 // 计算两点之间的经纬度距离（使用Haversine公式，返回米）
@@ -399,13 +515,13 @@ const rotate = (cx, cy, x, y, angle) => {
   return [nx, ny];
 };
 
-const buildLayoutEntries = (list, bounds, center, colorSettings) => {
+const buildLayoutEntries = async (list, bounds, center, colorSettings) => {
   const width = canvasInstance.getWidth();
   const height = canvasInstance.getHeight();
   const { fontSettings } = poiStore;
 
   // 计算每个POI到中心的距离，并添加距离信息
-  const entriesWithDistance = list.map((poi) => {
+  const entriesWithDistance = await Promise.all(list.map(async (poi) => {
     const distance = calculateDistance(
       center.lat,
       center.lng,
@@ -420,21 +536,29 @@ const buildLayoutEntries = (list, bounds, center, colorSettings) => {
     const screenX = width * 0.08 + normalizedX * width * 0.84;
     const screenY = height * 0.08 + (1 - normalizedY) * height * 0.84;
 
-    // 默认不显示排名，格式：名称 排名|时间 或 名称 排名 或 名称 时间
-    const textParts = [poi.name];
+    // 如果需要显示通行时间且还没有计算，则计算通行时间
+    if (showTime.value && !poi.time) {
+      const travelTime = await calculateTravelTime(center.lng, center.lat, poi.lng, poi.lat);
+      if (travelTime !== null) {
+        poi.time = travelTime;
+      }
+    }
+
+    // 构建标签文本：格式为"名称 排名|时间"或"名称 排名"或"名称 时间"
+    let labelText = poi.name;
     const rankPart = showRank.value && poi.rank ? String(poi.rank) : '';
     const timePart = showTime.value && poi.time ? String(poi.time) : '';
     if (rankPart && timePart) {
-      textParts.push(` ${rankPart}|${timePart}`);
+      labelText = `${poi.name} ${rankPart}|${timePart}`;
     } else if (rankPart) {
-      textParts.push(` ${rankPart}`);
+      labelText = `${poi.name} ${rankPart}`;
     } else if (timePart) {
-      textParts.push(` ${timePart}`);
+      labelText = `${poi.name} ${timePart}`;
     }
 
     return {
       id: poi.id,
-      textValue: textParts.join(''),
+      textValue: labelText,
       fontSize:
         fontSettings.fontSizes[poi.rank % fontSettings.fontSizes.length] *
         resolutionScale,
@@ -446,7 +570,7 @@ const buildLayoutEntries = (list, bounds, center, colorSettings) => {
       lat: poi.lat,
       lng: poi.lng,
     };
-  });
+  }));
 
   // 按距离升序排序（先绘制距离近的）
   entriesWithDistance.sort((a, b) => a.distance - b.distance);
@@ -487,8 +611,8 @@ const simulateDirection = (entry, originX, originY, angle) => {
   const stepX = (offsetXX / xie) * stepDistance;
   const stepY = (offsetYY / xie) * stepDistance;
 
-  // 创建临时标签用于碰撞检测
-  const temp = new Textbox(entry.textValue, {
+  // 创建临时标签用于碰撞检测（使用Text确保单行显示）
+  const temp = new Text(entry.textValue, {
     originX: 'center',
     originY: 'center',
     left: newX,
@@ -572,8 +696,8 @@ const drawLabel = (entry, originX, originY) => {
     theNewLocation = { x: entry.screenX, y: entry.screenY };
   }
 
-  // 正式绘制标签
-  const text = new Textbox(entry.textValue, {
+  // 正式绘制标签（使用Text确保单行显示，直接拼接文本）
+  const text = new Text(entry.textValue, {
     originX: 'center',
     originY: 'center',
     left: theNewLocation.x,
@@ -639,7 +763,7 @@ const renderCloud = async (forceReinitPyramid = false) => {
   drawCenter(originalCenterX, originalCenterY);
 
   // 构建布局条目（已按距离排序并分配颜色）
-  const entries = buildLayoutEntries(
+  const entries = await buildLayoutEntries(
     currentData,
     bounds,
     center,
@@ -653,6 +777,9 @@ const renderCloud = async (forceReinitPyramid = false) => {
       maxDistance.value = entry.distance;
     }
   });
+
+  // 更新标签数量
+  renderedLabelCount.value = entries.length;
 
   // 逐步渲染标签
   for (let i = 0; i < entries.length; i++) {
@@ -986,6 +1113,14 @@ const exportAsImage = () => {
 onMounted(() => {
   // 初始化canvas尺寸（只执行一次，固定大小）
   initCanvasSize();
+  // 初始化高德地图和Driving实例
+  initAMapDriving();
+  // 初始化canvas，默认显示并使用设定好的背景色
+  nextTick(() => {
+    if (canvasRef.value) {
+      initCanvas();
+    }
+  });
   // 不再监听窗口大小变化，canvas尺寸固定
 });
 
@@ -993,8 +1128,8 @@ onMounted(() => {
 watch(
   () => poiStore.hasDrawing,
   (hasDrawing) => {
-    if (!hasDrawing && allowRenderCloud.value) {
-      // 当hasDrawing变为false时，清除标签云
+    if (!hasDrawing) {
+      // 当hasDrawing变为false时，清除标签云（无论allowRenderCloud的值如何）
       clearTagCloud();
     }
   },
@@ -1004,6 +1139,9 @@ watch(
 watch(
   () => poiStore.visibleList,
   (newList, oldList) => {
+    // 如果正在清除，不触发重新渲染
+    if (isClearing.value) return;
+    
     if (allowRenderCloud.value) {
       // 只有当数据真正变化时才重新初始化金字塔
       // 通过比较长度和第一个元素的id来判断是否真的变化了
@@ -1024,6 +1162,9 @@ watch(
 watch(
   () => poiStore.fontSettings.fontSizes,
   () => {
+    // 如果正在清除，不触发重新渲染
+    if (isClearing.value) return;
+    
     if (allowRenderCloud.value) {
       // 字号变化需要重新绘制（影响布局）
       renderCloud(false);
@@ -1060,6 +1201,9 @@ watch(
 );
 
 watch([showRank, showTime], () => {
+  // 如果正在清除，不触发重新渲染
+  if (isClearing.value) return;
+  
   if (allowRenderCloud.value) renderCloud();
 });
 
@@ -1113,13 +1257,20 @@ canvas {
 }
 
 .empty-cloud-hint {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
+  height: 100%;
   color: #aaa;
   font-size: 18px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 8, 22, 0.8);
+  backdrop-filter: blur(4px);
+  z-index: 5;
+  pointer-events: none;
 }
 
 .panel-head {
@@ -1149,6 +1300,17 @@ canvas {
 
 .toolbar-options :deep(.el-checkbox) {
   color: #fff;
+}
+
+.toolbar-options :deep(.first-checkbox) {
+  margin-right: 0 !important;
+}
+
+.label-count {
+  color: #fff;
+  font-size: 14px;
+  margin-left: 12px;
+  padding: 0 8px;
 }
 
 .tagcloud-toolbar {
