@@ -1,0 +1,84 @@
+:root {
+  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  color: #1f2333;
+  background-color: #f4f6fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body,
+#app {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-body {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 108px 1fr 12px 68vw; /* 更细的侧栏，更宽的右侧标签云 */
+  background-color: #fff;
+  min-height: 0;
+  overflow: hidden;
+  height: 100%;
+}
+
+.app-body > * {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.side-menu {
+  width: 108px !important;
+  min-width: 108px !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-bottom: 20px;
+  overflow-y: auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.tagcloud-panel {
+  min-width: 640px;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.workspace {
+  max-width: 680px;
+  min-width: 440px;
+  padding: 24px 0px 24px 24px;
+  overflow-y: auto;
+  min-height: 0;
+  height: 100%;
+}
+
+/* 保证footer按钮在左栏底部 */
+.side-menu .menu-group:last-child {
+  margin-top: auto;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(25, 39, 71, 0.08);
+  padding: 16px;
+}
+
+.toolbar-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: #1f2333;
+}
+

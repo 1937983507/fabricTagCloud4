@@ -1,0 +1,29 @@
+{
+  "name": "fabric-tag-cloud4",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .js,.vue"
+  },
+  "dependencies": {
+    "@amap/amap-jsapi-loader": "^1.0.1",
+    "axios": "^1.7.7",
+    "element-plus": "^2.8.3",
+    "fabric": "^6.0.0-beta.29",
+    "lodash-es": "^4.17.21",
+    "pinia": "^2.2.4",
+    "vue": "^3.5.11"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.1.4",
+    "eslint": "^9.13.0",
+    "eslint-plugin-vue": "^9.29.1",
+    "sass": "^1.80.4",
+    "vite": "^5.4.8"
+  }
+}
+
