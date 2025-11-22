@@ -1,5 +1,5 @@
 <template>
-  <div class="help-page">
+  <div class="help-page" ref="helpPageRef">
     <div class="container">
       <!-- 左侧导航 -->
       <div class="sidebar sidebar-left">
@@ -68,7 +68,7 @@
         </ul>
       </div>
     </div>
-    <FooterBar v-show="showFooter" class="help-footer" />
+    <FooterBar class="help-footer" />
   </div>
 </template>
 
@@ -104,6 +104,7 @@ const activeNavId = ref('introduction');
 const activeSectionId = ref('introduction');
 const sections = ref([]);
 const contentRef = ref(null);
+const helpPageRef = ref(null);
 const currentToc = ref([]);
 const activeTocId = ref('');
 const showFooter = ref(false);
@@ -482,15 +483,15 @@ const handleNavClick = (id) => {
   showFooter.value = false; // 切换 section 时隐藏 footer
   
   // 立即重置滚动位置
-  if (contentRef.value) {
-    contentRef.value.scrollTop = 0;
+  if (helpPageRef.value) {
+    helpPageRef.value.scrollTop = 0;
   }
   
   nextTick(() => {
     const section = document.getElementById(id);
-    if (section && contentRef.value) {
+    if (section && helpPageRef.value) {
       // 再次确保滚动位置为0
-      contentRef.value.scrollTop = 0;
+      helpPageRef.value.scrollTop = 0;
       generateToc(id);
       // 重置目录高亮
       if (currentToc.value.length > 0) {
@@ -586,14 +587,14 @@ const handleCreateTicket = () => {
 
 // 监听滚动，更新目录高亮
 const handleScroll = () => {
-  if (!contentRef.value) return;
+  if (!helpPageRef.value) return;
 
-  const scrollTop = contentRef.value.scrollTop;
-  const scrollHeight = contentRef.value.scrollHeight;
-  const clientHeight = contentRef.value.clientHeight;
+  const scrollTop = helpPageRef.value.scrollTop;
+  const scrollHeight = helpPageRef.value.scrollHeight;
+  const clientHeight = helpPageRef.value.clientHeight;
   
-  // 检查是否滚动到底部（留出一些余量）
-  const isAtBottom = scrollTop + clientHeight >= scrollHeight - 50;
+  // 检查是否滚动到底部（留出一些余量，考虑 footer 高度）
+  const isAtBottom = scrollTop + clientHeight >= scrollHeight - 100;
   showFooter.value = isAtBottom;
 
   const currentSection = document.getElementById(activeSectionId.value);
@@ -613,13 +614,13 @@ const handleScroll = () => {
 
   // 找到当前应该高亮的标题
   let activeHeadingId = null;
-  const offset = 150; // 偏移量，让标题在视口上方一点时就开始高亮
+  const offset = 200; // 偏移量，让标题在视口上方一点时就开始高亮（考虑 header 高度）
 
   // 从下往上查找，找到第一个位置在视口上方或附近的标题
   for (let i = allHeadings.length - 1; i >= 0; i--) {
     const heading = allHeadings[i];
     const rect = heading.getBoundingClientRect();
-    const containerRect = contentRef.value.getBoundingClientRect();
+    const containerRect = helpPageRef.value.getBoundingClientRect();
     
     // 计算标题相对于滚动容器的位置
     const headingTop = rect.top - containerRect.top + scrollTop;
@@ -665,8 +666,8 @@ onMounted(() => {
 
   // 添加滚动监听
   nextTick(() => {
-    if (contentRef.value) {
-      contentRef.value.addEventListener('scroll', handleScroll, { passive: true });
+    if (helpPageRef.value) {
+      helpPageRef.value.addEventListener('scroll', handleScroll, { passive: true });
       // 初始触发一次，检查是否在底部
       handleScroll();
     }
@@ -686,9 +687,9 @@ onMounted(() => {
 
 // 监听 activeSectionId 变化，重置滚动位置
 watch(activeSectionId, (newId, oldId) => {
-  if (newId !== oldId && contentRef.value) {
+  if (newId !== oldId && helpPageRef.value) {
     // 切换section时重置滚动位置
-    contentRef.value.scrollTop = 0;
+    helpPageRef.value.scrollTop = 0;
     showFooter.value = false;
     // 等待DOM更新后重新生成目录
     nextTick(() => {
@@ -708,8 +709,8 @@ watch(activeSectionId, (newId, oldId) => {
 
 // 在组件卸载时清理
 onBeforeUnmount(() => {
-  if (contentRef.value) {
-    contentRef.value.removeEventListener('scroll', handleScroll);
+  if (helpPageRef.value) {
+    helpPageRef.value.removeEventListener('scroll', handleScroll);
   }
 });
 </script>
@@ -717,13 +718,39 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .help-page {
   width: 100%;
-  min-height: calc(100vh - 64px); /* 减去 HeaderBar 的高度 */
+  height: calc(100vh - 64px); /* 减去 HeaderBar 的高度 */
   background-color: #ffffff;
+  overflow-y: auto;
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
   justify-content: flex-start; /* 从顶部开始 */
   align-items: center; /* 居中显示 */
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(31, 35, 51, 0.2) transparent;
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(31, 35, 51, 0.2);
+    border-radius: 4px;
+    
+    &:hover {
+      background: rgba(31, 35, 51, 0.3);
+    }
+  }
+}
+
+// 确保内容区域不被压缩
+.help-page > .container {
+  flex: 0 0 auto; /* 不压缩，根据内容自动扩展 */
 }
 
 .container {
@@ -731,18 +758,39 @@ onBeforeUnmount(() => {
   display: flex;
   max-width: 1400px; /* 限制最大宽度 */
   width: 100%;
-  min-height: calc(100vh - 64px);
   background: #ffffff;
   margin: 0 auto; /* 居中 */
-  flex: 1;
+  padding-bottom: 120px; /* 为 footer 留出足够空间 */
 }
 
 /* 左右侧导航栏 */
 .sidebar {
-  position: relative;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
   display: block;
   overflow-y: auto;
   background-color: #ffffff;
+  max-height: calc(100vh - 64px);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(31, 35, 51, 0.1) transparent;
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(31, 35, 51, 0.1);
+    border-radius: 3px;
+    
+    &:hover {
+      background: rgba(31, 35, 51, 0.2);
+    }
+  }
 }
 
 .sidebar-left {
@@ -838,19 +886,20 @@ onBeforeUnmount(() => {
 /* 主要内容 */
 .main-content {
   flex: 0 0 65%;
-  overflow: hidden; /* 不在这里设置 overflow-y，让子元素控制 */
+  overflow: visible; /* 允许内容溢出，由外层控制滚动 */
   background: #ffffff;
   line-height: 35px;
   padding: 40px;
   display: flex;
   flex-direction: column;
+  min-height: min-content; /* 根据内容自动调整高度 */
 }
 
 .main-content-pages {
   max-width: 100%;
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  width: 100%;
+  overflow: visible; /* 移除内部滚动，由外层控制 */
+  min-height: min-content; /* 根据内容自动调整高度 */
 }
 
 .main-content-page {
@@ -1115,8 +1164,9 @@ onBeforeUnmount(() => {
 
 .help-footer {
   width: 100%;
-  margin-top: auto;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 </style>
 
