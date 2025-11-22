@@ -1,7 +1,16 @@
 :root {
-  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-family: 'Segoe UI', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
   color: #1f2333;
   background-color: #f4f6fb;
+  --primary-color: #399ceb;
+  --primary-hover: #2d8cd9;
+  --text-primary: #1f2333;
+  --text-secondary: #64748b;
+  --border-color: rgba(31, 35, 51, 0.08);
+  --shadow-sm: 0 2px 4px rgba(31, 35, 51, 0.06);
+  --shadow-md: 0 4px 12px rgba(31, 35, 51, 0.08);
+  --shadow-lg: 0 8px 24px rgba(31, 35, 51, 0.12);
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -56,10 +65,30 @@ body,
 .workspace {
   max-width: 680px;
   min-width: 440px;
-  padding: 15px 15px 15px 15px;
-  // overflow-y: auto;
+  padding: 24px;
+  background: linear-gradient(180deg, #f7f9fc 0%, #ffffff 100%);
   min-height: 0;
   height: 100%;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(31, 35, 51, 0.2) transparent;
+}
+
+.workspace::-webkit-scrollbar {
+  width: 6px;
+}
+
+.workspace::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.workspace::-webkit-scrollbar-thumb {
+  background: rgba(31, 35, 51, 0.2);
+  border-radius: 3px;
+}
+
+.workspace::-webkit-scrollbar-thumb:hover {
+  background: rgba(31, 35, 51, 0.3);
 }
 
 /* 保证footer按钮在左栏底部 */
@@ -72,8 +101,14 @@ body,
 .panel-card {
   background: #fff;
   border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(25, 39, 71, 0.08);
-  padding: 16px;
+  box-shadow: var(--shadow-md);
+  padding: 20px;
+  border: 1px solid var(--border-color);
+  transition: box-shadow var(--transition);
+}
+
+.panel-card:hover {
+  box-shadow: var(--shadow-lg);
 }
 
 .toolbar-title {

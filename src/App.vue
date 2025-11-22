@@ -55,7 +55,7 @@ const handleNavigate = (route) => {
   overflow: hidden;
   display: grid;
   grid-template-columns: 108px 1fr 12px 68vw;
-  background-color: #fff;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
 }
 
 .workspace {
