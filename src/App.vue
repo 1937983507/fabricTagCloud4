@@ -5,8 +5,9 @@
       @navigate="handleNavigate"
       @start-tutorial="restartIntro"
     />
-    <HelpPage v-if="showHelpPage" />
-    <template v-if="!showHelpPage">
+    <HelpPage v-if="showHelpPage && !showFeedbackPage" />
+    <FeedbackPage v-if="showFeedbackPage && !showHelpPage" />
+    <template v-if="!showHelpPage && !showFeedbackPage">
       <div class="app-body">
         <SideMenu
           :active-panel="activePanel"
@@ -38,12 +39,14 @@ import ColorPanel from '@/components/color/ColorPanel.vue';
 import TagCloudCanvas from '@/components/tagcloud/TagCloudCanvas.vue';
 import SplitterBar from '@/components/common/SplitterBar.vue';
 import HelpPage from '@/components/help/HelpPage.vue';
+import FeedbackPage from '@/components/feedback/FeedbackPage.vue';
 
 const activePanel = ref('content');
 const headerRef = ref(null);
 const poiContentRef = ref(null);
 const tagCloudCanvasRef = ref(null);
 const showHelpPage = ref(false);
+const showFeedbackPage = ref(false);
 
 // 防止重复启动引导的标志
 let firstIntroStarted = false;
@@ -55,8 +58,13 @@ const handleChangePanel = (panel) => {
 const handleNavigate = (route) => {
   if (route === 'help') {
     showHelpPage.value = true;
+    showFeedbackPage.value = false;
+  } else if (route === 'feedback') {
+    showFeedbackPage.value = true;
+    showHelpPage.value = false;
   } else if (route === 'home') {
     showHelpPage.value = false;
+    showFeedbackPage.value = false;
   } else {
     console.log('navigate to', route);
   }
