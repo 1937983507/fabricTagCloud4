@@ -23,7 +23,21 @@
         :height="canvasHeight"
       ></canvas>
       <div v-if="!allowRenderCloud || poiStore.visibleList.length === 0" class="empty-cloud-hint">
-        {{ allowRenderCloud ? '请先筛选数据' : '请先筛选数据并点击"运行生成标签云"' }}
+        <div class="hint-content">
+          <div class="hint-icon">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="hint-text">
+            <p class="hint-title">{{ allowRenderCloud ? '数据筛选中' : '准备生成标签云' }}</p>
+            <p class="hint-desc">
+              {{ allowRenderCloud ? '请在地图上绘制筛选区域' : '请先在地图上绘制筛选区域，然后点击"运行生成标签云"按钮' }}
+            </p>
+          </div>
+        </div>
       </div>
       
       <!-- 距离图例 -->
@@ -1262,15 +1276,62 @@ canvas {
   left: 0;
   width: 100%;
   height: 100%;
-  color: #aaa;
-  font-size: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(5, 8, 22, 0.8);
-  backdrop-filter: blur(4px);
+  background: linear-gradient(135deg, rgba(5, 8, 22, 0.95) 0%, rgba(12, 16, 36, 0.9) 100%);
+  backdrop-filter: blur(8px);
   z-index: 5;
   pointer-events: none;
+}
+
+.hint-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 40px;
+  text-align: center;
+  max-width: 500px;
+}
+
+.hint-icon {
+  width: 80px;
+  height: 80px;
+  color: rgba(255, 255, 255, 0.3);
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.hint-text {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hint-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.5px;
+}
+
+.hint-desc {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.3px;
 }
 
 .panel-head {
