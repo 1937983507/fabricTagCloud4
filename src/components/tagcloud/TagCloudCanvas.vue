@@ -21,24 +21,91 @@
         :width="canvasWidth"
         :height="canvasHeight"
       ></canvas>
-      <div v-else class="empty-cloud-hint">请先筛选数据并点击“运行生成标签云”</div>
+      <div v-else class="empty-cloud-hint">请先筛选数据并点击"运行生成标签云"</div>
+      
+      <!-- 距离图例 -->
+      <div class="distance-legend">
+        <p class="legend-title">与中心的距离</p>
+        <div class="legend-colors" ref="legendColorsRef">
+          <div
+            v-for="(color, index) in poiStore.colorSettings.palette"
+            :key="`legend-${index}`"
+            class="legend-color-item"
+            :style="{ background: color }"
+            @mouseenter="handleLegendHover(color)"
+            @mouseleave="handleLegendLeave"
+          ></div>
+        </div>
+        <p class="legend-max-distance">
+          <span>{{ maxDistanceText || '0 km' }}</span>
+        </p>
+      </div>
+      
+      <!-- 交互工具栏 -->
+      <div class="canvas-toolbar">
+        <el-button
+          circle
+          size="small"
+          :icon="RefreshLeft"
+          @click="returnToCenter"
+          title="返回中心点"
+        />
+        <el-button
+          circle
+          size="small"
+          :icon="FullScreen"
+          @click="returnToScale"
+          title="返回原始缩放"
+        />
+        <el-button
+          circle
+          size="small"
+          :icon="Rank"
+          :type="isPanning ? 'primary' : 'default'"
+          @click="togglePanning"
+          title="漫游"
+        />
+        <el-button
+          circle
+          size="small"
+          :icon="ZoomIn"
+          @click="zoomIn"
+          title="放大"
+        />
+        <el-button
+          circle
+          size="small"
+          :icon="ZoomOut"
+          @click="zoomOut"
+          title="缩小"
+        />
+      </div>
     </div>
   </aside>
 </template>
 
 <script setup>
-import { Canvas, Textbox } from 'fabric';
+import { Canvas, Textbox, Point } from 'fabric';
 import {
   nextTick,
   onBeforeUnmount,
   onMounted,
   ref,
   watch,
+  computed,
 } from 'vue';
 import { usePoiStore } from '@/stores/poiStore';
+import {
+  RefreshLeft,
+  FullScreen,
+  Rank,
+  ZoomIn,
+  ZoomOut,
+} from '@element-plus/icons-vue';
 
 const canvasRef = ref(null);
 const wrapperRef = ref(null);
+const legendColorsRef = ref(null);
 const showRank = ref(false); // 默认不显示排名
 const showTime = ref(false);
 const poiStore = usePoiStore();
@@ -47,20 +114,49 @@ let canvasInstance;
 let resolutionScale = 1;
 let resizeObserver;
 let isRendering = false; // 标记是否正在渲染
+let isPanning = ref(false); // 是否启用漫游
+let vpt = [1, 0, 0, 1, 0, 0]; // viewport transform
+let originalCenterX = 0;
+let originalCenterY = 0;
+let maxDistance = 0; // 最大距离（米）
+let poisPyramid = []; // POI数据金字塔
+let tagCloudScale = 0; // 当前显示层级
+
 const allowRenderCloud = ref(false);
 const canvasWidth = ref(900);
 const canvasHeight = ref(900);
 const baseAngles = [-15, -10, -5, 0, 5, 10, 15];
 const stepDistance = 22;
 const maxIterations = 220;
+const POI_THRESHOLD = 100; // POI数量阈值
+
+// 最大距离文本
+const maxDistanceText = computed(() => {
+  if (maxDistance === 0) return '0 km';
+  return `${(maxDistance / 1000).toFixed(2)} km`;
+});
 
 const initCanvas = () => {
-  if (canvasInstance) canvasInstance.dispose();
+  if (canvasInstance) {
+    // 保存当前的viewport transform
+    vpt = canvasInstance.viewportTransform;
+    canvasInstance.dispose();
+  }
   canvasInstance = new Canvas(canvasRef.value, {
     backgroundColor: poiStore.colorSettings.background,
+    selection: false,
+    defaultCursor: isPanning.value ? 'grab' : 'default',
   });
   canvasInstance.setWidth(canvasWidth.value);
   canvasInstance.setHeight(canvasHeight.value);
+  
+  // 恢复viewport transform
+  if (vpt) {
+    canvasInstance.setViewportTransform(vpt);
+  }
+  
+  // 设置鼠标交互
+  setupCanvasInteractions();
 };
 
 // 监听背景色变化，立即更新canvas
@@ -76,20 +172,17 @@ watch(
   { immediate: false }
 );
 
-const updateCanvasSize = () => {
+// 初始化canvas尺寸（只执行一次，固定大小）
+const initCanvasSize = () => {
   if (!wrapperRef.value) return;
   const rect = wrapperRef.value.getBoundingClientRect();
-  // 使用容器的完整尺寸，确保canvas完全填充
+  // 使用容器的初始尺寸，固定canvas大小
   const width = Math.floor(rect.width);
   const height = Math.floor(rect.height);
   canvasWidth.value = width;
   canvasHeight.value = height;
-  if (canvasInstance) {
-    canvasInstance.setWidth(width);
-    canvasInstance.setHeight(height);
-    canvasInstance.renderAll();
-  }
 };
+
 
 function handleRenderCloud() {
   allowRenderCloud.value = true;
@@ -445,13 +538,13 @@ const drawLabel = (entry, originX, originY) => {
 // 逐步渲染标签的延迟函数
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const renderCloud = async () => {
+const renderCloud = async (forceReinitPyramid = false) => {
   if (!allowRenderCloud.value || !poiStore.visibleList.length) return;
   if (isRendering) return; // 如果正在渲染，则跳过
   
   isRendering = true;
   await nextTick();
-  updateCanvasSize();
+  // Canvas尺寸已固定，不需要更新
   initCanvas();
   
   const sourceList = poiStore.visibleList;
@@ -460,9 +553,24 @@ const renderCloud = async () => {
     return;
   }
 
+  // 只有在数据变化或强制重新初始化时才重新构建金字塔
+  if (forceReinitPyramid || poisPyramid.length === 0) {
+    initPoisPyramid(sourceList);
+  }
+  
+  // 获取当前层级的数据
+  const currentData = poisPyramid[tagCloudScale] || poisPyramid[0] || sourceList;
+  
   // 计算中心位置（基于经纬度）
   const center = computeCenter(sourceList);
   const bounds = computeBounds(sourceList);
+  
+  // 计算最大距离
+  maxDistance = 0;
+  currentData.forEach((poi) => {
+    const dist = calculateDistance(center.lat, center.lng, poi.lat, poi.lng);
+    if (dist > maxDistance) maxDistance = dist;
+  });
   
   // 将中心位置转换为屏幕坐标
   const width = canvasInstance.getWidth();
@@ -471,15 +579,15 @@ const renderCloud = async () => {
     (center.lng - bounds.minLng) / ((bounds.maxLng - bounds.minLng) || 1);
   const normalizedCenterY =
     (center.lat - bounds.minLat) / ((bounds.maxLat - bounds.minLat) || 1);
-  const centerX = width * 0.08 + normalizedCenterX * width * 0.84;
-  const centerY = height * 0.08 + (1 - normalizedCenterY) * height * 0.84;
+  originalCenterX = width * 0.08 + normalizedCenterX * width * 0.84;
+  originalCenterY = height * 0.08 + (1 - normalizedCenterY) * height * 0.84;
 
   // 绘制中心位置
-  drawCenter(centerX, centerY);
+  drawCenter(originalCenterX, originalCenterY);
 
   // 构建布局条目（已按距离排序并分配颜色）
   const entries = buildLayoutEntries(
-    sourceList,
+    currentData,
     bounds,
     center,
     poiStore.colorSettings,
@@ -487,7 +595,7 @@ const renderCloud = async () => {
 
   // 逐步渲染标签
   for (let i = 0; i < entries.length; i++) {
-    drawLabel(entries[i], centerX, centerY);
+    drawLabel(entries[i], originalCenterX, originalCenterY);
     // 每绘制10个标签后暂停一下，实现逐步渲染效果
     if (i % 10 === 0 && i > 0) {
       await sleep(10); // 10ms延迟
@@ -497,9 +605,298 @@ const renderCloud = async () => {
   isRendering = false;
 };
 
-const switchResolution = (mode) => {
-  resolutionScale = mode === 'fine' ? 1.2 : 0.8;
-  if (allowRenderCloud.value) renderCloud();
+// 按排名升序排列
+const upRank = (a, b) => a.rank - b.rank;
+
+// 按距离升序排列
+const upDis = (a, b) => a.distance - b.distance;
+
+// 初始化POI金字塔
+const initPoisPyramid = (data) => {
+  poisPyramid = [];
+  const dataLength = data.length;
+  
+  // 先按排名排序（用于构建金字塔层级）
+  const sortedByRank = [...data].sort(upRank);
+  
+  // 确定初始scale
+  tagCloudScale = 0;
+  if (dataLength > POI_THRESHOLD) {
+    // 如果数据量大于阈值，找到第一个小于等于100的层级
+    let scale = 0;
+    let currentLength = dataLength;
+    while (currentLength > POI_THRESHOLD) {
+      scale++;
+      currentLength = Math.round(currentLength / 2);
+      if (currentLength <= POI_THRESHOLD) {
+        tagCloudScale = scale;
+        break;
+      }
+    }
+  }
+  
+  // 构建金字塔：每一层都是按排名取前N个，然后按距离排序
+  let currentData = sortedByRank;
+  let currentLength = dataLength;
+  let scale = 0;
+  
+  while (currentLength > 10) {
+    // 当前层级的数据（按排名取前N个）
+    const layerData = scale === 0 
+      ? [...currentData]  // 第一层：全部数据
+      : currentData.slice(0, Math.round(currentLength / 2));  // 其他层：取前一半
+    
+    // 按距离排序
+    const sorted = [...layerData].sort(upDis);
+    poisPyramid[scale] = sorted;
+    
+    // 准备下一层：更新currentData和currentLength
+    if (scale === 0) {
+      // 第一层后，准备第二层的数据
+      currentLength = Math.round(currentLength / 2);
+    } else {
+      // 其他层，继续切片
+      currentData = currentData.slice(0, Math.round(currentLength / 2));
+      currentLength = currentData.length;
+    }
+    
+    scale++;
+  }
+  
+  console.log('POI金字塔构建完成:', {
+    totalLayers: poisPyramid.length,
+    currentScale: tagCloudScale,
+    layerSizes: poisPyramid.map((layer, idx) => ({ scale: idx, count: layer.length }))
+  });
+};
+
+// 切换分辨率（粗略/精细显示）
+const switchResolution = async (mode) => {
+  if (!allowRenderCloud.value || poisPyramid.length === 0) return;
+  
+  const oldScale = tagCloudScale;
+  
+  if (mode === 'fine') {
+    // 精细显示：显示更多POI（降低scale）
+    if (tagCloudScale > 0) {
+      tagCloudScale--;
+    }
+  } else {
+    // 粗略显示：显示更少POI（提高scale）
+    if (tagCloudScale < poisPyramid.length - 1) {
+      tagCloudScale++;
+    }
+  }
+  
+  // 如果scale没有变化，不重新渲染
+  if (oldScale === tagCloudScale) {
+    console.log('Scale未变化，跳过渲染');
+    return;
+  }
+  
+  console.log(`切换分辨率: ${mode}, scale: ${oldScale} -> ${tagCloudScale}, POI数量: ${poisPyramid[oldScale]?.length} -> ${poisPyramid[tagCloudScale]?.length}`);
+  
+  // 重新渲染（不重新初始化金字塔）
+  await renderCloud(false);
+};
+
+// Canvas交互设置
+const setupCanvasInteractions = () => {
+  if (!canvasInstance) return;
+  
+  // 鼠标滚轮缩放
+  canvasInstance.on('mouse:wheel', (opt) => {
+    const delta = opt.e.deltaY;
+    let zoom = canvasInstance.getZoom();
+    zoom *= 0.999 ** delta;
+    if (zoom > 20) zoom = 20;
+    if (zoom < 0.01) zoom = 0.01;
+    
+    canvasInstance.zoomToPoint(
+      { x: opt.e.offsetX, y: opt.e.offsetY },
+      zoom,
+    );
+    
+    vpt = canvasInstance.viewportTransform;
+    opt.e.preventDefault();
+    opt.e.stopPropagation();
+  });
+  
+  // 鼠标拖拽（漫游）
+  let isDragging = false;
+  let lastPosX = 0;
+  let lastPosY = 0;
+  
+  canvasInstance.on('mouse:down', (opt) => {
+    if (isPanning.value) {
+      const evt = opt.e;
+      isDragging = true;
+      lastPosX = evt.clientX;
+      lastPosY = evt.clientY;
+    }
+  });
+  
+  canvasInstance.on('mouse:move', (opt) => {
+    if (isDragging && isPanning.value) {
+      const e = opt.e;
+      vpt = canvasInstance.viewportTransform;
+      vpt[4] += e.clientX - lastPosX;
+      vpt[5] += e.clientY - lastPosY;
+      canvasInstance.setViewportTransform(vpt);
+      lastPosX = e.clientX;
+      lastPosY = e.clientY;
+    }
+  });
+  
+  canvasInstance.on('mouse:up', () => {
+    if (isDragging) {
+      isDragging = false;
+      vpt = canvasInstance.viewportTransform;
+    }
+  });
+};
+
+// 返回中心点
+const returnToCenter = () => {
+  if (!canvasInstance) return;
+  vpt[4] = 0;
+  vpt[5] = 0;
+  canvasInstance.setViewportTransform(vpt);
+};
+
+// 返回原始缩放
+const returnToScale = () => {
+  if (!canvasInstance) return;
+  vpt[0] = 1;
+  vpt[1] = 0;
+  vpt[2] = 0;
+  vpt[3] = 1;
+  canvasInstance.setViewportTransform(vpt);
+};
+
+// 切换漫游
+const togglePanning = () => {
+  isPanning.value = !isPanning.value;
+  if (canvasInstance) {
+    canvasInstance.defaultCursor = isPanning.value ? 'grab' : 'default';
+  }
+};
+
+// 放大
+const zoomIn = () => {
+  if (!canvasInstance) return;
+  let zoom = canvasInstance.getZoom();
+  zoom *= 1.1;
+  if (zoom > 20) zoom = 20;
+  
+  const center = new Point(
+    canvasInstance.getWidth() / 2,
+    canvasInstance.getHeight() / 2,
+  );
+  canvasInstance.zoomToPoint(center, zoom);
+  vpt = canvasInstance.viewportTransform;
+};
+
+// 缩小
+const zoomOut = () => {
+  if (!canvasInstance) return;
+  let zoom = canvasInstance.getZoom();
+  zoom *= 0.9;
+  if (zoom < 0.01) zoom = 0.01;
+  
+  const center = new Point(
+    canvasInstance.getWidth() / 2,
+    canvasInstance.getHeight() / 2,
+  );
+  canvasInstance.zoomToPoint(center, zoom);
+  vpt = canvasInstance.viewportTransform;
+};
+
+// 图例悬停高亮
+const handleLegendHover = (color) => {
+  if (!canvasInstance) return;
+  canvasInstance.forEachObject((obj) => {
+    if (obj.fill === color) {
+      obj.set({
+        strokeWidth: obj.fontSize / 12,
+        stroke: 'rgba(255,255,255,0.8)',
+      });
+    } else {
+      obj.set({ strokeWidth: 0 });
+    }
+  });
+  canvasInstance.renderAll();
+};
+
+// 图例离开
+const handleLegendLeave = () => {
+  if (!canvasInstance) return;
+  canvasInstance.forEachObject((obj) => {
+    obj.set({ strokeWidth: 0 });
+  });
+  canvasInstance.renderAll();
+};
+
+// 更新标签颜色（不重新绘制）
+const updateLabelColors = () => {
+  if (!canvasInstance || !allowRenderCloud.value) return;
+  
+  const sourceList = poiStore.visibleList;
+  if (!sourceList.length || poisPyramid.length === 0) return;
+  
+  const currentData = poisPyramid[tagCloudScale] || poisPyramid[0] || sourceList;
+  const center = computeCenter(sourceList);
+  const bounds = computeBounds(sourceList);
+  
+  // 重新计算颜色
+  const entries = buildLayoutEntries(
+    currentData,
+    bounds,
+    center,
+    poiStore.colorSettings,
+  );
+  
+  // 创建颜色映射（基于文本内容匹配，因为canvas对象没有id）
+  const colorMap = new Map();
+  entries.forEach((entry) => {
+    colorMap.set(entry.textValue, entry.fontColor);
+  });
+  
+  // 更新canvas中的标签颜色
+  canvasInstance.forEachObject((obj, i) => {
+    if (i === 0) return; // 跳过中心点
+    const color = colorMap.get(obj.text);
+    if (color && obj.fill !== color) {
+      obj.set({ fill: color });
+    }
+  });
+  
+  canvasInstance.renderAll();
+};
+
+// 更新标签字体和字重（不重新绘制）
+const updateLabelFonts = () => {
+  if (!canvasInstance || !allowRenderCloud.value) return;
+  
+  const { fontSettings } = poiStore;
+  let index = 1; // 跳过中心点
+  
+  canvasInstance.forEachObject((obj, i) => {
+    if (i === 0) return; // 跳过中心点
+    const updates = {};
+    if (obj.fontFamily !== fontSettings.fontFamily) {
+      updates.fontFamily = fontSettings.fontFamily;
+    }
+    if (obj.fontWeight !== fontSettings.fontWeight) {
+      updates.fontWeight = fontSettings.fontWeight;
+    }
+    if (Object.keys(updates).length > 0) {
+      obj.set(updates);
+    }
+    index++;
+  });
+  
+  canvasInstance.renderAll();
 };
 
 const exportAsImage = () => {
@@ -515,26 +912,60 @@ const exportAsImage = () => {
 };
 
 onMounted(() => {
-  updateCanvasSize();
-  if ('ResizeObserver' in window) {
-    resizeObserver = new ResizeObserver(() => {
-      updateCanvasSize();
-      if (allowRenderCloud.value) renderCloud();
-    });
-    if (wrapperRef.value) resizeObserver.observe(wrapperRef.value);
-  }
+  // 初始化canvas尺寸（只执行一次，固定大小）
+  initCanvasSize();
+  // 不再监听窗口大小变化，canvas尺寸固定
 });
 
+// 监听数据列表变化（需要重新渲染）
 watch(
-  () => ({
-    list: poiStore.visibleList,
-    font: poiStore.fontSettings,
-    color: poiStore.colorSettings,
-  }),
+  () => poiStore.visibleList,
   () => {
-    if (allowRenderCloud.value) renderCloud();
+    if (allowRenderCloud.value) {
+      // 数据变化时需要重新初始化金字塔
+      renderCloud(true);
+    }
+  },
+  { deep: false },
+);
+
+// 监听字体设置变化（只有字号变化才重新绘制）
+watch(
+  () => poiStore.fontSettings.fontSizes,
+  () => {
+    if (allowRenderCloud.value) {
+      // 字号变化需要重新绘制（影响布局）
+      renderCloud(false);
+    }
   },
   { deep: true },
+);
+
+// 监听颜色设置变化（直接更新，不重新绘制）
+watch(
+  () => poiStore.colorSettings,
+  (newVal, oldVal) => {
+    if (allowRenderCloud.value && canvasInstance) {
+      // 只有palette、discreteCount、discreteMethod变化才更新颜色
+      // background变化已经在单独的watch中处理
+      if (newVal.palette !== oldVal?.palette || 
+          newVal.discreteCount !== oldVal?.discreteCount ||
+          newVal.discreteMethod !== oldVal?.discreteMethod) {
+        updateLabelColors();
+      }
+    }
+  },
+  { deep: true },
+);
+
+// 监听字体和字重变化（直接更新，不重新绘制）
+watch(
+  () => [poiStore.fontSettings.fontFamily, poiStore.fontSettings.fontWeight],
+  () => {
+    if (allowRenderCloud.value) {
+      updateLabelFonts();
+    }
+  },
 );
 
 watch([showRank, showTime], () => {
@@ -573,6 +1004,7 @@ onBeforeUnmount(() => {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  position: relative;
 }
 
 .subtext {
@@ -633,6 +1065,96 @@ canvas {
   align-items: center;
   justify-content: space-between;
   color: #fff;
+}
+
+/* 距离图例 */
+.distance-legend {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  padding: 12px 16px;
+  min-width: 180px;
+  z-index: 10;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: auto;
+}
+
+.legend-title {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #fff;
+  font-weight: 500;
+}
+
+.legend-colors {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 8px;
+  height: 24px;
+}
+
+.legend-color-item {
+  flex: 1;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  min-width: 20px;
+}
+
+.legend-color-item:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+  z-index: 1;
+  position: relative;
+}
+
+.legend-max-distance {
+  margin: 0;
+  text-align: right;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Canvas工具栏 */
+.canvas-toolbar {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: auto;
+}
+
+.canvas-toolbar :deep(.el-button) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.canvas-toolbar :deep(.el-button:hover) {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.canvas-toolbar :deep(.el-button.is-circle) {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  margin: 0;
+  align-items: center;
+  justify-content: center;
 }
 </style>
 

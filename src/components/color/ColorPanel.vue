@@ -109,7 +109,7 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, nextTick } from 'vue';
+import { ref, watch, computed, nextTick, onMounted } from 'vue';
 import { usePoiStore } from '@/stores/poiStore';
 import { Refresh } from '@element-plus/icons-vue';
 import { ribbonColorSchemes } from './ribbonColorSchemes';
@@ -133,42 +133,80 @@ const availableRibbons = computed(() => {
   return schemes.map(scheme => scheme.map(c => `rgb(${c.join(',')})`));
 });
 
-// 初始化：根据当前palette找到对应的色带索引
+// 初始化：根据当前palette找到对应的色带索引，如果没有匹配则使用第一个方案
 watch(
   () => poiStore.colorSettings,
   (settings) => {
     localSettings.value = { ...settings };
-    colorDiscreteCount.value = settings.discreteCount || settings.palette?.length || 5;
+    const newCount = settings.discreteCount || settings.palette?.length || 5;
     discreteMethod.value = settings.discreteMethod || 'quantile';
     
-    // 尝试找到匹配的色带索引（使用nextTick确保computed已更新）
-    nextTick(() => {
-      if (settings.palette && settings.palette.length >= 3) {
-        const paletteStr = JSON.stringify(settings.palette.map(c => {
-          if (c.startsWith('rgb')) return c;
-          if (c.startsWith('#')) {
-            const hex = c.slice(1);
-            const r = parseInt(hex.slice(0, 2), 16);
-            const g = parseInt(hex.slice(2, 4), 16);
-            const b = parseInt(hex.slice(4, 6), 16);
-            return `rgb(${r},${g},${b})`;
-          }
-          return c;
-        }));
-        
-        const count = settings.palette.length;
-        if (count >= 3 && count <= 7) {
-          const schemes = ribbonColorSchemes[count - 3] || [];
+    // 如果颜色数量改变了，需要重新选择配色方案
+    if (colorDiscreteCount.value !== newCount) {
+      colorDiscreteCount.value = newCount;
+      // 使用nextTick确保computed已更新
+      nextTick(() => {
+        if (availableRibbons.value.length > 0) {
+          // 尝试找到匹配的色带索引
+          const paletteStr = JSON.stringify(settings.palette?.map(c => {
+            if (c.startsWith('rgb')) return c;
+            if (c.startsWith('#')) {
+              const hex = c.slice(1);
+              const r = parseInt(hex.slice(0, 2), 16);
+              const g = parseInt(hex.slice(2, 4), 16);
+              const b = parseInt(hex.slice(4, 6), 16);
+              return `rgb(${r},${g},${b})`;
+            }
+            return c;
+          }) || []);
+          
+          const schemes = availableRibbons.value;
           const index = schemes.findIndex(scheme => {
-            const schemeStr = JSON.stringify(scheme.map(c => `rgb(${c.join(',')})`));
+            const schemeStr = JSON.stringify(scheme);
+            return schemeStr === paletteStr;
+          });
+          
+          if (index !== -1) {
+            currentRibbonIndex.value = index;
+          } else {
+            // 如果没有匹配，使用第一个方案并更新store
+            currentRibbonIndex.value = 0;
+            if (availableRibbons.value.length > 0) {
+              poiStore.updateColorSettings({
+                palette: availableRibbons.value[0],
+                discreteCount: newCount,
+              });
+            }
+          }
+        }
+      });
+    } else {
+      // 颜色数量没变，只尝试匹配索引
+      nextTick(() => {
+        if (settings.palette && settings.palette.length >= 3) {
+          const paletteStr = JSON.stringify(settings.palette.map(c => {
+            if (c.startsWith('rgb')) return c;
+            if (c.startsWith('#')) {
+              const hex = c.slice(1);
+              const r = parseInt(hex.slice(0, 2), 16);
+              const g = parseInt(hex.slice(2, 4), 16);
+              const b = parseInt(hex.slice(4, 6), 16);
+              return `rgb(${r},${g},${b})`;
+            }
+            return c;
+          }));
+          
+          const schemes = availableRibbons.value;
+          const index = schemes.findIndex(scheme => {
+            const schemeStr = JSON.stringify(scheme);
             return schemeStr === paletteStr;
           });
           if (index !== -1) {
             currentRibbonIndex.value = index;
           }
         }
-      }
-    });
+      });
+    }
   },
   { immediate: true, deep: true }
 );
@@ -230,6 +268,29 @@ const handleRibbonSchemeSelect = (index) => {
     discreteCount: colorDiscreteCount.value,
   });
 };
+
+// 初始化时确保使用第一个配色方案（如果当前palette不匹配任何方案）
+onMounted(() => {
+  nextTick(() => {
+    if (availableRibbons.value.length > 0) {
+      const currentPalette = poiStore.colorSettings.palette || [];
+      const paletteStr = JSON.stringify(currentPalette);
+      const matched = availableRibbons.value.some(scheme => {
+        return JSON.stringify(scheme) === paletteStr;
+      });
+      
+      // 如果没有匹配的方案，使用第一个方案
+      if (!matched) {
+        const firstScheme = availableRibbons.value[0];
+        currentRibbonIndex.value = 0;
+        poiStore.updateColorSettings({
+          palette: firstScheme,
+          discreteCount: colorDiscreteCount.value,
+        });
+      }
+    }
+  });
+});
 </script>
 
 <style scoped>
