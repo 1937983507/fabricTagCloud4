@@ -1,20 +1,28 @@
 <template>
   <div class="app-shell">
-    <HeaderBar ref="headerRef" @navigate="handleNavigate" @start-tutorial="restartIntro" />
-    <div class="app-body">
-      <SideMenu
-        :active-panel="activePanel"
-        @change-panel="handleChangePanel"
-      />
-      <div class="workspace">
-        <PoiContent ref="poiContentRef" v-show="activePanel === 'content'" />
-        <TypefacePanel v-show="activePanel === 'typeface'" />
-        <ColorPanel v-show="activePanel === 'color'" />
+    <HeaderBar
+      ref="headerRef"
+      @navigate="handleNavigate"
+      @start-tutorial="restartIntro"
+    />
+    <HelpPage v-if="showHelpPage && !showFeedbackPage" />
+    <FeedbackPage v-if="showFeedbackPage && !showHelpPage" />
+    <template v-if="!showHelpPage && !showFeedbackPage">
+      <div class="app-body">
+        <SideMenu
+          :active-panel="activePanel"
+          @change-panel="handleChangePanel"
+        />
+        <div class="workspace">
+          <PoiContent ref="poiContentRef" v-show="activePanel === 'content'" />
+          <TypefacePanel v-show="activePanel === 'typeface'" />
+          <ColorPanel v-show="activePanel === 'color'" />
+        </div>
+        <SplitterBar />
+        <TagCloudCanvas ref="tagCloudCanvasRef" />
       </div>
-      <SplitterBar />
-      <TagCloudCanvas ref="tagCloudCanvasRef" />
-    </div>
-    <FooterBar />
+      <FooterBar />
+    </template>
   </div>
 </template>
 
@@ -30,11 +38,15 @@ import TypefacePanel from '@/components/typeface/TypefacePanel.vue';
 import ColorPanel from '@/components/color/ColorPanel.vue';
 import TagCloudCanvas from '@/components/tagcloud/TagCloudCanvas.vue';
 import SplitterBar from '@/components/common/SplitterBar.vue';
+import HelpPage from '@/components/help/HelpPage.vue';
+import FeedbackPage from '@/components/feedback/FeedbackPage.vue';
 
 const activePanel = ref('content');
 const headerRef = ref(null);
 const poiContentRef = ref(null);
 const tagCloudCanvasRef = ref(null);
+const showHelpPage = ref(false);
+const showFeedbackPage = ref(false);
 
 // 防止重复启动引导的标志
 let firstIntroStarted = false;
@@ -44,7 +56,18 @@ const handleChangePanel = (panel) => {
 };
 
 const handleNavigate = (route) => {
-  console.log('navigate to', route);
+  if (route === 'help') {
+    showHelpPage.value = true;
+    showFeedbackPage.value = false;
+  } else if (route === 'feedback') {
+    showFeedbackPage.value = true;
+    showHelpPage.value = false;
+  } else if (route === 'home') {
+    showHelpPage.value = false;
+    showFeedbackPage.value = false;
+  } else {
+    console.log('navigate to', route);
+  }
 };
 
 // 创建引导的公共函数
@@ -212,9 +235,12 @@ const initIntro = () => {
 
 onMounted(() => {
   // 延迟启动引导，确保所有组件都已渲染
-  setTimeout(() => {
-    initIntro();
-  }, 500);
+  // 只在非帮助页面时启动引导
+  if (!showHelpPage.value) {
+    setTimeout(() => {
+      initIntro();
+    }, 500);
+  }
 });
 </script>
 
