@@ -70,6 +70,8 @@ let placeSearch = null;
 let amapGlobal = null;
 let mouseTool = null;
 let drawObj = null;
+let drawEditor = null; // 编辑器实例
+// let radiusLabel = null; // 圆形半径标注
 let heatmapLayer = null;
 let massLayer = null;
 let MASS_STYLES = [];
@@ -90,6 +92,8 @@ const loadMap = async () => {
       'AMap.MouseTool',
       'AMap.GeometryUtil',
       'AMap.MassMarks',
+      'AMap.CircleEditor',
+      'AMap.RectangleEditor',
     ],
   });
 
@@ -215,7 +219,65 @@ const updateLayerByView = () => {
   }
 };
 
+// // 清除半径标注
+// const clearCircleMarkers = () => {
+//   if (radiusLabel) {
+//     radiusLabel.setMap(null);
+//     radiusLabel = null;
+//   }
+// };
+
+// 更新圆形半径标注
+const updateCircleMarkers = (circle) => {
+  if (!circle || !amapGlobal || !mapInstance) return;
+  
+  // // 清除旧的标注（确保只有一个，双重保险）
+  // if (radiusLabel) {
+  //   radiusLabel.setMap(null);
+  //   radiusLabel = null;
+  // }
+  
+  // 获取圆心和半径
+  const center = circle.getCenter();
+  const radius = circle.getRadius();
+  
+  // 创建半径标注（在圆心的右侧显示）
+  // 使用自定义HTML的Marker来显示文本，更可靠
+  const radiusKm = (radius / 1000).toFixed(2);
+  const labelContent = document.createElement('div');
+  labelContent.style.cssText = `
+    padding: 4px 8px;
+    background-color: rgba(255, 255, 255, 0.95);
+    border: 1px solid #00b0ff;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #333;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+  `;
+  labelContent.textContent = `半径: ${radiusKm} km`;
+  
+  // // 只创建一个半径标注
+  // radiusLabel = new amapGlobal.Marker({
+  //   position: center,
+  //   content: labelContent,
+  //   offset: new amapGlobal.Pixel(20, -10),
+  //   zIndex: 1000,
+  //   draggable: false,
+  // });
+  // radiusLabel.setMap(mapInstance);
+};
+
 const resetDrawing = () => {
+  // 清除编辑器
+  if (drawEditor) {
+    drawEditor.close();
+    drawEditor = null;
+  }
+  // // 清除圆心标记和半径标注
+  // clearCircleMarkers();
+  // 清除覆盖物
   if (drawObj?.setMap) {
     drawObj.setMap(null);
   }
@@ -256,6 +318,59 @@ const handleDrawCommand = (command) => {
   mouseTool.on('draw', (event) => {
     drawObj = event.obj;
     mouseTool.close(false);
+    
+    // 根据覆盖物类型启用相应的编辑器
+    // 判断是否为圆形：检查是否有getRadius方法或className包含Circle
+    const isCircle = drawObj && (
+      typeof drawObj.getRadius === 'function' ||
+      drawObj.className?.includes('Circle')
+    );
+    
+    // 判断是否为矩形：检查是否有getBounds方法或className包含Rectangle
+    const isRectangle = drawObj && (
+      typeof drawObj.getBounds === 'function' ||
+      drawObj.className?.includes('Rectangle')
+    );
+    
+    if (isCircle) {
+      // 圆形覆盖物
+      drawEditor = new amapGlobal.CircleEditor(mapInstance, drawObj);
+      drawEditor.open();
+      // 更新圆形标记
+      updateCircleMarkers(drawObj);
+      
+      // 监听编辑器事件：move（移动圆心）、adjust（调整半径）、end（编辑结束）
+      drawEditor.on('move', () => {
+        updateCircleMarkers(drawObj);
+        filterPOIByGeometry(drawObj);
+      });
+      drawEditor.on('adjust', () => {
+        updateCircleMarkers(drawObj);
+        filterPOIByGeometry(drawObj);
+      });
+      drawEditor.on('end', () => {
+        updateCircleMarkers(drawObj);
+        filterPOIByGeometry(drawObj);
+      });
+    } else if (isRectangle) {
+      // 矩形覆盖物
+      drawEditor = new amapGlobal.RectangleEditor(mapInstance, drawObj);
+      drawEditor.open();
+      
+      // 监听编辑器事件：move（移动矩形）、adjust（调整大小）、end（编辑结束）
+      drawEditor.on('move', () => {
+        filterPOIByGeometry(drawObj);
+      });
+      drawEditor.on('adjust', () => {
+        filterPOIByGeometry(drawObj);
+      });
+      drawEditor.on('end', () => {
+        filterPOIByGeometry(drawObj);
+      });
+    }
+    // 注意：多边形暂时不支持编辑器，保持原有逻辑
+    
+    // 初始筛选
     filterPOIByGeometry(drawObj);
     // 绘制完成后，通知store更新状态
     poiStore.setHasDrawing(true);

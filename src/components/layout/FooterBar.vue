@@ -13,13 +13,13 @@
       
       <div class="footer-main">
         <div class="footer-links">
-          <a href="#home">首页</a>
+          <a href="javascript:void(0)" @click="handleLinkClick('home')">首页</a>
           <span class="divider">|</span>
-          <a href="#help">帮助</a>
+          <a href="javascript:void(0)" @click="handleLinkClick('help')">帮助</a>
           <span class="divider">|</span>
-          <a href="#feedback">意见反馈</a>
+          <a href="javascript:void(0)" @click="handleLinkClick('feedback')">意见反馈</a>
           <span class="divider">|</span>
-          <a href="#about">关于我们</a>
+          <a href="javascript:void(0)" @click="handleLinkClick('about')">关于我们</a>
         </div>
         <div class="footer-copyright">
           <span>Copyright © 2024 地名标签云 hubutagcloud.cn All Rights Reserved. 备案号:</span>
@@ -54,7 +54,11 @@
 </template>
 
 <script setup>
-// Footer component
+const emit = defineEmits(['navigate']);
+
+const handleLinkClick = (key) => {
+  emit('navigate', key);
+};
 </script>
 
 <style scoped>

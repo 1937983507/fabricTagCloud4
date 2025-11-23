@@ -68,7 +68,7 @@
         </ul>
       </div>
     </div>
-    <FooterBar class="help-footer" />
+    <FooterBar class="help-footer" @navigate="handleNavigate" />
   </div>
 </template>
 
@@ -77,6 +77,12 @@ import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
 import { marked } from 'marked';
 import HELP_MD from '../../../HELP.md?raw';
 import FooterBar from '@/components/layout/FooterBar.vue';
+
+const emit = defineEmits(['navigate']);
+
+const handleNavigate = (route) => {
+  emit('navigate', route);
+};
 
 // 导航项配置
 const navItems = ref([

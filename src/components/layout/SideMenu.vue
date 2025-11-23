@@ -13,20 +13,24 @@
       </button>
     </div>
     <div class="menu-group footer-group">
-      <button class="menu-item ghost">快捷键</button>
-      <button class="menu-item ghost">帮助</button>
-      <button class="menu-item ghost">隐藏</button>
+      <button class="menu-item ghost" @click="handleShortcutClick">快捷键</button>
+      <button class="menu-item ghost" @click="handleHelpClick">帮助</button>
+      <button class="menu-item ghost" @click="handleHideClick">隐藏</button>
     </div>
   </aside>
 </template>
 
 <script setup>
+import { ElMessage } from 'element-plus';
+
 defineProps({
   activePanel: {
     type: String,
     default: 'content',
   },
 });
+
+const emit = defineEmits(['change-panel', 'navigate']);
 
 import {
   BrushFilled,
@@ -39,6 +43,18 @@ const mainMenu = [
   { key: 'typeface', label: '字体', icon: EditPen },
   { key: 'color', label: '配色', icon: BrushFilled },
 ];
+
+const handleShortcutClick = () => {
+  ElMessage.info('该功能正在开发中，敬请期待！');
+};
+
+const handleHelpClick = () => {
+  emit('navigate', 'help');
+};
+
+const handleHideClick = () => {
+  ElMessage.info('该功能正在开发中，敬请期待！');
+};
 </script>
 
 <style scoped>

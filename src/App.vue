@@ -5,13 +5,14 @@
       @navigate="handleNavigate"
       @start-tutorial="restartIntro"
     />
-    <HelpPage v-if="showHelpPage && !showFeedbackPage" />
-    <FeedbackPage v-if="showFeedbackPage && !showHelpPage" />
+    <HelpPage v-if="showHelpPage && !showFeedbackPage" @navigate="handleNavigate" />
+    <FeedbackPage v-if="showFeedbackPage && !showHelpPage" @navigate="handleNavigate" />
     <template v-if="!showHelpPage && !showFeedbackPage">
       <div class="app-body">
         <SideMenu
           :active-panel="activePanel"
           @change-panel="handleChangePanel"
+          @navigate="handleNavigate"
         />
         <div class="workspace">
           <PoiContent ref="poiContentRef" v-show="activePanel === 'content'" />
@@ -21,7 +22,7 @@
         <SplitterBar />
         <TagCloudCanvas ref="tagCloudCanvasRef" />
       </div>
-      <FooterBar />
+      <FooterBar @navigate="handleNavigate" />
     </template>
   </div>
 </template>
