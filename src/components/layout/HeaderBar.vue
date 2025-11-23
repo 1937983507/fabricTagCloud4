@@ -17,6 +17,30 @@
     </div>
     <div class="user-area">
       <a
+        href="https://www.mdpi.com/2220-9964/12/9/360"
+        target="_blank"
+        class="icon-link"
+        title="论文"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          <path d="M10 7h6" />
+          <path d="M10 11h6" />
+          <path d="M10 15h4" />
+        </svg>
+      </a>
+      <a
         href="https://github.com/1937983507/fabricTagCloud4"
         target="_blank"
         class="github-link"
@@ -38,12 +62,14 @@
           />
         </svg>
       </a>
-      <el-button type="primary" round>登录 / 注册</el-button>
+      <el-button type="primary" round @click="handleLoginClick">登录 / 注册</el-button>
     </div>
   </header>
 </template>
 
 <script setup>
+import { ElMessage } from 'element-plus';
+
 const navButtons = [
   { key: 'home', label: '首页' },
   { key: 'help', label: '帮助' },
@@ -60,6 +86,10 @@ const handleNavClick = (key) => {
   } else {
     emit('navigate', key);
   }
+};
+
+const handleLoginClick = () => {
+  ElMessage.info('该功能正在开发中，敬请期待！');
 };
 </script>
 
@@ -155,6 +185,7 @@ const handleNavClick = (key) => {
   height: 100%;
 }
 
+.icon-link,
 .github-link {
   display: flex;
   align-items: center;
@@ -168,6 +199,7 @@ const handleNavClick = (key) => {
   background: transparent;
 }
 
+.icon-link:hover,
 .github-link:hover {
   color: #399ceb;
   background-color: rgba(57, 156, 235, 0.08);

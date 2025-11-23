@@ -88,13 +88,19 @@
         </div>
       </div>
     </div>
-    <FooterBar class="feedback-footer" />
+    <FooterBar class="feedback-footer" @navigate="handleNavigate" />
   </div>
 </template>
 
 <script setup>
 import { ElMessage } from 'element-plus';
 import FooterBar from '@/components/layout/FooterBar.vue';
+
+const emit = defineEmits(['navigate']);
+
+const handleNavigate = (route) => {
+  emit('navigate', route);
+};
 
 const copyWechat = async () => {
   try {
