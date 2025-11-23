@@ -660,6 +660,30 @@ const buildLayoutEntries = async (list, bounds, center, colorSettings) => {
   const height = canvasInstance.getHeight();
   const { fontSettings } = poiStore;
 
+  // 先按rank排序，用于计算字号分级
+  const sortedByRank = [...list].sort((a, b) => (a.rank || 0) - (b.rank || 0));
+  const dataLength = sortedByRank.length;
+  const levelCount = fontSettings.levelCount || fontSettings.fontSizes.length;
+  // 只使用前levelCount个字号
+  const effectiveFontSizes = fontSettings.fontSizes.slice(0, levelCount);
+  const itemsPerLevel = dataLength / levelCount;
+
+  // 创建rank到字号级别的映射
+  const rankToFontSizeIndex = new Map();
+  sortedByRank.forEach((poi, index) => {
+    // 计算当前POI所属的级别（rank小的级别更小，字号更大）
+    // 例如：100个POI，5级，每级20个
+    // index 0-19 -> classIndex 0 (最大字号)
+    // index 20-39 -> classIndex 1
+    // index 40-59 -> classIndex 2
+    // index 60-79 -> classIndex 3
+    // index 80-99 -> classIndex 4 (最小字号)
+    const classIndex = Math.floor(index / itemsPerLevel);
+    // 确保classIndex在有效范围内（0 到 levelCount-1）
+    const fontSizeIndex = Math.min(classIndex, levelCount - 1);
+    rankToFontSizeIndex.set(poi.id, fontSizeIndex);
+  });
+
   // 计算每个POI到中心的距离，并添加距离信息
   const entriesWithDistance = await Promise.all(list.map(async (poi) => {
     const distance = calculateDistance(
@@ -696,11 +720,14 @@ const buildLayoutEntries = async (list, bounds, center, colorSettings) => {
       labelText = `${poi.name} ${timePart}`;
     }
 
+    // 根据rank排序后的位置获取字号级别
+    const fontSizeIndex = rankToFontSizeIndex.get(poi.id) || 0;
+
     return {
       id: poi.id,
       textValue: labelText,
       fontSize:
-        fontSettings.fontSizes[poi.rank % fontSettings.fontSizes.length] *
+        effectiveFontSizes[fontSizeIndex] *
         resolutionScale,
       fontFamily: fontSettings.fontFamily,
       fontWeight: fontSettings.fontWeight,
