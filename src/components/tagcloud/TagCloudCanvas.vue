@@ -97,6 +97,52 @@
           title="缩小"
         />
       </div>
+      
+      <!-- POI信息窗口 -->
+      <div v-if="selectedPoi" class="poi-info-window">
+        <div class="info-window-header">
+          <span class="info-window-title">地名信息</span>
+          <el-button
+            text
+            circle
+            size="small"
+            @click="closePoiInfo"
+            class="close-btn"
+          >
+            <el-icon><Close /></el-icon>
+          </el-button>
+        </div>
+        <div class="info-window-content">
+          <div class="info-item">
+            <span class="info-label">名称：</span>
+            <span class="info-value">{{ selectedPoi.name }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">城市：</span>
+            <span class="info-value">{{ selectedPoi.city || '未知' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">排名：</span>
+            <span class="info-value">{{ selectedPoi.rank || '未知' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">经度：</span>
+            <span class="info-value">{{ selectedPoi.lng?.toFixed(6) || '未知' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">纬度：</span>
+            <span class="info-value">{{ selectedPoi.lat?.toFixed(6) || '未知' }}</span>
+          </div>
+          <div v-if="selectedPoi.distance !== undefined" class="info-item">
+            <span class="info-label">距离中心：</span>
+            <span class="info-value">{{ (selectedPoi.distance / 1000).toFixed(2) }} km</span>
+          </div>
+          <div v-if="selectedPoi.time" class="info-item">
+            <span class="info-label">通行时间：</span>
+            <span class="info-value">{{ selectedPoi.time }} 分钟</span>
+          </div>
+        </div>
+      </div>
     </div>
   </aside>
 </template>
@@ -120,6 +166,7 @@ import {
   Rank,
   ZoomIn,
   ZoomOut,
+  Close,
 } from '@element-plus/icons-vue';
 
 const canvasRef = ref(null);
@@ -149,6 +196,7 @@ const canvasHeight = ref(900);
 const canvasKey = ref(0); // 用于强制重新渲染canvas
 const isClearing = ref(false); // 标记是否正在清除，用于防止watch触发重新渲染
 const renderedLabelCount = ref(0); // 当前渲染的标签数量
+const selectedPoi = ref(null); // 当前选中的POI信息
 const baseAngles = [-15, -10, -5, 0, 5, 10, 15];
 const stepDistance = 22;
 const maxIterations = 220;
@@ -999,8 +1047,9 @@ const drawLabel = (entry, originX, originY, spatialIndex) => {
     selectable: false,
   });
   
-  // 存储距离信息到canvas对象上，用于后续颜色更新
+  // 存储距离信息和POI ID到canvas对象上，用于后续颜色更新和点击事件
   text.distance = entry.distance;
+  text.poiId = entry.id; // 存储POI ID，用于点击时查找POI数据
   
   canvasInstance.add(text);
   // 确保坐标已更新
@@ -1243,9 +1292,18 @@ const setupCanvasInteractions = () => {
   let lastPosX = 0;
   let lastPosY = 0;
   
+  let clickStartTime = 0;
+  let clickStartPos = { x: 0, y: 0 };
+  let hasMoved = false; // 标记是否发生了移动
+  
   canvasInstance.on('mouse:down', (opt) => {
+    const evt = opt.e;
+    // 记录点击开始时间和位置，用于区分拖拽和点击
+    clickStartTime = Date.now();
+    clickStartPos = { x: evt.clientX, y: evt.clientY };
+    hasMoved = false;
+    
     if (isPanning.value) {
-      const evt = opt.e;
       isDragging = true;
       lastPosX = evt.clientX;
       lastPosY = evt.clientY;
@@ -1255,6 +1313,15 @@ const setupCanvasInteractions = () => {
   canvasInstance.on('mouse:move', (opt) => {
     if (isDragging && isPanning.value) {
       const e = opt.e;
+      const moveDistance = Math.sqrt(
+        Math.pow(e.clientX - clickStartPos.x, 2) + 
+        Math.pow(e.clientY - clickStartPos.y, 2)
+      );
+      // 如果移动距离超过5像素，认为是拖拽
+      if (moveDistance > 5) {
+        hasMoved = true;
+      }
+      
       vpt = canvasInstance.viewportTransform;
       vpt[4] += e.clientX - lastPosX;
       vpt[5] += e.clientY - lastPosY;
@@ -1264,10 +1331,42 @@ const setupCanvasInteractions = () => {
     }
   });
   
-  canvasInstance.on('mouse:up', () => {
+  canvasInstance.on('mouse:up', (opt) => {
     if (isDragging) {
       isDragging = false;
       vpt = canvasInstance.viewportTransform;
+    }
+    
+    // 处理点击事件：只有在没有拖拽或拖拽距离很小的情况下才处理
+    const clickDuration = Date.now() - clickStartTime;
+    const evt = opt.e;
+    const moveDistance = Math.sqrt(
+      Math.pow(evt.clientX - clickStartPos.x, 2) + 
+      Math.pow(evt.clientY - clickStartPos.y, 2)
+    );
+    
+    // 如果是短时间点击且移动距离小，认为是点击事件而不是拖拽
+    if (clickDuration < 300 && moveDistance < 5 && !hasMoved) {
+      // 检查是否点击了标签（排除中心点）
+      const target = opt.target;
+      const objects = canvasInstance.getObjects();
+      const centerObject = objects.length > 0 ? objects[0] : null;
+      
+      if (target && target.poiId && target !== centerObject) {
+        // 根据POI ID查找对应的POI数据
+        const poi = poiStore.poiList.find(p => p.id === target.poiId);
+        if (poi) {
+          // 获取标签的距离信息
+          const poiWithDistance = {
+            ...poi,
+            distance: target.distance,
+          };
+          selectedPoi.value = poiWithDistance;
+        }
+      } else {
+        // 点击空白区域，关闭信息窗口
+        selectedPoi.value = null;
+      }
     }
   });
 };
@@ -1326,6 +1425,11 @@ const zoomOut = () => {
   );
   canvasInstance.zoomToPoint(center, zoom);
   vpt = canvasInstance.viewportTransform;
+};
+
+// 关闭POI信息窗口
+const closePoiInfo = () => {
+  selectedPoi.value = null;
 };
 
 // 图例悬停高亮
@@ -1955,6 +2059,85 @@ canvas {
   margin: 0;
   align-items: center;
   justify-content: center;
+}
+
+/* POI信息窗口 */
+.poi-info-window {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 320px;
+  max-width: calc(100% - 32px);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 20;
+  animation: slideInUp 0.3s ease-out;
+  pointer-events: auto;
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.info-window-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.info-window-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.info-window-header .close-btn {
+  color: rgba(255, 255, 255, 0.7);
+  padding: 4px;
+}
+
+.info-window-header .close-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.info-window-content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.info-label {
+  color: rgba(255, 255, 255, 0.6);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.info-value {
+  color: #fff;
+  font-weight: 500;
+  word-break: break-word;
 }
 </style>
 
