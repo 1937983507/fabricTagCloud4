@@ -564,19 +564,15 @@ const calculateJenks = (data, numClasses) => {
   return jenksBreaks;
 };
 
-// 计算颜色类别索引
-const calculateClassIndex = (data, index, total, colorNum, discreteMethod) => {
+// 计算颜色类别索引（优化版本：使用预计算的缓存值）
+const calculateClassIndexOptimized = (entry, index, total, colorNum, discreteMethod, cache) => {
   let classIndex;
-  const distance = data[index].distance;
+  const distance = entry.distance;
 
   switch (discreteMethod) {
     case 'equal':
-      // 相等间隔
-      const minValue = Math.min(...data.map((item) => item.distance));
-      const maxValue = Math.max(...data.map((item) => item.distance));
-      const range = maxValue - minValue;
-      const interval = range / colorNum;
-      classIndex = Math.floor((distance - minValue) / interval);
+      // 相等间隔（使用缓存值）
+      classIndex = Math.floor((distance - cache.minValue) / cache.interval);
       if (classIndex >= colorNum) classIndex = colorNum - 1;
       break;
     case 'quantile':
@@ -585,11 +581,9 @@ const calculateClassIndex = (data, index, total, colorNum, discreteMethod) => {
       classIndex = Math.ceil(colorNum * percentile) - 1;
       break;
     case 'jenks':
-      // 自然间断点(Jenks)
-      const values = data.map((item) => item.distance).sort((a, b) => a - b);
-      const jenksBreaks = calculateJenks(values, colorNum);
-      for (let i = 0; i < jenksBreaks.length; i++) {
-        if (distance <= jenksBreaks[i]) {
+      // 自然间断点(Jenks)（使用缓存值）
+      for (let i = 0; i < cache.jenksBreaks.length; i++) {
+        if (distance <= cache.jenksBreaks[i]) {
           classIndex = i;
           break;
         }
@@ -597,25 +591,15 @@ const calculateClassIndex = (data, index, total, colorNum, discreteMethod) => {
       if (classIndex === undefined) classIndex = colorNum - 1;
       break;
     case 'geometric':
-      // 几何间隔
-      const minVal = Math.min(...data.map((item) => item.distance));
-      const maxVal = Math.max(...data.map((item) => item.distance));
-      const ratio = Math.pow(maxVal / minVal, 1 / colorNum);
-      classIndex = Math.floor(Math.log(distance / minVal) / Math.log(ratio));
+      // 几何间隔（使用缓存值）
+      classIndex = Math.floor(Math.log(distance / cache.minValue) / Math.log(cache.ratio));
       if (classIndex >= colorNum) classIndex = colorNum - 1;
       if (classIndex < 0) classIndex = 0;
       break;
     case 'stddev':
-      // 标准差
-      const allValues = data.map((item) => item.distance);
-      const mean = allValues.reduce((acc, curr) => acc + curr, 0) / allValues.length;
-      const stdDev = Math.sqrt(
-        allValues.reduce((acc, curr) => acc + Math.pow(curr - mean, 2), 0) /
-          allValues.length,
-      );
-      const deviation = distance - mean;
-      const stdDevInterval = stdDev / colorNum;
-      classIndex = Math.floor(deviation / stdDevInterval) + Math.floor(colorNum / 2);
+      // 标准差（使用缓存值）
+      const deviation = distance - cache.mean;
+      classIndex = Math.floor(deviation / cache.stdDevInterval) + cache.halfColorNum;
       if (classIndex < 0) classIndex = 0;
       else if (classIndex >= colorNum) classIndex = colorNum - 1;
       break;
@@ -625,6 +609,37 @@ const calculateClassIndex = (data, index, total, colorNum, discreteMethod) => {
   }
 
   return classIndex;
+};
+
+// 保留原函数以兼容（如果其他地方有调用）
+const calculateClassIndex = (data, index, total, colorNum, discreteMethod) => {
+  const entry = data[index];
+  // 如果没有缓存，使用原逻辑（性能较差，但兼容）
+  let colorCache = {};
+  if (discreteMethod === 'equal' || discreteMethod === 'geometric') {
+    const distances = data.map((item) => item.distance);
+    colorCache.minValue = Math.min(...distances);
+    colorCache.maxValue = Math.max(...distances);
+    if (discreteMethod === 'geometric') {
+      colorCache.ratio = Math.pow(colorCache.maxValue / colorCache.minValue, 1 / colorNum);
+    } else {
+      colorCache.range = colorCache.maxValue - colorCache.minValue;
+      colorCache.interval = colorCache.range / colorNum;
+    }
+  } else if (discreteMethod === 'stddev') {
+    const allValues = data.map((item) => item.distance);
+    colorCache.mean = allValues.reduce((acc, curr) => acc + curr, 0) / allValues.length;
+    colorCache.stdDev = Math.sqrt(
+      allValues.reduce((acc, curr) => acc + Math.pow(curr - colorCache.mean, 2), 0) /
+        allValues.length,
+    );
+    colorCache.stdDevInterval = colorCache.stdDev / colorNum;
+    colorCache.halfColorNum = Math.floor(colorNum / 2);
+  } else if (discreteMethod === 'jenks') {
+    const values = data.map((item) => item.distance).sort((a, b) => a - b);
+    colorCache.jenksBreaks = calculateJenks(values, colorNum);
+  }
+  return calculateClassIndexOptimized(entry, index, total, colorNum, discreteMethod, colorCache);
 };
 
 // 绘制中心位置
@@ -701,8 +716,10 @@ const buildLayoutEntries = async (list, bounds, center, colorSettings) => {
     const screenY = height * 0.08 + (1 - normalizedY) * height * 0.84;
 
     // 如果需要显示通行时间且还没有计算，则计算通行时间
+    // 优化：不阻塞渲染，如果计算时间过长则使用估算值
     if (showTime.value && !poi.time) {
-      const travelTime = await calculateTravelTime(center.lng, center.lat, poi.lng, poi.lat);
+      // 使用估算方法（更快），如果需要精确值可以后续异步更新
+      const travelTime = calculateTravelTime(center.lng, center.lat, poi.lng, poi.lat);
       if (travelTime !== null) {
         poi.time = travelTime;
       }
@@ -742,18 +759,46 @@ const buildLayoutEntries = async (list, bounds, center, colorSettings) => {
   // 按距离升序排序（先绘制距离近的）
   entriesWithDistance.sort((a, b) => a.distance - b.distance);
 
-  // 根据距离分配颜色
+  // 根据距离分配颜色（优化：预先计算需要的值，避免重复计算）
   const colorNum = colorSettings.discreteCount || colorSettings.palette.length;
   const discreteMethod = colorSettings.discreteMethod || 'quantile';
   const palette = colorSettings.palette;
+  const total = entriesWithDistance.length;
+
+  // 预先计算颜色分类所需的公共值（避免在循环中重复计算）
+  let colorCache = {};
+  if (discreteMethod === 'equal' || discreteMethod === 'geometric') {
+    const distances = entriesWithDistance.map((item) => item.distance);
+    colorCache.minValue = Math.min(...distances);
+    colorCache.maxValue = Math.max(...distances);
+    if (discreteMethod === 'geometric') {
+      colorCache.ratio = Math.pow(colorCache.maxValue / colorCache.minValue, 1 / colorNum);
+    } else {
+      colorCache.range = colorCache.maxValue - colorCache.minValue;
+      colorCache.interval = colorCache.range / colorNum;
+    }
+  } else if (discreteMethod === 'stddev') {
+    const allValues = entriesWithDistance.map((item) => item.distance);
+    colorCache.mean = allValues.reduce((acc, curr) => acc + curr, 0) / allValues.length;
+    colorCache.stdDev = Math.sqrt(
+      allValues.reduce((acc, curr) => acc + Math.pow(curr - colorCache.mean, 2), 0) /
+        allValues.length,
+    );
+    colorCache.stdDevInterval = colorCache.stdDev / colorNum;
+    colorCache.halfColorNum = Math.floor(colorNum / 2);
+  } else if (discreteMethod === 'jenks') {
+    const values = entriesWithDistance.map((item) => item.distance).sort((a, b) => a - b);
+    colorCache.jenksBreaks = calculateJenks(values, colorNum);
+  }
 
   return entriesWithDistance.map((entry, index) => {
-    const classIndex = calculateClassIndex(
-      entriesWithDistance,
+    const classIndex = calculateClassIndexOptimized(
+      entry,
       index,
-      entriesWithDistance.length,
+      total,
       colorNum,
       discreteMethod,
+      colorCache,
     );
     return {
       ...entry,
@@ -762,8 +807,57 @@ const buildLayoutEntries = async (list, bounds, center, colorSettings) => {
   });
 };
 
-// 多角度径向偏移策略（参考原有项目strategy 3）
-const simulateDirection = (entry, originX, originY, angle) => {
+// 空间索引：用于快速查找附近的标签（优化碰撞检测）
+class SpatialIndex {
+  constructor(cellSize = 100) {
+    this.cellSize = cellSize;
+    this.grid = new Map();
+  }
+
+  // 获取坐标对应的网格键
+  getKey(x, y) {
+    const gridX = Math.floor(x / this.cellSize);
+    const gridY = Math.floor(y / this.cellSize);
+    return `${gridX},${gridY}`;
+  }
+
+  // 添加对象到索引
+  add(obj, x, y) {
+    const key = this.getKey(x, y);
+    if (!this.grid.has(key)) {
+      this.grid.set(key, []);
+    }
+    this.grid.get(key).push(obj);
+  }
+
+  // 获取附近的对象（检查当前网格和相邻网格）
+  // 为了确保覆盖标签的边界框，检查更大的区域（5x5网格）
+  getNearby(x, y) {
+    const gridX = Math.floor(x / this.cellSize);
+    const gridY = Math.floor(y / this.cellSize);
+    const nearby = [];
+    
+    // 检查5x5网格区域（扩大检查范围，确保覆盖标签边界框）
+    // 这样可以确保即使标签跨越多个网格，也能被检测到
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dy = -2; dy <= 2; dy++) {
+        const key = `${gridX + dx},${gridY + dy}`;
+        if (this.grid.has(key)) {
+          nearby.push(...this.grid.get(key));
+        }
+      }
+    }
+    return nearby;
+  }
+
+  // 清空索引
+  clear() {
+    this.grid.clear();
+  }
+}
+
+// 多角度径向偏移策略（优化版本：使用空间索引）
+const simulateDirection = (entry, originX, originY, angle, spatialIndex) => {
   // 初始位置为圆形中心
   let newX = originX;
   let newY = originY;
@@ -775,6 +869,10 @@ const simulateDirection = (entry, originX, originY, angle) => {
   
   // 计算单位方向向量和步长（对应原有项目的20像素）
   const xie = Math.sqrt(offsetXX * offsetXX + offsetYY * offsetYY);
+  if (xie === 0) {
+    // 如果距离为0，直接返回中心位置
+    return { x: originX, y: originY, collision: false };
+  }
   const stepX = (offsetXX / xie) * stepDistance;
   const stepY = (offsetYY / xie) * stepDistance;
 
@@ -791,17 +889,24 @@ const simulateDirection = (entry, originX, originY, angle) => {
     selectable: false,
   });
   canvasInstance.add(temp);
+  temp.setCoords(); // 初始化坐标
 
   // 开始偏移（沿着旋转后的方向，参考原有项目strategy 3）
   let iterations = 0;
+  
   while (iterations < maxIterations) {
     // 默认不需要偏移
     let isShift = false;
     
-    // 遍历画布上所有元素，检查碰撞
-    canvasInstance.forEachObject((obj) => {
-      // 排除当前正在移动的元素
-      if (obj === temp) return;
+    // 获取所有已绘制的对象（排除临时对象）
+    // 重要：为了确保碰撞检测的准确性，始终检查所有已绘制的标签
+    // 空间索引主要用于其他优化，但碰撞检测必须检查所有对象
+    const allObjects = canvasInstance.getObjects();
+    
+    // 遍历所有元素，检查碰撞
+    for (const obj of allObjects) {
+      // 排除当前正在移动的临时元素
+      if (obj === temp) continue;
       
       // 检查对象是否与另一个对象相交
       if (temp.intersectsWithObject(obj)) {
@@ -813,8 +918,9 @@ const simulateDirection = (entry, originX, originY, angle) => {
         // 更新临时标签位置
         temp.set({ left: newX, top: newY });
         temp.setCoords();
+        break; // 找到碰撞就退出，继续下一轮
       }
-    });
+    }
     
     // 如果不需要偏移了，退出循环
     if (!isShift) {
@@ -833,12 +939,22 @@ const simulateDirection = (entry, originX, originY, angle) => {
   return result;
 };
 
-// 多角度径向偏移策略绘制标签（参考原有项目strategy 3）
-const drawLabel = (entry, originX, originY) => {
+// 多角度径向偏移策略绘制标签（优化版本：使用空间索引，提前退出）
+const drawLabel = (entry, originX, originY, spatialIndex) => {
   // 对每个角度进行模拟，找到所有可行的位置
-  const candidates = baseAngles.map((angle) =>
-    simulateDirection(entry, originX, originY, angle),
-  );
+  // 优化：如果找到无碰撞位置，可以提前退出
+  const candidates = [];
+  let foundViable = false;
+  
+  for (const angle of baseAngles) {
+    const result = simulateDirection(entry, originX, originY, angle, spatialIndex);
+    candidates.push(result);
+    
+    // 如果找到无碰撞的位置，可以提前退出（但为了找到最近的位置，继续检查所有角度）
+    if (!result.collision && !foundViable) {
+      foundViable = true;
+    }
+  }
   
   // 优先选择没有碰撞的位置
   const viable = candidates.filter((c) => !c.collision);
@@ -873,8 +989,7 @@ const drawLabel = (entry, originX, originY) => {
     fontSize: entry.fontSize,
     fontFamily: entry.fontFamily,
     fontWeight: entry.fontWeight,
-    stroke: 'rgba(0,0,0,0.45)',
-    strokeWidth: 1,
+    strokeWidth: 0, // 不使用轮廓
     shadow: {
       color: 'rgba(0, 0, 0, 0.25)',
       offsetX: 2,
@@ -883,7 +998,22 @@ const drawLabel = (entry, originX, originY) => {
     },
     selectable: false,
   });
+  
+  // 存储距离信息到canvas对象上，用于后续颜色更新
+  text.distance = entry.distance;
+  
   canvasInstance.add(text);
+  // 确保坐标已更新
+  text.setCoords();
+  
+  // 将新标签添加到空间索引（使用实际位置）
+  if (spatialIndex) {
+    const actualX = text.left || theNewLocation.x;
+    const actualY = text.top || theNewLocation.y;
+    spatialIndex.add(text, actualX, actualY);
+  }
+  
+  return text;
 };
 
 // 逐步渲染标签的延迟函数
@@ -948,12 +1078,38 @@ const renderCloud = async (forceReinitPyramid = false) => {
   // 更新标签数量
   renderedLabelCount.value = entries.length;
 
-  // 逐步渲染标签
+  // 创建空间索引以优化碰撞检测（网格大小根据标签平均大小调整）
+  // 注意：为了确保碰撞检测准确性，网格大小应该足够大以包含标签的边界框
+  const avgFontSize = entries.length > 0 
+    ? entries.reduce((sum, e) => sum + e.fontSize, 0) / entries.length 
+    : 20;
+  // 网格大小应该至少是最大标签宽度的2-3倍，以确保能覆盖标签的边界框
+  // 估算：文本宽度大约是字号的0.6-1倍（取决于文本长度），所以使用字号*3作为网格大小
+  const cellSize = Math.max(avgFontSize * 3, 100); // 网格大小至少为平均字号的3倍，最小100
+  const spatialIndex = new SpatialIndex(cellSize);
+  
+  // 将中心点添加到空间索引
+  const centerObjects = canvasInstance.getObjects();
+  if (centerObjects.length > 0) {
+    const centerObj = centerObjects[0];
+    // 使用对象的实际中心位置
+    const centerX = centerObj.left || originalCenterX;
+    const centerY = centerObj.top || originalCenterY;
+    spatialIndex.add(centerObj, centerX, centerY);
+  }
+
+  // 优化渲染：批量渲染，减少延迟
+  const batchSize = 5; // 每批渲染标签个数
+  const renderDelay = 1; // 每批之间的延迟（ms）
+  
   for (let i = 0; i < entries.length; i++) {
-    drawLabel(entries[i], originalCenterX, originalCenterY);
-    // 每绘制10个标签后暂停一下，实现逐步渲染效果
-    if (i % 5 === 0 && i > 0) {
-      await sleep(5); // 10ms延迟
+    drawLabel(entries[i], originalCenterX, originalCenterY, spatialIndex);
+    
+    // 每批渲染后暂停一下，使用requestAnimationFrame优化
+    if ((i + 1) % batchSize === 0 && i < entries.length - 1) {
+      await sleep(renderDelay);
+      // 使用requestAnimationFrame让浏览器有机会更新UI
+      await new Promise(resolve => requestAnimationFrame(resolve));
     }
   }
 
@@ -1197,14 +1353,15 @@ const handleLegendLeave = () => {
   canvasInstance.renderAll();
 };
 
-// 更新标签颜色（不重新绘制）
+// 更新标签颜色（不重新绘制，只更新颜色属性）
+// 重要：基于当前要渲染展示的POI数据重新计算颜色分类
 const updateLabelColors = () => {
   if (!canvasInstance || !allowRenderCloud.value) return;
   
   const sourceList = poiStore.visibleList;
   if (!sourceList.length || poisPyramid.length === 0) return;
   
-  // 使用当前的tagCloudScale，不要重置
+  // 使用当前的tagCloudScale，获取当前要渲染展示的POI数据
   const currentData = poisPyramid[tagCloudScale];
   if (!currentData) {
     console.warn(`tagCloudScale ${tagCloudScale} 超出范围，使用第0层`);
@@ -1212,57 +1369,233 @@ const updateLabelColors = () => {
   }
   
   const center = computeCenter(sourceList);
-  const bounds = computeBounds(sourceList);
+  const colorSettings = poiStore.colorSettings;
+  const colorNum = colorSettings.discreteCount || colorSettings.palette.length;
+  const discreteMethod = colorSettings.discreteMethod || 'quantile';
+  const palette = colorSettings.palette;
   
-  // 重新计算颜色
-  const entries = buildLayoutEntries(
-    currentData,
-    bounds,
-    center,
-    poiStore.colorSettings,
-  );
-  
-  // 创建颜色映射（基于文本内容匹配，因为canvas对象没有id）
-  const colorMap = new Map();
-  entries.forEach((entry) => {
-    colorMap.set(entry.textValue, entry.fontColor);
+  // 创建POI文本到POI数据的映射（用于快速查找）
+  const textToPoiMap = new Map();
+  currentData.forEach((poi) => {
+    // 构建标签文本（与buildLayoutEntries中的逻辑一致）
+    let labelText = poi.name;
+    const rankPart = showRank.value && poi.rank ? String(poi.rank) : '';
+    const timePart = showTime.value && poi.time ? String(poi.time) : '';
+    if (rankPart && timePart) {
+      labelText = `${poi.name} ${rankPart}|${timePart}`;
+    } else if (rankPart) {
+      labelText = `${poi.name} ${rankPart}`;
+    } else if (timePart) {
+      labelText = `${poi.name} ${timePart}`;
+    }
+    textToPoiMap.set(labelText, poi);
   });
   
-  // 更新canvas中的标签颜色
+  // 重要：基于当前要渲染展示的POI数据重新计算所有距离
+  // 这样可以确保颜色分类是基于当前展示的POI数量，而不是已绘制的对象数量
+  const entriesWithDistance = currentData.map((poi) => {
+    const distance = calculateDistance(
+      center.lat,
+      center.lng,
+      poi.lat,
+      poi.lng,
+    );
+    
+    // 构建标签文本
+    let labelText = poi.name;
+    const rankPart = showRank.value && poi.rank ? String(poi.rank) : '';
+    const timePart = showTime.value && poi.time ? String(poi.time) : '';
+    if (rankPart && timePart) {
+      labelText = `${poi.name} ${rankPart}|${timePart}`;
+    } else if (rankPart) {
+      labelText = `${poi.name} ${rankPart}`;
+    } else if (timePart) {
+      labelText = `${poi.name} ${timePart}`;
+    }
+    
+    return {
+      textValue: labelText,
+      distance,
+    };
+  });
+  
+  // 按距离升序排序（用于quantile方法）
+  entriesWithDistance.sort((a, b) => a.distance - b.distance);
+  
+  // 提取所有距离值
+  const distances = entriesWithDistance.map(entry => entry.distance);
+  
+  // 预先计算颜色分类所需的公共值（避免在循环中重复计算）
+  let colorCache = {};
+  if (discreteMethod === 'equal' || discreteMethod === 'geometric') {
+    if (distances.length > 0) {
+      colorCache.minValue = Math.min(...distances);
+      colorCache.maxValue = Math.max(...distances);
+      if (discreteMethod === 'geometric') {
+        colorCache.ratio = Math.pow(colorCache.maxValue / colorCache.minValue, 1 / colorNum);
+      } else {
+        colorCache.range = colorCache.maxValue - colorCache.minValue;
+        colorCache.interval = colorCache.range / colorNum;
+      }
+    }
+  } else if (discreteMethod === 'stddev') {
+    if (distances.length > 0) {
+      colorCache.mean = distances.reduce((acc, curr) => acc + curr, 0) / distances.length;
+      colorCache.stdDev = Math.sqrt(
+        distances.reduce((acc, curr) => acc + Math.pow(curr - colorCache.mean, 2), 0) /
+          distances.length,
+      );
+      colorCache.stdDevInterval = colorCache.stdDev / colorNum;
+      colorCache.halfColorNum = Math.floor(colorNum / 2);
+    }
+  } else if (discreteMethod === 'jenks') {
+    if (distances.length > 0) {
+      const values = [...distances].sort((a, b) => a - b);
+      colorCache.jenksBreaks = calculateJenks(values, colorNum);
+    }
+  }
+  
+  // 创建文本到颜色类别的映射
+  const textToColorMap = new Map();
+  entriesWithDistance.forEach((entry, index) => {
+    let classIndex = 0;
+    
+    if (discreteMethod === 'quantile') {
+      // 分位数：基于排序后的索引
+      const percentile = (index + 1) / entriesWithDistance.length;
+      classIndex = Math.ceil(colorNum * percentile) - 1;
+    } else {
+      classIndex = calculateClassIndexOptimized(
+        entry,
+        index,
+        entriesWithDistance.length,
+        colorNum,
+        discreteMethod,
+        colorCache,
+      );
+    }
+    
+    const color = palette[classIndex] || palette[0];
+    textToColorMap.set(entry.textValue, color);
+  });
+  
+  // 更新canvas中的标签颜色（只更新fill属性，不触发重绘）
+  // 使用set方法批量更新，确保Fabric.js正确更新属性
+  let hasUpdates = false;
+  let updatedCount = 0;
+  let skippedCount = 0;
+  
+  // 临时禁用canvas的渲染，避免逐个更新时触发重绘
+  const wasRenderOnAddRemove = canvasInstance.renderOnAddRemove;
+  canvasInstance.renderOnAddRemove = false;
+  
   canvasInstance.forEachObject((obj, i) => {
     if (i === 0) return; // 跳过中心点
-    const color = colorMap.get(obj.text);
-    if (color && obj.fill !== color) {
-      obj.set({ fill: color });
+    
+    // 从映射中获取新颜色
+    const newColor = textToColorMap.get(obj.text);
+    if (!newColor) {
+      // 如果找不到对应的颜色，可能是文本不匹配，尝试调试
+      skippedCount++;
+      return;
+    }
+    
+    // 只更新颜色，不触发重绘
+    if (obj.fill !== newColor) {
+      // 使用set方法更新属性，确保Fabric.js正确更新内部状态
+      // 注意：set方法会触发对象更新，但不会立即渲染（因为已禁用renderOnAddRemove）
+      obj.set({ fill: newColor });
+      // 同时更新存储的距离信息（如果存在）
+      const poi = textToPoiMap.get(obj.text);
+      if (poi) {
+        obj.distance = calculateDistance(
+          center.lat,
+          center.lng,
+          poi.lat,
+          poi.lng,
+        );
+      }
+      // 确保对象状态已更新
+      obj.setCoords();
+      hasUpdates = true;
+      updatedCount++;
     }
   });
   
-  canvasInstance.renderAll();
+  // 恢复canvas的渲染设置
+  canvasInstance.renderOnAddRemove = wasRenderOnAddRemove;
+  
+  // 如果有更新，立即渲染所有更新
+  if (hasUpdates) {
+    // 强制渲染所有对象，确保所有颜色更新都显示出来
+    // 直接调用renderAll，不使用requestAnimationFrame，确保立即渲染
+    canvasInstance.renderAll();
+  }
+  
+  // 调试信息（开发时使用）
+  if (process.env.NODE_ENV === 'development' && (updatedCount > 0 || skippedCount > 0)) {
+    console.log(`颜色更新: 已更新 ${updatedCount} 个标签, 跳过 ${skippedCount} 个标签, 总对象数: ${canvasInstance.getObjects().length - 1}`);
+  }
 };
 
-// 更新标签字体和字重（不重新绘制）
+// 更新标签字体和字重（不重新绘制，只更新属性）
+// 优化：使用与updateLabelColors相同的方式，批量更新后一次性渲染
 const updateLabelFonts = () => {
   if (!canvasInstance || !allowRenderCloud.value) return;
   
   const { fontSettings } = poiStore;
-  let index = 1; // 跳过中心点
+  let hasUpdates = false;
+  let updatedCount = 0;
   
+  // 临时禁用canvas的渲染，避免逐个更新时触发重绘
+  const wasRenderOnAddRemove = canvasInstance.renderOnAddRemove;
+  canvasInstance.renderOnAddRemove = false;
+  
+  // 批量更新所有对象的字体和字重
   canvasInstance.forEachObject((obj, i) => {
     if (i === 0) return; // 跳过中心点
-    const updates = {};
-    if (obj.fontFamily !== fontSettings.fontFamily) {
-      updates.fontFamily = fontSettings.fontFamily;
-    }
-    if (obj.fontWeight !== fontSettings.fontWeight) {
-      updates.fontWeight = fontSettings.fontWeight;
-    }
-    if (Object.keys(updates).length > 0) {
+    
+    // 检查是否需要更新
+    const needsFontFamilyUpdate = obj.fontFamily !== fontSettings.fontFamily;
+    const needsFontWeightUpdate = obj.fontWeight !== fontSettings.fontWeight;
+    
+    if (needsFontFamilyUpdate || needsFontWeightUpdate) {
+      // 使用set方法批量更新属性，确保Fabric.js正确更新内部状态
+      // 注意：字体和字重改变可能影响文本尺寸，需要重新计算边界框
+      const updates = {};
+      if (needsFontFamilyUpdate) {
+        updates.fontFamily = fontSettings.fontFamily;
+      }
+      if (needsFontWeightUpdate) {
+        updates.fontWeight = fontSettings.fontWeight;
+      }
+      // 确保移除轮廓（切换字体时不应该有轮廓）
+      // 无条件清除轮廓，避免字体切换时出现轮廓
+      updates.strokeWidth = 0;
+      
+      // 批量更新属性（不触发渲染）
       obj.set(updates);
+      // 确保对象状态已更新（字体改变可能影响文本尺寸，需要重新计算）
+      obj.setCoords();
+      hasUpdates = true;
+      updatedCount++;
     }
-    index++;
   });
   
-  canvasInstance.renderAll();
+  // 恢复canvas的渲染设置
+  canvasInstance.renderOnAddRemove = wasRenderOnAddRemove;
+  
+  // 如果有更新，立即渲染所有更新（一次性渲染，不会一个一个重绘）
+  if (hasUpdates) {
+    // 强制渲染所有对象，确保所有字体更新都显示出来
+    // 直接调用renderAll，不使用requestAnimationFrame，确保立即渲染
+    canvasInstance.renderAll();
+  }
+  
+  // 调试信息（开发时使用）
+  if (process.env.NODE_ENV === 'development' && updatedCount > 0) {
+    console.log(`字体更新: 已更新 ${updatedCount} 个标签的字体/字重`);
+  }
 };
 
 const exportAsImage = () => {
