@@ -156,6 +156,13 @@ body,
 .customTooltipClass .introjs-tooltiptext {
   padding-right: 0 !important;
   margin-right: 0 !important;
+  text-align: left !important; /* 默认左对齐 */
+}
+
+/* 确保 tooltiptext 内的内容可以正确应用内联样式中的 text-align */
+.customTooltipClass .introjs-tooltiptext > div {
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .customTooltipClass .introjs-tooltip-content {
@@ -581,24 +588,8 @@ body.introjs-fixParent {
   overflow: hidden !important;
 }
 
-/* 步骤编号样式 - 使用伪元素，但不影响文本内容 */
+/* 步骤编号样式 - 已删除蓝色圆形 */
 .customTooltipClass .introjs-tooltiptext::before {
-  content: attr(data-step);
-  position: absolute;
-  top: -8px;
-  left: -8px;
-  width: 28px;
-  height: 28px;
-  background: linear-gradient(180deg, #57c6f1, #399ceb);
-  color: #ffffff;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-  box-shadow: 0 4px 12px rgba(57, 156, 235, 0.3);
-  z-index: 1;
-  pointer-events: none;
+  display: none !important;
 }
 
