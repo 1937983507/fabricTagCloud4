@@ -298,7 +298,7 @@ V4.0 保持了 V3.0 的所有核心功能，同时提供了更好的用户体验
 团队成员来自 **地理学、资源与环境、计算机科学与技术** 等相关专业，我们欢迎本科生、研究生及相关科研人员加入，参与前沿研究、项目开发和学术交流。
 
 实验室官网详细介绍请参阅：
-🔗 [湖北大学制图组官网](https://www.hubutagcloud.cn/hubuCartographicGroup.html)
+🔗 [湖北大学制图组官网](https://www.hubutagcloud.cn/cxq-group/)
 
 ---
 

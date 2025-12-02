@@ -13,6 +13,9 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
   },
+  build: {
+    assetsDir: 'static', // 将资源目录从 assets 改为 static，避免与 nginx /assets/ 代理冲突
+  },
   assetsInclude: ['**/*.md'],
 });
 

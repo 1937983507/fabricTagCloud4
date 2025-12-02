@@ -66,6 +66,9 @@ const handleNavigate = (route) => {
   } else if (route === 'home') {
     showHelpPage.value = false;
     showFeedbackPage.value = false;
+  } else if (route === 'about') {
+    // 跳转到关于我们页面
+    window.open('https://hubutagcloud.cn/cxq-group/', '_blank');
   } else {
     console.log('navigate to', route);
   }
