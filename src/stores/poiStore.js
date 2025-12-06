@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
 
-const DATA_URL = '/data/china.json';
+const DATA_URL = `${import.meta.env.BASE_URL}data/chinapoi.csv`;
 
 export const usePoiStore = defineStore('poiStore', {
   state: () => ({
@@ -17,6 +17,7 @@ export const usePoiStore = defineStore('poiStore', {
       fontSizes: [64, 52, 44, 36, 28, 24, 20],
       fontFamily: '等线',
       fontWeight: '700',
+      language: 'zh', // 语言选择：'zh' 中文，'en' 英文
     },
     colorSettings: {
       background: '#0c1024',
@@ -43,22 +44,62 @@ export const usePoiStore = defineStore('poiStore', {
   },
   actions: {
     async loadDefaultData() {
-      const { data } = await axios.get(DATA_URL);
-      // china.json是对象格式，需要转换为数组
-      const dataArray = Object.values(data);
-      this.poiList = dataArray.map((poi, index) => ({
-        id: poi.pid ?? index + 1,
-        name: poi.pname,
-        city: poi.city,
-        rank: poi.rankInChina ?? index + 1,
-        lng: poi.X_gcj02,
-        lat: poi.Y_gcj02,
-        fontSize: poi.fontSize ?? this.fontSettings.fontSizes[index % 5],
-        fontColor: poi.fontColor ?? this.colorSettings.palette[index % this.colorSettings.palette.length],
-        typeface: this.fontSettings.fontFamily,
-        selected: false,
-      }));
-      this.selectedIds = [];
+      try {
+        const response = await axios.get(DATA_URL, {
+          responseType: 'arraybuffer',
+        });
+        const decoderCandidates = ['gb18030', 'gbk', 'utf-8'];
+        let text = null;
+        for (const encoding of decoderCandidates) {
+          try {
+            text = new TextDecoder(encoding, { fatal: false }).decode(response.data);
+            if (text && text.trim()) {
+              console.info('[poiStore] 使用解码格式', encoding);
+              break;
+            }
+          } catch (decodeError) {
+            console.warn('[poiStore] TextDecoder 无法使用', encoding, decodeError);
+          }
+        }
+        if (!text) {
+          throw new Error('无法解码 POI 数据');
+        }
+        const lines = text.split('\n');
+        this.poiList = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const currentLine = lines[i].split(',');
+          if (currentLine.length < 6) continue;
+
+          const pname = currentLine[0];
+          const X_gcj02 = parseFloat(currentLine[1]);
+          const Y_gcj02 = parseFloat(currentLine[2]);
+          const city = currentLine[3];
+          const rankInCity = parseInt(currentLine[4]);
+          const rankInChina = parseInt(currentLine[5]);
+          const name_en = currentLine.length >= 7 ? currentLine[6].trim() : ''; // 读取英文名，如果不存在则为空字符串
+
+          this.poiList.push({
+            id: i - 1,
+            name: pname,
+            name_en: name_en,
+            city: city,
+            rank: rankInChina,
+            rankInCity: rankInCity,
+            lng: X_gcj02,
+            lat: Y_gcj02,
+            fontSize: this.fontSettings.fontSizes[(i - 1) % this.fontSettings.fontSizes.length],
+            fontColor: this.colorSettings.palette[(i - 1) % this.colorSettings.palette.length],
+            typeface: this.fontSettings.fontFamily,
+            selected: false,
+          });
+        }
+
+        this.selectedIds = [];
+      } catch (error) {
+        console.error('加载数据失败:', error);
+        throw error;
+      }
     },
     toggleEditMode() {
       this.isEditable = !this.isEditable;

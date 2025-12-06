@@ -115,7 +115,7 @@
         <div class="info-window-content">
           <div class="info-item">
             <span class="info-label">名称：</span>
-            <span class="info-value">{{ selectedPoi.name }}</span>
+            <span class="info-value">{{ getPoiDisplayName(selectedPoi) }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">城市：</span>
@@ -158,6 +158,7 @@ import {
   computed,
 } from 'vue';
 import { usePoiStore } from '@/stores/poiStore';
+import { cityNameToPinyin } from '@/utils/cityNameToPinyin';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import introJs from 'intro.js';
 import 'intro.js/minified/introjs.min.css';
@@ -210,6 +211,19 @@ const maxDistanceText = computed(() => {
   if (maxDistance.value === 0) return '0 km';
   return `${(maxDistance.value / 1000).toFixed(2)} km`;
 });
+
+// 根据语言获取POI显示名称
+const getPoiDisplayName = (poi) => {
+  const language = poiStore.fontSettings.language || 'zh';
+  if (language === 'en') {
+    // 优先使用英文名，如果不存在则转换为拼音
+    if (poi.name_en && poi.name_en.trim()) {
+      return poi.name_en;
+    }
+    return cityNameToPinyin(poi.name);
+  }
+  return poi.name;
+};
 
 const initCanvas = () => {
   if (!canvasRef.value) return; // 确保canvas元素存在
@@ -656,7 +670,9 @@ const calculateClassIndex = (data, index, total, colorNum, discreteMethod) => {
 
 // 绘制中心位置
 const drawCenter = (centerX, centerY) => {
-  const centerText = new Textbox('中间位置', {
+  const language = poiStore.fontSettings.language || 'zh';
+  const centerLabelText = language === 'en' ? 'Center' : '中间位置';
+  const centerText = new Textbox(centerLabelText, {
     left: centerX,
     top: centerY,
     fill: 'rgb(255, 255, 255)',
@@ -738,15 +754,16 @@ const buildLayoutEntries = async (list, bounds, center, colorSettings) => {
     }
 
     // 构建标签文本：格式为"名称 排名|时间"或"名称 排名"或"名称 时间"
-    let labelText = poi.name;
+    const displayName = getPoiDisplayName(poi);
+    let labelText = displayName;
     const rankPart = showRank.value && poi.rank ? String(poi.rank) : '';
     const timePart = showTime.value && poi.time ? String(poi.time) : '';
     if (rankPart && timePart) {
-      labelText = `${poi.name} ${rankPart}|${timePart}`;
+      labelText = `${displayName} ${rankPart}|${timePart}`;
     } else if (rankPart) {
-      labelText = `${poi.name} ${rankPart}`;
+      labelText = `${displayName} ${rankPart}`;
     } else if (timePart) {
-      labelText = `${poi.name} ${timePart}`;
+      labelText = `${displayName} ${timePart}`;
     }
 
     // 根据rank排序后的位置获取字号级别
@@ -1446,15 +1463,16 @@ const updateLabelColors = () => {
   const textToPoiMap = new Map();
   currentData.forEach((poi) => {
     // 构建标签文本（与buildLayoutEntries中的逻辑一致）
-    let labelText = poi.name;
+    const displayName = getPoiDisplayName(poi);
+    let labelText = displayName;
     const rankPart = showRank.value && poi.rank ? String(poi.rank) : '';
     const timePart = showTime.value && poi.time ? String(poi.time) : '';
     if (rankPart && timePart) {
-      labelText = `${poi.name} ${rankPart}|${timePart}`;
+      labelText = `${displayName} ${rankPart}|${timePart}`;
     } else if (rankPart) {
-      labelText = `${poi.name} ${rankPart}`;
+      labelText = `${displayName} ${rankPart}`;
     } else if (timePart) {
-      labelText = `${poi.name} ${timePart}`;
+      labelText = `${displayName} ${timePart}`;
     }
     textToPoiMap.set(labelText, poi);
   });
@@ -1470,15 +1488,16 @@ const updateLabelColors = () => {
     );
     
     // 构建标签文本
-    let labelText = poi.name;
+    const displayName = getPoiDisplayName(poi);
+    let labelText = displayName;
     const rankPart = showRank.value && poi.rank ? String(poi.rank) : '';
     const timePart = showTime.value && poi.time ? String(poi.time) : '';
     if (rankPart && timePart) {
-      labelText = `${poi.name} ${rankPart}|${timePart}`;
+      labelText = `${displayName} ${rankPart}|${timePart}`;
     } else if (rankPart) {
-      labelText = `${poi.name} ${rankPart}`;
+      labelText = `${displayName} ${rankPart}`;
     } else if (timePart) {
-      labelText = `${poi.name} ${timePart}`;
+      labelText = `${displayName} ${timePart}`;
     }
     
     return {
@@ -1764,6 +1783,20 @@ watch(
   () => {
     if (allowRenderCloud.value) {
       updateLabelFonts();
+    }
+  },
+);
+
+// 监听语言变化（需要重新绘制，因为文本内容变化）
+watch(
+  () => poiStore.fontSettings.language,
+  () => {
+    // 如果正在清除，不触发重新渲染
+    if (isClearing.value) return;
+    
+    if (allowRenderCloud.value) {
+      // 语言变化需要重新绘制（文本内容变化）
+      renderCloud(false);
     }
   },
 );
