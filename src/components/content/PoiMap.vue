@@ -4,7 +4,6 @@
       <el-dropdown 
         trigger="click" 
         @command="handleDrawCommand"
-        data-intro-target="dataFilterBtn"
       >
         <span class="el-dropdown-link dropdown-btn" data-intro-target="dataFilterBtn">
           数据筛选

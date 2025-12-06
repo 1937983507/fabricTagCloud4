@@ -2,6 +2,7 @@
   <div class="app-shell">
     <HeaderBar
       ref="headerRef"
+      :show-tutorial-icon="!showHelpPage && !showFeedbackPage"
       @navigate="handleNavigate"
       @start-tutorial="restartIntro"
     />
@@ -49,7 +50,6 @@ const tagCloudCanvasRef = ref(null);
 const showHelpPage = ref(false);
 const showFeedbackPage = ref(false);
 
-// 防止重复启动引导的标志
 let firstIntroStarted = false;
 
 const handleChangePanel = (panel) => {
@@ -74,109 +74,100 @@ const handleNavigate = (route) => {
   }
 };
 
-// 创建引导的公共函数
+const getHeaderElement = () => {
+  if (headerRef.value?.$el) return headerRef.value.$el;
+  return document.querySelector('header.header');
+};
+
+const getSideMenuElement = () => {
+  return document.querySelector('.side-menu');
+};
+
+const getMapElement = () => {
+  if (poiContentRef.value?.$el) {
+    const mapWrapper = poiContentRef.value.$el.querySelector('.map-wrapper');
+    if (mapWrapper) return mapWrapper;
+  }
+  return document.querySelector('.map-wrapper');
+};
+
+const getTableElement = () => {
+  if (poiContentRef.value?.$el) {
+    const tableEl = poiContentRef.value.$el.querySelector('.table-card');
+    if (tableEl) return tableEl;
+  }
+  return document.querySelector('.table-card');
+};
+
+const getTagCloudPanelElement = () => {
+  if (tagCloudCanvasRef.value?.$el) {
+    const headEl = tagCloudCanvasRef.value.$el.querySelector('.panel-head');
+    if (headEl) return headEl;
+  }
+  return document.querySelector('.tagcloud-panel .panel-head');
+};
+
+const getCanvasElement = () => {
+  if (tagCloudCanvasRef.value?.$el) {
+    const wrapperEl = tagCloudCanvasRef.value.$el.querySelector('.canvas-wrapper');
+    if (wrapperEl) return wrapperEl;
+  }
+  return document.querySelector('.tagcloud-panel .canvas-wrapper') || document.querySelector('.tagcloud-panel canvas');
+};
+
+const getTutorialButtonElement = () => {
+  const tutorialBtn = document.querySelector('[data-intro-tutorial="tutorial-btn"]');
+  if (tutorialBtn) return tutorialBtn;
+  if (headerRef.value?.$el) {
+    return headerRef.value.$el.querySelector('.tutorial-icon-link') || getHeaderElement();
+  }
+  return getHeaderElement();
+};
+
 const createIntro = () => {
-  // 获取元素，使用多种方式确保能找到
-  const getHeaderElement = () => {
-    if (headerRef.value?.$el) return headerRef.value.$el;
-    return document.querySelector('header.header') || document.querySelector('.header');
-  };
-
-  const getMapElement = () => {
-    // 直接定位到 map-wrapper 控件
-    if (poiContentRef.value?.$el) {
-      const mapEl = poiContentRef.value.$el.querySelector('.map-wrapper');
-      if (mapEl) return mapEl;
-    }
-    return document.querySelector('.map-wrapper');
-  };
-
-  const getTableElement = () => {
-    // 直接定位到 table-card 控件
-    if (poiContentRef.value?.$el) {
-      const tableEl = poiContentRef.value.$el.querySelector('.table-card');
-      if (tableEl) return tableEl;
-    }
-    return document.querySelector('.table-card');
-  };
-
-  const getTutorialButtonElement = () => {
-    // 定位到 header 中的"引导教程"按钮
-    // 优先使用 data-intro-tutorial 属性
-    const tutorialBtn = document.querySelector('[data-intro-tutorial="tutorial-btn"]');
-    if (tutorialBtn) return tutorialBtn;
-    
-    // 备用方案1：在 headerRef 中查找
-    if (headerRef.value?.$el) {
-      const buttons = headerRef.value.$el.querySelectorAll('.nav-actions .el-button');
-      for (const btn of buttons) {
-        if (btn.textContent && btn.textContent.trim() === '引导教程') {
-          return btn;
-        }
-      }
-    }
-    // 备用方案2：在整个文档中查找
-    const allButtons = document.querySelectorAll('.header .nav-actions .el-button');
-    for (const btn of allButtons) {
-      if (btn.textContent && btn.textContent.trim() === '引导教程') {
-        return btn;
-      }
-    }
-    // 如果找不到，返回 header 元素作为后备
-    return getHeaderElement();
-  };
-
-  const getTagCloudPanelElement = () => {
-    if (tagCloudCanvasRef.value?.$el) {
-      const panelEl = tagCloudCanvasRef.value.$el.querySelector('.panel-head');
-      if (panelEl) return panelEl;
-    }
-    return document.querySelector('.tagcloud-panel .panel-head');
-  };
-
-  const getCanvasElement = () => {
-    // 使用 canvas-wrapper 而不是 canvas 本身，避免被覆盖层遮挡
-    if (tagCloudCanvasRef.value?.$el) {
-      const wrapperEl = tagCloudCanvasRef.value.$el.querySelector('.canvas-wrapper');
-      if (wrapperEl) return wrapperEl;
-    }
-    return document.querySelector('.tagcloud-panel .canvas-wrapper') || 
-           document.querySelector('.tagcloud-panel canvas');
-  };
-
-  // 第一个引导：主要功能介绍
   const intro = introJs.tour();
-  // 使用 addSteps 方法添加步骤
   intro.addSteps([
     {
-      intro: '<div style="text-align: center; padding: 8px 0;"><div style="margin-bottom: 12px;"><img src="/img/logo.png" alt="Logo" style="height: 40px; object-fit: contain;" /></div><div style="font-size: 16px; font-weight: 600; color: #1f2333; margin-bottom: 8px;">欢迎来到地名标签云网站！</div><div style="font-size: 13px; color: #64748b;">让我们带您浏览主要功能，快速上手使用。</div></div>',
+      intro:
+        '<div style="text-align:center;padding:8px 0;"><div style="margin-bottom:12px;"><img src="/img/logo.png" alt="Logo" style="height:40px;object-fit:contain;" /></div><div style="font-size:16px;font-weight:600;color:#1f2333;margin-bottom:8px;">欢迎来到地名标签云网站！</div><div style="font-size:13px;color:#64748b;">让我们带您浏览主要功能，快速上手使用。</div></div>',
     },
     {
       element: getHeaderElement(),
-      intro: '<div style="line-height: 1.6;"><strong style="font-size: 16px; color: #1f2333;">导航栏</strong><br/><span style="color: #64748b;">您可以在此处查看网站帮助、进行意见反馈等操作。点击右上角的<strong style="color: #399ceb;">"引导教程"</strong>按钮，可以随时重新查看本引导。</span></div>',
+      intro:
+        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">导航栏</strong><br/><span style="color:#64748b;">您可以在此处查看网站帮助、进行意见反馈等操作。点击右上角的<span style="color:#399ceb;">"引导教程"</span>图标，可以随时重新查看本引导。</span></div>',
+    },
+    {
+      element: getSideMenuElement(),
+      intro:
+        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">左侧面板</strong><br/><span style="color:#64748b;">您可以在此切换不同的配置面板，包括内容、字体、配色等设置，按照顺序逐步完善标签云的展示效果。</span></div>',
     },
     {
       element: getMapElement(),
-      intro: '<div style="line-height: 1.6;"><strong style="font-size: 16px; color: #1f2333;">地图展示窗口</strong><br/><span style="color: #64748b;">您可以在此查看当前定位地图及景点数据。使用上方的"数据筛选"功能可以在地图上绘制区域来筛选数据。</span></div>',
+      intro:
+        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">地图展示窗口</strong><br/><span style="color:#64748b;">您可以在此查看当前定位地图及景点数据。使用上方的"数据筛选"功能可以在地图上绘制区域来筛选数据。</span></div>',
     },
     {
       element: getTableElement(),
-      intro: '<div style="line-height: 1.6;"><strong style="font-size: 16px; color: #1f2333;">数据详情窗口</strong><br/><span style="color: #64748b;">您可以在此查看所有的景点数据信息，包括地名、城市、排名等。支持编辑、筛选和批量操作。</span></div>',
+      intro:
+        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">数据详情窗口</strong><br/><span style="color:#64748b;">您可以在此查看所有的景点数据信息，包括地名、城市、排名等。支持编辑、筛选和批量操作。</span></div>',
     },
     {
       element: getTagCloudPanelElement(),
-      intro: '<div style="line-height: 1.6;"><strong style="font-size: 16px; color: #1f2333;">标签云操作面板</strong><br/><span style="color: #64748b;">您可以在此对标签云进行操作，包括显示排名、通行时间、调整显示精度、导出图片等功能。</span></div>',
+      intro:
+        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">标签云操作面板</strong><br/><span style="color:#64748b;">您可以在此对标签云进行操作，包括显示排名、通行时间、调整显示精度、导出图片等功能。</span></div>',
     },
     {
       element: getCanvasElement(),
-      intro: '<div style="line-height: 1.6;"><strong style="font-size: 16px; color: #1f2333;">标签云画布</strong><br/><span style="color: #64748b;">系统将会在此窗口显示标签云。您可以使用右侧工具栏进行缩放、漫游等操作。</span></div>',
+      intro:
+        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">标签云画布</strong><br/><span style="color:#64748b;">系统将会在此窗口显示标签云。您可以使用右侧工具栏进行缩放、漫游等操作。</span></div>',
     },
     {
       element: getTutorialButtonElement(),
-      intro: '<div style="text-align: center; line-height: 1.6;"><div style="font-size: 20px; margin-bottom: 12px;">✨ 引导完成！</div><div style="color: #64748b; margin-bottom: 16px;">您已经了解了主要功能。如需再次查看引导，请点击此<strong style="color: #399ceb;">"引导教程"</strong>按钮。</div><div style="font-size: 12px; color: #94a3b8;">祝您使用愉快！</div></div>',
+      intro:
+        '<div style="text-align:center;line-height:1.6;"><div style="font-size:20px;margin-bottom:12px;">✨ 引导完成！</div><div style="color:#64748b;margin-bottom:16px;">您已经了解了主要功能。如需再次查看引导，请点击右上角的<span style="color:#399ceb;">"引导教程"</span>图标。</div><div style="font-size:12px;color:#94a3b8;">祝您使用愉快！</div></div>',
     },
   ]);
-  // 设置其他选项
+
   intro.setOptions({
     nextLabel: '下一步 →',
     prevLabel: '← 上一步',
@@ -184,35 +175,31 @@ const createIntro = () => {
     doneLabel: '完成',
     showStepNumbers: true,
     showProgress: true,
-    exitOnOverlayClick: true,
     disableInteraction: false,
-    exitOnEsc: true,
-    keyboardNavigation: true,
     tooltipClass: 'customTooltipClass',
     highlightClass: 'customHighlightClass',
-    tooltipPosition: 'auto',
     scrollToElement: true,
     scrollPadding: 20,
     overlayOpacity: 0.4,
+    tooltipPosition: 'auto',
+    exitOnOverlayClick: true,
+    exitOnEsc: true,
+    keyboardNavigation: true,
     tooltipRenderAsHtml: true,
   });
 
-  // 添加完成回调
   intro.onComplete(() => {
-    firstIntroStarted = false; // 允许再次启动
+    firstIntroStarted = false;
   });
 
-  // 添加退出回调
   intro.onExit(() => {
-    firstIntroStarted = false; // 允许再次启动
+    firstIntroStarted = false;
   });
 
   return intro;
 };
 
-// 重新启动引导（供外部调用）
 const restartIntro = () => {
-  // 重置标志，允许重新启动
   firstIntroStarted = false;
   nextTick(() => {
     const intro = createIntro();
@@ -220,31 +207,21 @@ const restartIntro = () => {
   });
 };
 
-
-// 初始化引导
 const initIntro = () => {
-  // 防止重复启动
-  if (firstIntroStarted) {
-    return;
-  }
+  if (firstIntroStarted || showHelpPage.value || showFeedbackPage.value) return;
   firstIntroStarted = true;
-
-  // 等待 DOM 渲染完成
   nextTick(() => {
     const intro = createIntro();
     intro.start();
   });
 };
 
-
 onMounted(() => {
-  // 延迟启动引导，确保所有组件都已渲染
-  // 只在非帮助页面时启动引导
-  if (!showHelpPage.value) {
-    setTimeout(() => {
+  setTimeout(() => {
+    if (!showHelpPage.value && !showFeedbackPage.value) {
       initIntro();
-    }, 500);
-  }
+    }
+  }, 500);
 });
 </script>
 

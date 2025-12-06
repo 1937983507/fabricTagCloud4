@@ -7,7 +7,6 @@
       <el-button
         v-for="item in navButtons"
         :key="item.key"
-        :data-intro-tutorial="item.key === 'tutorial' ? 'tutorial-btn' : undefined"
         size="small"
         text
         @click="handleNavClick(item.key)"
@@ -16,6 +15,30 @@
       </el-button>
     </div>
     <div class="user-area">
+      <a
+        v-if="showTutorialIcon"
+        href="#"
+        class="tutorial-icon-link icon-link"
+        title="引导教程"
+        data-intro-tutorial="tutorial-btn"
+        @click.prevent="handleTutorialClick"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 16v-4" />
+          <path d="M12 8h.01" />
+        </svg>
+      </a>
       <a
         href="https://www.mdpi.com/2220-9964/12/9/360"
         target="_blank"
@@ -70,10 +93,16 @@
 <script setup>
 import { ElMessage } from 'element-plus';
 
+defineProps({
+  showTutorialIcon: {
+    type: Boolean,
+    default: true,
+  },
+});
+
 const navButtons = [
   { key: 'home', label: '首页' },
   { key: 'help', label: '帮助' },
-  { key: 'tutorial', label: '引导教程' },
   { key: 'feedback', label: '意见反馈' },
   { key: 'about', label: '关于我们' },
 ];
@@ -81,11 +110,11 @@ const navButtons = [
 const emit = defineEmits(['navigate', 'start-tutorial']);
 
 const handleNavClick = (key) => {
-  if (key === 'tutorial') {
-    emit('start-tutorial');
-  } else {
-    emit('navigate', key);
-  }
+  emit('navigate', key);
+};
+
+const handleTutorialClick = () => {
+  emit('start-tutorial');
 };
 
 const handleLoginClick = () => {

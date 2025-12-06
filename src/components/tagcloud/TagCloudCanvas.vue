@@ -3,14 +3,25 @@
     <header class="panel-head">
       <div class="toolbar-left">
         <el-button-group>
-          <el-button id="runTagCloudBtn" type="primary" @click="handleRenderCloud">运行生成标签云</el-button>
+          <el-button id="runTagCloudBtn" type="primary" data-intro-target="runTagCloudBtn" @click="handleRenderCloud">运行生成标签云</el-button>
           <el-button @click="switchResolution('coarse')">粗略显示</el-button>
           <el-button @click="switchResolution('fine')">精细显示</el-button>
         </el-button-group>
         <div class="toolbar-options">
           <el-checkbox v-model="showRank" class="first-checkbox">显示排名信息</el-checkbox>
           <el-checkbox v-model="showTime">显示通行时间(min)</el-checkbox>
-          <el-button @click="exportAsImage">导出图片</el-button>
+          <el-dropdown @command="handleExportCommand">
+            <el-button>
+              导出图片<el-icon style="margin-left:4px"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="svg">导出SVG</el-dropdown-item>
+                <el-dropdown-item command="png">导出PNG</el-dropdown-item>
+                <el-dropdown-item command="jpeg">导出JPEG</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <span class="label-count">标签数量: {{ renderedLabelCount }}</span>
         </div>
       </div>
@@ -42,7 +53,7 @@
       
       <!-- 距离图例 -->
       <div class="distance-legend">
-        <p class="legend-title">与中心的距离</p>
+        <p class="legend-title">{{ poiStore.fontSettings.language === 'en' ? 'Distance from Center' : '与中心的距离' }}</p>
         <div class="legend-colors" ref="legendColorsRef">
           <div
             v-for="(color, index) in poiStore.colorSettings.palette"
@@ -115,7 +126,7 @@
         <div class="info-window-content">
           <div class="info-item">
             <span class="info-label">名称：</span>
-            <span class="info-value">{{ selectedPoi.name }}</span>
+            <span class="info-value">{{ getPoiDisplayName(selectedPoi) }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">城市：</span>
@@ -144,6 +155,29 @@
         </div>
       </div>
     </div>
+    <!-- 导出图片设置对话框 -->
+    <el-dialog v-model="exportDialogVisible" title="导出图片设置" width="350px" :close-on-click-modal="false">
+      <template v-if="exportFormat !== 'svg'">
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+          <span style="width:60px;">宽度(px)</span>
+          <el-input-number v-model="exportWidth" :min="1" :max="4000" :step="10" size="small" @change="onExportWidthChange" style="width:130px;"/>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+          <span style="width:60px;">高度(px)</span>
+          <el-input-number v-model="exportHeight" :min="1" :max="4000" :step="10" size="small" @change="onExportHeightChange" style="width:130px;"/>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+          <el-checkbox v-model="lockAspectRatio" size="small">锁定比例</el-checkbox>
+        </div>
+      </template>
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+        <el-checkbox v-model="includeLegend" size="small">包含距离图例</el-checkbox>
+      </div>
+      <template #footer>
+        <el-button @click="exportDialogVisible=false">取消</el-button>
+        <el-button type="primary" @click="handleExportConfirm">确认导出</el-button>
+      </template>
+    </el-dialog>
   </aside>
 </template>
 
@@ -158,8 +192,10 @@ import {
   computed,
 } from 'vue';
 import { usePoiStore } from '@/stores/poiStore';
+import { cityNameToPinyin } from '@/utils/cityNameToPinyin';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import introJs from 'intro.js';
+import 'intro.js/minified/introjs.min.css';
 import {
   RefreshLeft,
   FullScreen,
@@ -167,6 +203,7 @@ import {
   ZoomIn,
   ZoomOut,
   Close,
+  ArrowDown,
 } from '@element-plus/icons-vue';
 
 const canvasRef = ref(null);
@@ -175,6 +212,17 @@ const legendColorsRef = ref(null);
 const showRank = ref(false); // 默认不显示排名
 const showTime = ref(false);
 const poiStore = usePoiStore();
+
+// 导出相关变量
+const exportDialogVisible = ref(false);
+const exportWidth = ref(800);
+const exportHeight = ref(600);
+const exportFormat = ref('png');
+const lockAspectRatio = ref(true);
+const includeLegend = ref(true); // 默认包含图例
+const origWidth = ref(800);
+const origHeight = ref(600);
+let _aspectRatio = 1;
 
 let canvasInstance;
 let resolutionScale = 1;
@@ -202,7 +250,6 @@ const stepDistance = 22;
 const maxIterations = 220;
 const POI_THRESHOLD = 100; // POI数量阈值（首次渲染数量）
 
-// 防止第二个引导重复启动的标志
 let secondIntroStarted = false;
 
 // 最大距离文本
@@ -210,6 +257,19 @@ const maxDistanceText = computed(() => {
   if (maxDistance.value === 0) return '0 km';
   return `${(maxDistance.value / 1000).toFixed(2)} km`;
 });
+
+// 根据语言获取POI显示名称
+const getPoiDisplayName = (poi) => {
+  const language = poiStore.fontSettings.language || 'zh';
+  if (language === 'en') {
+    // 优先使用英文名，如果不存在则转换为拼音
+    if (poi.name_en && poi.name_en.trim()) {
+      return poi.name_en;
+    }
+    return cityNameToPinyin(poi.name);
+  }
+  return poi.name;
+};
 
 const initCanvas = () => {
   if (!canvasRef.value) return; // 确保canvas元素存在
@@ -265,127 +325,91 @@ const initCanvasSize = () => {
   canvasHeight.value = height;
 };
 
+const getDataFilterButtonElement = () => {
+  return (
+    document.querySelector('[data-intro-target="dataFilterBtn"]') ||
+    document.querySelector('.map-head .dropdown-btn') ||
+    document.querySelector('.map-head .el-dropdown-link')
+  );
+};
 
-// 第二个引导：操作流程
-const initSecondIntro = () => {
-  // 防止重复启动
-  if (secondIntroStarted) {
-    return;
-  }
+const getRunTagCloudButtonElement = () => {
+  return (
+    document.querySelector('[data-intro-target="runTagCloudBtn"]') ||
+    document.querySelector('#runTagCloudBtn') ||
+    document.querySelector('.tagcloud-panel .panel-head .el-button--primary')
+  );
+};
+
+const startDrawGuideIntro = () => {
+  if (secondIntroStarted) return;
   secondIntroStarted = true;
 
-  // 使用延迟和重试机制来查找元素
-  const findElements = (retries = 10, delay = 300) => {
-    // 尝试多种选择器方式查找元素
-    // Element Plus 可能会覆盖 id，所以使用多种方式查找
-    const dataFilterBtn = 
-      // 方式1: 通过 data 属性查找
-      document.querySelector('[data-intro-target="dataFilterBtn"]') ||
-      // 方式2: 通过 id 查找（如果 Element Plus 没有覆盖）
-      document.querySelector('#dataFilterBtn') ||
-      // 方式3: 通过文本内容查找（查找包含"数据筛选"文本的元素）
-      Array.from(document.querySelectorAll('.el-dropdown-link')).find(el => 
-        el.textContent?.trim().includes('数据筛选')
-      ) ||
-      // 方式4: 通过父元素和位置查找（.map-head 下的第一个 .el-dropdown-link）
-      document.querySelector('.map-head .el-dropdown:first-child .el-dropdown-link');
-    
-    const runTagCloudBtn = 
-      // 方式1: 通过 id 查找
-      document.querySelector('#runTagCloudBtn') ||
-      // 方式2: 通过类名和文本查找
-      Array.from(document.querySelectorAll('.el-button--primary')).find(el => 
-        el.textContent?.trim().includes('运行生成标签云')
-      ) ||
-      // 方式3: 通过父元素查找
-      document.querySelector('.tagcloud-panel .panel-head .el-button--primary');
+  const attemptStart = (retries = 8) => {
+    const dataFilterBtn = getDataFilterButtonElement();
+    const runBtn = getRunTagCloudButtonElement();
 
-    if (dataFilterBtn && runTagCloudBtn) {
-      // 元素找到了，启动引导
+    if (dataFilterBtn && runBtn) {
       try {
-        const intro2 = introJs.tour();
-        // 使用 addSteps 方法添加步骤
-        intro2.addSteps([
+        const intro = introJs.tour();
+        intro.addSteps([
           {
             element: dataFilterBtn,
-            intro: '您需要在此对点数据进行筛选操作。',
+            intro:
+              '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">数据筛选</strong><br/><span style="color:#64748b;">您需要在此对点数据进行筛选操作。点击下拉菜单选择圆形、矩形或多边形筛选方式。</span></div>',
           },
           {
-            element: runTagCloudBtn,
-            intro: '完成数据筛选之后，再进行运行生成标签云。',
+            element: runBtn,
+            intro:
+              '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">运行生成标签云</strong><br/><span style="color:#64748b;">完成数据筛选之后，点击此按钮生成标签云。</span></div>',
           },
         ]);
-        // 设置其他选项
-        intro2.setOptions({
-          nextLabel: '下一步',
-          prevLabel: '上一步',
+        intro.setOptions({
+          nextLabel: '下一步 →',
+          prevLabel: '← 上一步',
+          skipLabel: '跳过',
+          doneLabel: '完成',
           showStepNumbers: true,
           showProgress: true,
-          exitOnOverlayClick: true,
           disableInteraction: false,
-          exitOnEsc: true,
-          keyboardNavigation: true,
           tooltipClass: 'customTooltipClass',
           highlightClass: 'customHighlightClass',
+          exitOnOverlayClick: true,
+          exitOnEsc: true,
+          keyboardNavigation: true,
+          tooltipRenderAsHtml: true,
         });
-
-        intro2.start();
+        intro.onComplete(() => {
+          secondIntroStarted = false;
+        });
+        intro.onExit(() => {
+          secondIntroStarted = false;
+        });
+        intro.start();
       } catch (error) {
-        console.error('启动引导时出错:', error);
+        console.error('[TagCloudCanvas] 二次引导启动失败', error);
         secondIntroStarted = false;
       }
-    } else if (retries > 0) {
-      // 元素还没找到，重试
-      console.log(`查找引导元素，剩余重试次数: ${retries}`, {
-        dataFilterBtn: !!dataFilterBtn,
-        runTagCloudBtn: !!runTagCloudBtn,
-        dataFilterBtnByData: !!document.querySelector('[data-intro-target="dataFilterBtn"]'),
-        dataFilterBtnByText: !!Array.from(document.querySelectorAll('.el-dropdown-link')).find(el => 
-          el.textContent?.trim().includes('数据筛选')
-        ),
-        runTagCloudBtnById: !!document.querySelector('#runTagCloudBtn'),
-        runTagCloudBtnByText: !!Array.from(document.querySelectorAll('.el-button--primary')).find(el => 
-          el.textContent?.trim().includes('运行生成标签云')
-        )
-      });
-      setTimeout(() => {
-        findElements(retries - 1, delay);
-      }, delay);
+      return;
+    }
+
+    if (retries > 0) {
+      setTimeout(() => attemptStart(retries - 1), 200);
     } else {
-      // 重试次数用完，重置标志
-      console.warn('引导元素未找到，跳过第二个引导', {
-        dataFilterBtnByData: !!document.querySelector('[data-intro-target="dataFilterBtn"]'),
-        dataFilterBtnById: !!document.querySelector('#dataFilterBtn'),
-        dataFilterBtnByText: !!Array.from(document.querySelectorAll('.el-dropdown-link')).find(el => 
-          el.textContent?.trim().includes('数据筛选')
-        ),
-        runTagCloudBtnById: !!document.querySelector('#runTagCloudBtn'),
-        runTagCloudBtnByText: !!Array.from(document.querySelectorAll('.el-button--primary')).find(el => 
-          el.textContent?.trim().includes('运行生成标签云')
-        ),
-        allDropdownLinks: document.querySelectorAll('.el-dropdown-link').length,
-        allPrimaryButtons: document.querySelectorAll('.el-button--primary').length
-      });
+      console.warn('[TagCloudCanvas] 未找到绘制引导元素');
       secondIntroStarted = false;
     }
   };
 
-  // 等待 DOM 更新后再查找元素，增加初始延迟
   nextTick(() => {
-    // 额外延迟，确保 Element Plus 组件已完全渲染
-    setTimeout(() => {
-      findElements();
-    }, 100);
+    setTimeout(() => attemptStart(), 120);
   });
 };
 
 function handleRenderCloud() {
   // 如果没有筛选数据，启动第二个引导并阻止绘制
   if (!poiStore.hasDrawing) {
-    if (!secondIntroStarted) {
-      initSecondIntro();
-    }
-    // 阻止标签云的绘制，只启动引导
+    startDrawGuideIntro();
     return;
   }
   
@@ -692,7 +716,9 @@ const calculateClassIndex = (data, index, total, colorNum, discreteMethod) => {
 
 // 绘制中心位置
 const drawCenter = (centerX, centerY) => {
-  const centerText = new Textbox('中间位置', {
+  const language = poiStore.fontSettings.language || 'zh';
+  const centerLabelText = language === 'en' ? 'Center' : '中间位置';
+  const centerText = new Textbox(centerLabelText, {
     left: centerX,
     top: centerY,
     fill: 'rgb(255, 255, 255)',
@@ -774,15 +800,16 @@ const buildLayoutEntries = async (list, bounds, center, colorSettings) => {
     }
 
     // 构建标签文本：格式为"名称 排名|时间"或"名称 排名"或"名称 时间"
-    let labelText = poi.name;
+    const displayName = getPoiDisplayName(poi);
+    let labelText = displayName;
     const rankPart = showRank.value && poi.rank ? String(poi.rank) : '';
     const timePart = showTime.value && poi.time ? String(poi.time) : '';
     if (rankPart && timePart) {
-      labelText = `${poi.name} ${rankPart}|${timePart}`;
+      labelText = `${displayName} ${rankPart}|${timePart}`;
     } else if (rankPart) {
-      labelText = `${poi.name} ${rankPart}`;
+      labelText = `${displayName} ${rankPart}`;
     } else if (timePart) {
-      labelText = `${poi.name} ${timePart}`;
+      labelText = `${displayName} ${timePart}`;
     }
 
     // 根据rank排序后的位置获取字号级别
@@ -1482,15 +1509,16 @@ const updateLabelColors = () => {
   const textToPoiMap = new Map();
   currentData.forEach((poi) => {
     // 构建标签文本（与buildLayoutEntries中的逻辑一致）
-    let labelText = poi.name;
+    const displayName = getPoiDisplayName(poi);
+    let labelText = displayName;
     const rankPart = showRank.value && poi.rank ? String(poi.rank) : '';
     const timePart = showTime.value && poi.time ? String(poi.time) : '';
     if (rankPart && timePart) {
-      labelText = `${poi.name} ${rankPart}|${timePart}`;
+      labelText = `${displayName} ${rankPart}|${timePart}`;
     } else if (rankPart) {
-      labelText = `${poi.name} ${rankPart}`;
+      labelText = `${displayName} ${rankPart}`;
     } else if (timePart) {
-      labelText = `${poi.name} ${timePart}`;
+      labelText = `${displayName} ${timePart}`;
     }
     textToPoiMap.set(labelText, poi);
   });
@@ -1506,15 +1534,16 @@ const updateLabelColors = () => {
     );
     
     // 构建标签文本
-    let labelText = poi.name;
+    const displayName = getPoiDisplayName(poi);
+    let labelText = displayName;
     const rankPart = showRank.value && poi.rank ? String(poi.rank) : '';
     const timePart = showTime.value && poi.time ? String(poi.time) : '';
     if (rankPart && timePart) {
-      labelText = `${poi.name} ${rankPart}|${timePart}`;
+      labelText = `${displayName} ${rankPart}|${timePart}`;
     } else if (rankPart) {
-      labelText = `${poi.name} ${rankPart}`;
+      labelText = `${displayName} ${rankPart}`;
     } else if (timePart) {
-      labelText = `${poi.name} ${timePart}`;
+      labelText = `${displayName} ${timePart}`;
     }
     
     return {
@@ -1702,16 +1731,335 @@ const updateLabelFonts = () => {
   }
 };
 
-const exportAsImage = () => {
-  if (!canvasInstance) return;
-  const dataURL = canvasInstance.toDataURL({
-    format: 'png',
-    multiplier: 2,
+// 处理导出命令
+const handleExportCommand = (command) => {
+  if (command === 'svg') {
+    // SVG导出也需要弹出设置对话框
+    prepareExportDialog(command);
+  } else if (command === 'png' || command === 'jpeg') {
+    prepareExportDialog(command);
+  }
+};
+
+// 准备导出对话框
+function prepareExportDialog(format) {
+  exportFormat.value = format;
+  // 尺寸默认用canvas实际宽高
+  if (canvasInstance) {
+    const w = canvasInstance.getWidth();
+    const h = canvasInstance.getHeight();
+    exportWidth.value = w;
+    exportHeight.value = h;
+    origWidth.value = w;
+    origHeight.value = h;
+    _aspectRatio = w / h;
+  } else {
+    exportWidth.value = 800;
+    exportHeight.value = 600;
+    origWidth.value = 800;
+    origHeight.value = 600;
+    _aspectRatio = 800 / 600;
+  }
+  lockAspectRatio.value = true;
+  exportDialogVisible.value = true;
+}
+
+// 响应宽度变化，锁定比例
+function onExportWidthChange(val) {
+  if (lockAspectRatio.value && origWidth.value && origHeight.value) {
+    const w = Number(val) || 1;
+    exportHeight.value = Math.round((w / origWidth.value) * origHeight.value);
+  }
+}
+
+// 响应高度变化，锁定比例
+function onExportHeightChange(val) {
+  if (lockAspectRatio.value && origWidth.value && origHeight.value) {
+    const h = Number(val) || 1;
+    exportWidth.value = Math.round((h / origHeight.value) * origWidth.value);
+  }
+}
+
+// 确认导出
+const handleExportConfirm = () => {
+  exportDialogVisible.value = false;
+  if (exportFormat.value === 'svg') {
+    exportAsSVG();
+  } else {
+    exportAsRaster(exportFormat.value, exportWidth.value, exportHeight.value);
+  }
+};
+
+// 生成图例的SVG元素
+const generateLegendSVG = (canvasWidth, canvasHeight) => {
+  // 图例在原始canvas中的位置（右上角，距离边缘16px）
+  const legendRight = 16;
+  const legendTop = 16;
+  const legendMinWidth = 180;
+  
+  // 计算图例位置和尺寸
+  const legendX = canvasWidth - legendRight - legendMinWidth;
+  const legendY = legendTop;
+  const legendWidth = legendMinWidth;
+  const padding = 12;
+  const titleFontSize = 14;
+  const colorBarHeight = 24;
+  const colorBarGap = 2;
+  const textFontSize = 12;
+  const radius = 8;
+  
+  // 计算图例高度
+  const titleHeight = titleFontSize + 8;
+  const colorBarArea = colorBarHeight + 8;
+  const textHeight = textFontSize + 8;
+  const legendHeight = padding * 2 + titleHeight + colorBarArea + textHeight;
+  
+  // 获取语言设置
+  const language = poiStore.fontSettings.language || 'zh';
+  const titleText = language === 'en' ? 'Distance from Center' : '与中心的距离';
+  
+  // 获取颜色调色板
+  const palette = poiStore.colorSettings.palette || [];
+  const colorCount = palette.length;
+  const colorBarWidth = (legendWidth - padding * 2 - (colorBarGap * (colorCount - 1))) / colorCount;
+  
+  // 获取最大距离文本
+  const distanceText = maxDistance.value === 0 ? '0 km' : `${(maxDistance.value / 1000).toFixed(2)} km`;
+  
+  // 构建SVG元素
+  let legendSVG = '';
+  
+  // 定义图例组
+  legendSVG += `<g id="distance-legend">`;
+  
+  // 绘制圆角矩形背景
+  legendSVG += `<rect x="${legendX}" y="${legendY}" width="${legendWidth}" height="${legendHeight}" rx="${radius}" ry="${radius}" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
+  
+  // 转义XML特殊字符
+  const escapeXML = (str) => {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  };
+  
+  // 绘制标题
+  legendSVG += `<text x="${legendX + padding}" y="${legendY + padding + titleFontSize}" font-family="sans-serif" font-size="${titleFontSize}" font-weight="500" fill="#ffffff">${escapeXML(titleText)}</text>`;
+  
+  // 绘制颜色条
+  const colorBarY = legendY + padding + titleHeight;
+  palette.forEach((color, index) => {
+    const colorX = legendX + padding + index * (colorBarWidth + colorBarGap);
+    // 确保颜色值正确（如果是rgb格式，需要转换）
+    let fillColor = color;
+    if (color.startsWith('rgb')) {
+      // 将rgb转换为hex格式，或者保持rgb格式
+      fillColor = color;
+    }
+    legendSVG += `<rect x="${colorX}" y="${colorBarY}" width="${colorBarWidth}" height="${colorBarHeight}" fill="${fillColor}" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>`;
   });
+  
+  // 绘制最大距离文本
+  const textY = colorBarY + colorBarHeight + 8 + textFontSize;
+  legendSVG += `<text x="${legendX + legendWidth - padding}" y="${textY}" font-family="sans-serif" font-size="${textFontSize}" fill="rgba(255,255,255,0.8)" text-anchor="end">${escapeXML(distanceText)}</text>`;
+  
+  legendSVG += `</g>`;
+  
+  return legendSVG;
+};
+
+// 导出为SVG
+const exportAsSVG = () => {
+  if (!canvasInstance) return;
+  
+  // Fabric.js 6.x 使用 toSVG 方法
+  let svgString = canvasInstance.toSVG();
+  
+  // 如果用户选择包含图例，添加图例元素
+  if (includeLegend.value) {
+    // 获取canvas尺寸
+    const canvasWidth = canvasInstance.getWidth();
+    const canvasHeight = canvasInstance.getHeight();
+    
+    // 生成图例SVG
+    const legendSVG = generateLegendSVG(canvasWidth, canvasHeight);
+    
+    // 将图例插入到SVG中（在</svg>标签之前）
+    // 使用正则表达式确保只替换最后一个</svg>标签
+    svgString = svgString.replace(/<\/svg>\s*$/, `${legendSVG}</svg>`);
+  }
+  
+  const blob = new Blob([svgString], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
-  link.href = dataURL;
-  link.download = 'tag-cloud.png';
+  link.href = url;
+  link.download = 'tag-cloud.svg';
   link.click();
+  URL.revokeObjectURL(url);
+};
+
+// 在canvas上绘制图例
+const drawLegendOnCanvas = (ctx, imageWidth, imageHeight, scaleX, scaleY, offsetX = 0, offsetY = 0) => {
+  // 图例在原始canvas中的位置（右上角，距离边缘16px）
+  const legendRight = 16;
+  const legendTop = 16;
+  const legendMinWidth = 180;
+  
+  // 计算图例在导出canvas中的位置和尺寸（相对于图片的位置）
+  const legendX = offsetX + imageWidth - (legendRight * scaleX) - (legendMinWidth * scaleX);
+  const legendY = offsetY + legendTop * scaleY;
+  const legendWidth = legendMinWidth * scaleX;
+  const padding = 12 * scaleX;
+  const titleFontSize = 14 * scaleY;
+  const colorBarHeight = 24 * scaleY;
+  const colorBarGap = 2 * scaleX;
+  const textFontSize = 12 * scaleY;
+  
+  // 绘制图例背景
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+  ctx.lineWidth = 1 * scaleX;
+  
+  // 计算图例高度
+  const titleHeight = titleFontSize + 8 * scaleY;
+  const colorBarArea = colorBarHeight + 8 * scaleY;
+  const textHeight = textFontSize + 8 * scaleY;
+  const legendHeight = padding * 2 + titleHeight + colorBarArea + textHeight;
+  
+  // 绘制圆角矩形背景
+  const radius = 8 * scaleX;
+  ctx.beginPath();
+  ctx.moveTo(legendX + radius, legendY);
+  ctx.lineTo(legendX + legendWidth - radius, legendY);
+  ctx.quadraticCurveTo(legendX + legendWidth, legendY, legendX + legendWidth, legendY + radius);
+  ctx.lineTo(legendX + legendWidth, legendY + legendHeight - radius);
+  ctx.quadraticCurveTo(legendX + legendWidth, legendY + legendHeight, legendX + legendWidth - radius, legendY + legendHeight);
+  ctx.lineTo(legendX + radius, legendY + legendHeight);
+  ctx.quadraticCurveTo(legendX, legendY + legendHeight, legendX, legendY + legendHeight - radius);
+  ctx.lineTo(legendX, legendY + radius);
+  ctx.quadraticCurveTo(legendX, legendY, legendX + radius, legendY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  
+  // 绘制标题
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `500 ${titleFontSize}px sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  const language = poiStore.fontSettings.language || 'zh';
+  const titleText = language === 'en' ? 'Distance from Center' : '与中心的距离';
+  ctx.fillText(titleText, legendX + padding, legendY + padding);
+  
+  // 绘制颜色条
+  const colorBarY = legendY + padding + titleHeight;
+  const palette = poiStore.colorSettings.palette || [];
+  const colorCount = palette.length;
+  const colorBarWidth = (legendWidth - padding * 2 - (colorBarGap * (colorCount - 1))) / colorCount;
+  
+  palette.forEach((color, index) => {
+    const colorX = legendX + padding + index * (colorBarWidth + colorBarGap);
+    ctx.fillStyle = color;
+    ctx.fillRect(colorX, colorBarY, colorBarWidth, colorBarHeight);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1 * scaleX;
+    ctx.strokeRect(colorX, colorBarY, colorBarWidth, colorBarHeight);
+  });
+  
+  // 绘制最大距离文本
+  const textY = colorBarY + colorBarHeight + 8 * scaleY;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.font = `${textFontSize}px sans-serif`;
+  ctx.textAlign = 'right';
+  const distanceText = maxDistance.value === 0 ? '0 km' : `${(maxDistance.value / 1000).toFixed(2)} km`;
+  ctx.fillText(distanceText, legendX + legendWidth - padding, textY);
+};
+
+// 导出为位图格式（PNG/JPEG）
+const exportAsRaster = async (format = 'png', exportWidth = 800, exportHeight = 600) => {
+  if (!canvasInstance) return;
+  
+  // 获取当前canvas尺寸
+  const currentWidth = canvasInstance.getWidth();
+  const currentHeight = canvasInstance.getHeight();
+  
+  // 计算缩放比例（使用较大的比例以确保覆盖目标尺寸）
+  const scaleX = exportWidth / currentWidth;
+  const scaleY = exportHeight / currentHeight;
+  const multiplier = Math.max(scaleX, scaleY);
+  
+  // 使用Fabric.js的toDataURL方法，通过multiplier参数控制分辨率
+  // 注意：multiplier是相对于当前canvas尺寸的倍数
+  const dataURL = canvasInstance.toDataURL({
+    format: format === 'jpeg' ? 'jpeg' : 'png',
+    multiplier: multiplier,
+    quality: format === 'jpeg' ? 0.92 : 1,
+  });
+  
+  // 如果目标尺寸与当前canvas尺寸不同，需要调整到精确尺寸
+  const img = new Image();
+  img.onload = function() {
+    // 创建临时canvas，精确控制输出尺寸
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = exportWidth;
+    tempCanvas.height = exportHeight;
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    // 设置背景色
+    const bgColor = poiStore.colorSettings.background || '#ffffff';
+    tempCtx.fillStyle = bgColor;
+    tempCtx.fillRect(0, 0, exportWidth, exportHeight);
+    
+    // 计算绘制区域，保持宽高比并居中显示
+    const imgWidth = img.width;
+    const imgHeight = img.height;
+    const targetAspect = exportWidth / exportHeight;
+    const imgAspect = imgWidth / imgHeight;
+    
+    let drawWidth, drawHeight, drawX, drawY;
+    
+    if (imgAspect > targetAspect) {
+      // 图片更宽，以高度为准
+      drawHeight = exportHeight;
+      drawWidth = exportHeight * imgAspect;
+      drawX = (exportWidth - drawWidth) / 2;
+      drawY = 0;
+    } else {
+      // 图片更高，以宽度为准
+      drawWidth = exportWidth;
+      drawHeight = exportWidth / imgAspect;
+      drawX = 0;
+      drawY = (exportHeight - drawHeight) / 2;
+    }
+    
+    // 绘制图片
+    tempCtx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+    
+    // 如果用户选择包含图例，绘制图例
+    if (includeLegend.value) {
+      // 计算图例的缩放比例（基于实际绘制的图片尺寸）
+      const actualScaleX = drawWidth / currentWidth;
+      const actualScaleY = drawHeight / currentHeight;
+      // 图例应该绘制在图片的右上角，所以需要考虑图片的偏移
+      drawLegendOnCanvas(tempCtx, drawWidth, drawHeight, actualScaleX, actualScaleY, drawX, drawY);
+    }
+    
+    // 转换为目标格式
+    const type = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const finalDataURL = tempCanvas.toDataURL(type, format === 'jpeg' ? 0.92 : 1);
+    
+    // 下载
+    const link = document.createElement('a');
+    link.href = finalDataURL;
+    link.download = `tag-cloud.${format}`;
+    link.click();
+  };
+  img.onerror = () => {
+    alert('图片导出失败，请重试！');
+  };
+  img.src = dataURL;
 };
 
 onMounted(() => {
@@ -1800,6 +2148,20 @@ watch(
   () => {
     if (allowRenderCloud.value) {
       updateLabelFonts();
+    }
+  },
+);
+
+// 监听语言变化（需要重新绘制，因为文本内容变化）
+watch(
+  () => poiStore.fontSettings.language,
+  () => {
+    // 如果正在清除，不触发重新渲染
+    if (isClearing.value) return;
+    
+    if (allowRenderCloud.value) {
+      // 语言变化需要重新绘制（文本内容变化）
+      renderCloud(false);
     }
   },
 );
