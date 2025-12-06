@@ -3,7 +3,7 @@
     <div class="footer-content">
       <div class="footer-left">
         <div class="footer-brand">
-          <img src="/img/logo.svg" alt="Logo" class="footer-logo" />
+          <img src="/img/logo.png" alt="Logo" class="footer-logo" />
           <div class="brand-info">
             <h3 class="brand-name">地名标签云</h3>
             <p class="brand-desc">专业的地点可视化平台</p>

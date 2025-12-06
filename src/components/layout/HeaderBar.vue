@@ -1,7 +1,7 @@
 <template>
   <header class="header">
     <div class="logo-area">
-      <img src="/img/logo.svg" alt="Logo" class="logo-img" />
+      <img src="/img/logo.png" alt="Logo" class="logo-img" />
     </div>
     <div class="nav-actions">
       <el-button
