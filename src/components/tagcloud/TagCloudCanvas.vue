@@ -3,7 +3,7 @@
     <header class="panel-head">
       <div class="toolbar-left">
         <el-button-group>
-          <el-button id="runTagCloudBtn" type="primary" @click="handleRenderCloud">运行生成标签云</el-button>
+          <el-button id="runTagCloudBtn" type="primary" data-intro-target="runTagCloudBtn" @click="handleRenderCloud">运行生成标签云</el-button>
           <el-button @click="switchResolution('coarse')">粗略显示</el-button>
           <el-button @click="switchResolution('fine')">精细显示</el-button>
         </el-button-group>
@@ -160,6 +160,7 @@ import {
 import { usePoiStore } from '@/stores/poiStore';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import introJs from 'intro.js';
+import 'intro.js/minified/introjs.min.css';
 import {
   RefreshLeft,
   FullScreen,
@@ -202,7 +203,6 @@ const stepDistance = 22;
 const maxIterations = 220;
 const POI_THRESHOLD = 100; // POI数量阈值（首次渲染数量）
 
-// 防止第二个引导重复启动的标志
 let secondIntroStarted = false;
 
 // 最大距离文本
@@ -265,127 +265,91 @@ const initCanvasSize = () => {
   canvasHeight.value = height;
 };
 
+const getDataFilterButtonElement = () => {
+  return (
+    document.querySelector('[data-intro-target="dataFilterBtn"]') ||
+    document.querySelector('.map-head .dropdown-btn') ||
+    document.querySelector('.map-head .el-dropdown-link')
+  );
+};
 
-// 第二个引导：操作流程
-const initSecondIntro = () => {
-  // 防止重复启动
-  if (secondIntroStarted) {
-    return;
-  }
+const getRunTagCloudButtonElement = () => {
+  return (
+    document.querySelector('[data-intro-target="runTagCloudBtn"]') ||
+    document.querySelector('#runTagCloudBtn') ||
+    document.querySelector('.tagcloud-panel .panel-head .el-button--primary')
+  );
+};
+
+const startDrawGuideIntro = () => {
+  if (secondIntroStarted) return;
   secondIntroStarted = true;
 
-  // 使用延迟和重试机制来查找元素
-  const findElements = (retries = 10, delay = 300) => {
-    // 尝试多种选择器方式查找元素
-    // Element Plus 可能会覆盖 id，所以使用多种方式查找
-    const dataFilterBtn = 
-      // 方式1: 通过 data 属性查找
-      document.querySelector('[data-intro-target="dataFilterBtn"]') ||
-      // 方式2: 通过 id 查找（如果 Element Plus 没有覆盖）
-      document.querySelector('#dataFilterBtn') ||
-      // 方式3: 通过文本内容查找（查找包含"数据筛选"文本的元素）
-      Array.from(document.querySelectorAll('.el-dropdown-link')).find(el => 
-        el.textContent?.trim().includes('数据筛选')
-      ) ||
-      // 方式4: 通过父元素和位置查找（.map-head 下的第一个 .el-dropdown-link）
-      document.querySelector('.map-head .el-dropdown:first-child .el-dropdown-link');
-    
-    const runTagCloudBtn = 
-      // 方式1: 通过 id 查找
-      document.querySelector('#runTagCloudBtn') ||
-      // 方式2: 通过类名和文本查找
-      Array.from(document.querySelectorAll('.el-button--primary')).find(el => 
-        el.textContent?.trim().includes('运行生成标签云')
-      ) ||
-      // 方式3: 通过父元素查找
-      document.querySelector('.tagcloud-panel .panel-head .el-button--primary');
+  const attemptStart = (retries = 8) => {
+    const dataFilterBtn = getDataFilterButtonElement();
+    const runBtn = getRunTagCloudButtonElement();
 
-    if (dataFilterBtn && runTagCloudBtn) {
-      // 元素找到了，启动引导
+    if (dataFilterBtn && runBtn) {
       try {
-        const intro2 = introJs.tour();
-        // 使用 addSteps 方法添加步骤
-        intro2.addSteps([
+        const intro = introJs.tour();
+        intro.addSteps([
           {
             element: dataFilterBtn,
-            intro: '您需要在此对点数据进行筛选操作。',
+            intro:
+              '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">数据筛选</strong><br/><span style="color:#64748b;">您需要在此对点数据进行筛选操作。点击下拉菜单选择圆形、矩形或多边形筛选方式。</span></div>',
           },
           {
-            element: runTagCloudBtn,
-            intro: '完成数据筛选之后，再进行运行生成标签云。',
+            element: runBtn,
+            intro:
+              '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">运行生成标签云</strong><br/><span style="color:#64748b;">完成数据筛选之后，点击此按钮生成标签云。</span></div>',
           },
         ]);
-        // 设置其他选项
-        intro2.setOptions({
-          nextLabel: '下一步',
-          prevLabel: '上一步',
+        intro.setOptions({
+          nextLabel: '下一步 →',
+          prevLabel: '← 上一步',
+          skipLabel: '跳过',
+          doneLabel: '完成',
           showStepNumbers: true,
           showProgress: true,
-          exitOnOverlayClick: true,
           disableInteraction: false,
-          exitOnEsc: true,
-          keyboardNavigation: true,
           tooltipClass: 'customTooltipClass',
           highlightClass: 'customHighlightClass',
+          exitOnOverlayClick: true,
+          exitOnEsc: true,
+          keyboardNavigation: true,
+          tooltipRenderAsHtml: true,
         });
-
-        intro2.start();
+        intro.onComplete(() => {
+          secondIntroStarted = false;
+        });
+        intro.onExit(() => {
+          secondIntroStarted = false;
+        });
+        intro.start();
       } catch (error) {
-        console.error('启动引导时出错:', error);
+        console.error('[TagCloudCanvas] 二次引导启动失败', error);
         secondIntroStarted = false;
       }
-    } else if (retries > 0) {
-      // 元素还没找到，重试
-      console.log(`查找引导元素，剩余重试次数: ${retries}`, {
-        dataFilterBtn: !!dataFilterBtn,
-        runTagCloudBtn: !!runTagCloudBtn,
-        dataFilterBtnByData: !!document.querySelector('[data-intro-target="dataFilterBtn"]'),
-        dataFilterBtnByText: !!Array.from(document.querySelectorAll('.el-dropdown-link')).find(el => 
-          el.textContent?.trim().includes('数据筛选')
-        ),
-        runTagCloudBtnById: !!document.querySelector('#runTagCloudBtn'),
-        runTagCloudBtnByText: !!Array.from(document.querySelectorAll('.el-button--primary')).find(el => 
-          el.textContent?.trim().includes('运行生成标签云')
-        )
-      });
-      setTimeout(() => {
-        findElements(retries - 1, delay);
-      }, delay);
+      return;
+    }
+
+    if (retries > 0) {
+      setTimeout(() => attemptStart(retries - 1), 200);
     } else {
-      // 重试次数用完，重置标志
-      console.warn('引导元素未找到，跳过第二个引导', {
-        dataFilterBtnByData: !!document.querySelector('[data-intro-target="dataFilterBtn"]'),
-        dataFilterBtnById: !!document.querySelector('#dataFilterBtn'),
-        dataFilterBtnByText: !!Array.from(document.querySelectorAll('.el-dropdown-link')).find(el => 
-          el.textContent?.trim().includes('数据筛选')
-        ),
-        runTagCloudBtnById: !!document.querySelector('#runTagCloudBtn'),
-        runTagCloudBtnByText: !!Array.from(document.querySelectorAll('.el-button--primary')).find(el => 
-          el.textContent?.trim().includes('运行生成标签云')
-        ),
-        allDropdownLinks: document.querySelectorAll('.el-dropdown-link').length,
-        allPrimaryButtons: document.querySelectorAll('.el-button--primary').length
-      });
+      console.warn('[TagCloudCanvas] 未找到绘制引导元素');
       secondIntroStarted = false;
     }
   };
 
-  // 等待 DOM 更新后再查找元素，增加初始延迟
   nextTick(() => {
-    // 额外延迟，确保 Element Plus 组件已完全渲染
-    setTimeout(() => {
-      findElements();
-    }, 100);
+    setTimeout(() => attemptStart(), 120);
   });
 };
 
 function handleRenderCloud() {
   // 如果没有筛选数据，启动第二个引导并阻止绘制
   if (!poiStore.hasDrawing) {
-    if (!secondIntroStarted) {
-      initSecondIntro();
-    }
-    // 阻止标签云的绘制，只启动引导
+    startDrawGuideIntro();
     return;
   }
   

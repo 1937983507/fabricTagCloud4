@@ -117,479 +117,57 @@ body,
   color: #1f2333;
 }
 
-/* Intro.js 自定义样式 - 专业精致的设计 */
-/* 注意：不要覆盖 intro.js 的 position 属性，让它自己处理定位 */
-.customTooltipClass {
-  border-radius: 8px !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08) !important;
-  background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%) !important;
-  border: 1px solid rgba(57, 156, 235, 0.1) !important;
-  padding: 16px !important;
-  min-width: 320px !important;
-  max-width: 350px !important;
-  width: auto !important;
-  font-family: 'Segoe UI', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif !important;
-  animation: tooltipFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  box-sizing: border-box !important;
-  overflow: visible !important;
-}
-
-.customTooltipClass .introjs-tooltip-title {
-  font-size: 16px !important;
-  font-weight: 600 !important;
-  color: #1f2333 !important;
-  margin-bottom: 8px !important;
-  line-height: 1.5 !important;
-  display: block !important;
-  visibility: visible !important;
-  position: relative !important;
-}
-
-/* 工具提示头部区域 */
-.customTooltipClass .introjs-tooltip-header {
-  position: relative !important;
-  padding-right: 50px !important;
-  margin-bottom: 8px !important;
-}
-
-/* 确保工具提示内容区域正确显示 */
-.customTooltipClass .introjs-tooltiptext {
-  padding-right: 0 !important;
-  margin-right: 0 !important;
-  text-align: left !important; /* 默认左对齐 */
-}
-
-/* 确保 tooltiptext 内的内容可以正确应用内联样式中的 text-align */
-.customTooltipClass .introjs-tooltiptext > div {
-  width: 100% !important;
-  box-sizing: border-box !important;
-}
-
-.customTooltipClass .introjs-tooltip-content {
-  font-size: 13px !important;
-  color: #64748b !important;
-  line-height: 1.6 !important;
-  margin-bottom: 0 !important;
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-/* intro.js v8 可能使用 tooltiptext 作为内容容器 */
-.customTooltipClass .introjs-tooltiptext {
-  font-size: 13px !important;
-  color: #64748b !important;
-  line-height: 1.6 !important;
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-/* 确保工具提示文本内容可见 */
-.customTooltipClass .introjs-tooltiptext {
-  position: relative !important;
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  color: inherit !important;
-}
-
-/* 确保工具提示内容区域可见 */
-.customTooltipClass .introjs-tooltip-content,
-.customTooltipClass .introjs-tooltiptext,
-.customTooltipClass .introjs-tooltiptext > *,
-.customTooltipClass .introjs-tooltiptext > div {
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  color: inherit !important;
-}
-
-/* 确保所有子元素可见 */
-.customTooltipClass .introjs-tooltiptext * {
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-/* 确保工具提示整体结构正确 */
-.customTooltipClass {
-  min-height: auto !important;
-  height: auto !important;
-}
-
-.customTooltipClass .introjs-tooltipbuttons {
-  border-top: 1px solid rgba(31, 35, 51, 0.08) !important;
-  padding-top: 12px !important;
-  margin-top: 12px !important;
-  display: flex !important;
-  gap: 6px !important;
-  justify-content: flex-end !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  position: relative !important;
-  width: 100% !important;
-  clear: both !important;
-  flex-wrap: nowrap !important;
-  text-align: right !important;
-}
-
-/* 确保按钮容器内的按钮正确排列，使用 float 布局（intro.js 默认） */
-.customTooltipClass .introjs-tooltipbuttons .introjs-prevbutton {
-  float: left !important;
-  margin-right: auto !important;
-}
-
-.customTooltipClass .introjs-tooltipbuttons .introjs-nextbutton,
-.customTooltipClass .introjs-tooltipbuttons .introjs-donebutton {
-  float: right !important;
-  margin-left: 6px !important;
-}
-
-/* 确保按钮容器内的按钮正确排列 */
-.customTooltipClass .introjs-tooltipbuttons .introjs-button:not(.introjs-skipbutton) {
-  flex-shrink: 0 !important;
-  order: 0 !important;
-}
-
-/* 跳过按钮不应该在按钮容器内，应该在工具提示的右上角 */
-.customTooltipClass .introjs-tooltipbuttons .introjs-skipbutton {
-  display: none !important;
-}
-
-.customTooltipClass .introjs-button {
-  padding: 6px 16px !important;
-  border-radius: 6px !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  border: none !important;
-  cursor: pointer !important;
-  position: relative !important;
-  display: inline-block !important;
-  text-align: center !important;
-  white-space: nowrap !important;
-  vertical-align: middle !important;
-  line-height: 1.5 !important;
-  box-sizing: border-box !important;
-  overflow: visible !important;
-  text-decoration: none !important;
-}
-
-.customTooltipClass .introjs-button.introjs-prevbutton {
-  background: #f1f5f9 !important;
-  color: #64748b !important;
-}
-
-.customTooltipClass .introjs-button.introjs-prevbutton:hover {
-  background: #e2e8f0 !important;
-  color: #1f2333 !important;
-  transform: translateY(-1px) !important;
-}
-
-.customTooltipClass .introjs-button.introjs-nextbutton,
-.customTooltipClass .introjs-button.introjs-donebutton {
-  background: linear-gradient(180deg, #57c6f1, #399ceb) !important;
-  color: #ffffff !important;
-  box-shadow: 0 4px 12px rgba(57, 156, 235, 0.3) !important;
-}
-
-.customTooltipClass .introjs-button.introjs-nextbutton:hover,
-.customTooltipClass .introjs-button.introjs-donebutton:hover {
-  background: linear-gradient(180deg, #399ceb, #2d8cd9) !important;
-  box-shadow: 0 6px 16px rgba(57, 156, 235, 0.4) !important;
-  transform: translateY(-1px) !important;
-}
-
-/* 跳过按钮应该在工具提示的右上角 */
-/* intro.js 默认将 skipbutton 放在 tooltip 的右上角，我们需要确保它正确显示 */
-.customTooltipClass .introjs-skipbutton {
-  background: transparent !important;
-  color: #94a3b8 !important;
-  padding: 4px 8px !important;
-  position: absolute !important;
-  top: 0 !important;
-  right: 0 !important;
-  margin: 0 !important;
-  float: none !important;
-  z-index: 10 !important;
-  font-size: 12px !important;
-  line-height: 1.2 !important;
-  min-width: auto !important;
-  width: auto !important;
-  height: auto !important;
-  display: inline-block !important;
-  text-align: center !important;
-  text-decoration: none !important;
-  border: none !important;
-  cursor: pointer !important;
-}
-
-.customTooltipClass .introjs-button.introjs-skipbutton:hover {
-  color: #64748b !important;
-  background: rgba(31, 35, 51, 0.04) !important;
-}
-
-.customTooltipClass .introjs-progress {
-  background: rgba(57, 156, 235, 0.1) !important;
-  border-radius: 4px !important;
-  height: 3px !important;
-  margin-bottom: 12px !important;
-}
-
-.customTooltipClass .introjs-progressbar {
-  background: linear-gradient(90deg, #57c6f1, #399ceb) !important;
-  border-radius: 4px !important;
-  height: 100% !important;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-
-.customTooltipClass .introjs-arrow {
-  border-color: transparent !important;
-}
-
-.customTooltipClass .introjs-arrow.top {
-  border-bottom-color: #ffffff !important;
-  border-width: 10px !important;
-  top: -20px !important;
-}
-
-.customTooltipClass .introjs-arrow.bottom {
-  border-top-color: #ffffff !important;
-  border-width: 10px !important;
-  bottom: -20px !important;
-}
-
-.customTooltipClass .introjs-arrow.left {
-  border-right-color: #ffffff !important;
-  border-width: 10px !important;
-  left: -20px !important;
-}
-
-.customTooltipClass .introjs-arrow.right {
-  border-left-color: #ffffff !important;
-  border-width: 10px !important;
-  right: -20px !important;
-}
-
-.customHighlightClass {
-  border-radius: 12px !important;
-  box-shadow: 0 0 0 4px rgba(57, 156, 235, 0.2), 
-              0 0 0 8px rgba(57, 156, 235, 0.1),
-              0 8px 32px rgba(57, 156, 235, 0.15) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  animation: highlightPulse 2s ease-in-out infinite !important;
-}
-
-@keyframes tooltipFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes highlightPulse {
-  0%, 100% {
-    box-shadow: 0 0 0 4px rgba(57, 156, 235, 0.2), 
-                0 0 0 8px rgba(57, 156, 235, 0.1),
-                0 8px 32px rgba(57, 156, 235, 0.15);
-  }
-  50% {
-    box-shadow: 0 0 0 4px rgba(57, 156, 235, 0.3), 
-                0 0 0 8px rgba(57, 156, 235, 0.15),
-                0 8px 32px rgba(57, 156, 235, 0.2);
-  }
-}
-
-/* 覆盖层样式优化 - 灰色半透明 */
-/* intro.js v8 使用 introjs-overlay 类名 */
-/* 使用更具体的选择器确保样式生效 */
-.introjs-overlay,
-div.introjs-overlay,
-[class*="introjs-overlay"] {
-  background: rgba(100, 116, 139, 0.4) !important;
-  /* 降低模糊效果，让高亮区域更清晰 */
-  backdrop-filter: blur(1px) !important;
-  -webkit-backdrop-filter: blur(1px) !important;
-  transition: opacity 0.3s ease !important;
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  z-index: 999998 !important;
-  pointer-events: auto !important;
-  opacity: 1 !important;
-  display: block !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* 确保覆盖层在所有内容之上，包括 header */
-.introjs-overlay {
-  z-index: 999998 !important;
-}
-
-/* 确保 header 在覆盖层之下 */
-.header {
-  position: relative;
-  z-index: 100;
-}
-
-/* 引导时，header 应该在覆盖层之下 */
-body.introjs-active .header {
-  z-index: 999997 !important;
-}
-
-/* 确保高亮元素在覆盖层之上，并且清晰显示 */
-.customHighlightClass,
+/* intro.js 引导样式优化 */
 .introjs-helperLayer {
+  background: rgba(57, 156, 235, 0.08) !important;
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.45) !important;
+}
+
+.customTooltipClass {
+  border-radius: 16px !important;
+  padding: 16px 20px !important;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18) !important;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.introjs-helperLayer .map-wrapper,
+.introjs-helperLayer .table-card,
+.introjs-helperLayer .tagcloud-panel,
+.introjs-helperLayer [data-intro-tutorial='tutorial-btn'],
+.introjs-helperLayer .panel-head,
+.introjs-helperLayer .canvas-wrapper {
+  filter: none !important;
+  backdrop-filter: none !important;
+  opacity: 1 !important;
   position: relative !important;
   z-index: 999999 !important;
-  isolation: isolate !important;
-  /* 确保高亮元素本身不模糊 */
-  filter: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  /* 确保高亮元素内的内容清晰 */
-  opacity: 1 !important;
-  transform: none !important;
-  /* 确保高亮元素不会被覆盖层影响 */
-  mix-blend-mode: normal !important;
 }
 
-/* 确保高亮元素内的所有内容都清晰显示 */
-.introjs-helperLayer *,
-.customHighlightClass * {
-  filter: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  opacity: 1 !important;
-}
-
-/* 特别处理 map-wrapper - 确保地图清晰显示 */
-.introjs-helperLayer .map-wrapper,
-.map-wrapper.introjs-showElement,
-.introjs-helperLayer > .map-wrapper {
-  filter: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  opacity: 1 !important;
-  z-index: 9999999 !important;
-  position: relative !important;
-}
-
-/* 确保 map-wrapper 内的所有内容清晰 */
 .introjs-helperLayer .map-wrapper *,
-.map-wrapper.introjs-showElement * {
-  filter: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  opacity: 1 !important;
-}
-
-/* 特别处理 table-card - 确保表格清晰显示 */
-.introjs-helperLayer .table-card,
-.table-card.introjs-showElement,
-.introjs-helperLayer > .table-card {
-  filter: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  opacity: 1 !important;
-  z-index: 9999999 !important;
-  position: relative !important;
-}
-
-/* 确保 table-card 内的所有内容清晰 */
 .introjs-helperLayer .table-card *,
-.table-card.introjs-showElement * {
+.introjs-helperLayer .panel-head *,
+.introjs-helperLayer .canvas-wrapper *,
+[data-intro-tutorial='tutorial-btn'].introjs-showElement * {
   filter: none !important;
   backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  opacity: 1 !important;
-}
-
-/* 特别处理引导教程按钮 - 确保按钮文字清晰显示 */
-.introjs-helperLayer [data-intro-tutorial="tutorial-btn"],
-[data-intro-tutorial="tutorial-btn"].introjs-showElement,
-.introjs-helperLayer .el-button[data-intro-tutorial="tutorial-btn"] {
-  filter: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  opacity: 1 !important;
-  z-index: 9999999 !important;
-  position: relative !important;
-  /* 确保按钮文字清晰 */
-  color: inherit !important;
-  text-shadow: none !important;
-}
-
-/* 确保引导教程按钮内的文字清晰 */
-.introjs-helperLayer [data-intro-tutorial="tutorial-btn"] *,
-[data-intro-tutorial="tutorial-btn"].introjs-showElement * {
-  filter: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
   opacity: 1 !important;
   color: inherit !important;
   text-shadow: none !important;
 }
 
-/* 确保高亮元素内的按钮文字清晰 */
-.introjs-helperLayer .el-button,
-.introjs-helperLayer button {
-  filter: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  opacity: 1 !important;
-  color: inherit !important;
-  text-shadow: none !important;
-}
-
-/* 确保工具提示在最高层 - 高于所有页面元素 */
-/* 注意：不要设置 position，让 intro.js 自己处理定位 */
+.introjs-tooltipReferenceLayer,
 .customTooltipClass,
 .introjs-tooltip {
   z-index: 10000000 !important;
 }
 
-/* 确保工具提示容器在最高层 */
-.introjs-tooltipReferenceLayer {
-  z-index: 10000001 !important;
-}
-
-/* 引导时，降低 canvas 覆盖层的 z-index，确保工具提示可见 */
-body.introjs-active .empty-cloud-hint,
-body.introjs-active .distance-legend,
-body.introjs-active .canvas-toolbar,
-.introjs-active .empty-cloud-hint,
-.introjs-active .distance-legend,
-.introjs-active .canvas-toolbar {
-  z-index: 1 !important;
-}
-
-/* 确保 canvas-wrapper 在引导时可以被正确高亮 */
 .introjs-active .canvas-wrapper,
-body.introjs-active .canvas-wrapper {
+.introjs-active .tagcloud-panel {
   position: relative !important;
-  z-index: 999999 !important;
 }
 
-/* 确保工具提示容器在最高层 */
-.introjs-tooltipReferenceLayer {
-  z-index: 10000001 !important;
-}
-
-/* 确保引导时页面不滚动 */
 body.introjs-fixParent {
   overflow: hidden !important;
-}
-
-/* 步骤编号样式 - 已删除蓝色圆形 */
-.customTooltipClass .introjs-tooltiptext::before {
-  display: none !important;
 }
 
