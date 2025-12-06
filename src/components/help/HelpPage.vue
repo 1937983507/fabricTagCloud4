@@ -5,7 +5,7 @@
       <div class="sidebar sidebar-left">
         <h3>用户手册</h3>
         <ul>
-          <li v-for="item in navItems" :key="item.id">
+          <li v-for="item in sidebarNavItems" :key="item.id">
             <a
               :href="`#${item.id}`"
               :class="{ active: activeNavId === item.id }"
@@ -13,17 +13,7 @@
             >
               {{ item.title }}
             </a>
-            <ul v-if="item.children && item.children.length > 0">
-              <li v-for="child in item.children" :key="child.id">
-                <a
-                  :href="`#${child.id}`"
-                  :class="{ active: activeNavId === child.id }"
-                  @click.prevent="handleNavClick(child.id)"
-                >
-                  {{ child.title }}
-                </a>
-              </li>
-            </ul>
+            <!-- 移除子菜单的渲染 -->
           </li>
         </ul>
       </div>
@@ -75,7 +65,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue';
 import { marked } from 'marked';
-import HELP_MD from '../../../HELP.md?raw';
+import HELP_MD from './HELP.md?raw';
 import FooterBar from '@/components/layout/FooterBar.vue';
 
 const emit = defineEmits(['navigate']);
@@ -84,27 +74,23 @@ const handleNavigate = (route) => {
   emit('navigate', route);
 };
 
-// 导航项配置
-const navItems = ref([
-  { id: 'introduction', title: '概述' },
-  { id: 'getting-started', title: '快速上手' },
-  {
-    id: 'primer',
-    title: '入门教程',
-    children: [
-      { id: 'mapDisplay', title: '地图显示模块' },
-      { id: 'dataManagement', title: '数据管理模块' },
-      { id: 'tagCloudGeneration', title: '标签云生成模块' },
-      { id: 'fontChange', title: '字体交互模块' },
-      { id: 'colourChange', title: '配色交互模块' },
-      { id: 'remainingInteractive', title: '其余交互功能' },
-    ],
-  },
-  { id: 'commonProblems', title: '常见问题' },
-  { id: 'updateLog', title: '更新日志' },
-  { id: 'relatedDownloads', title: '相关下载' },
-  { id: 'video', title: '视频专区' },
-]);
+// 动态生成左侧目录数据 - 只显示一级标题
+const sidebarNavItems = computed(() => {
+  const res = [];
+  
+  for (const sec of sections.value) {
+    // 只处理一级标题（level === 1）
+    if (sec.level === 1) {
+      res.push({ 
+        id: sec.id, 
+        title: sec.title
+      });
+    }
+    // 忽略二级标题，它们只显示在右侧目录中
+  }
+  
+  return res;
+});
 
 const activeNavId = ref('introduction');
 const activeSectionId = ref('introduction');
@@ -187,7 +173,6 @@ const parseMarkdown = () => {
   let currentSection = null;
   let currentContent = [];
   let sectionId = '';
-  let isInPrimer = false; // 标记是否在"入门教程"章节中
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -205,74 +190,40 @@ const parseMarkdown = () => {
       // 创建新的 section
       const title = line.replace('## ', '');
       sectionId = getSectionId(title);
-      isInPrimer = title === '入门教程';
-      
       currentSection = {
         id: sectionId,
         title: title,
         content: '',
         updateTime: '',
+        level: 1, // 一级标题
       };
-      currentContent = [];
+      currentContent = []; // 重置内容
 
-      // 检查下一行是否是更新时间
-      if (i + 1 < lines.length) {
-        const nextLine = lines[i + 1].trim();
+      // 检查下一行是否是更新时间（兼容可能有空行）
+      let lookAhead = i + 1;
+      while (lookAhead < lines.length && lines[lookAhead].trim() === '') {
+        lookAhead++;
+      }
+      if (lookAhead < lines.length) {
+        const nextLine = lines[lookAhead].trim();
         if (nextLine.includes('最后更新时间')) {
           // 提取更新时间，支持多种格式
           const timeMatch = nextLine.match(/最后更新时间[：:]\s*(.+)/);
           if (timeMatch) {
             currentSection.updateTime = timeMatch[1].replace(/\*\*/g, '').trim();
-            i++; // 跳过这一行
+            i = lookAhead; // 跳过更新时间行
           }
         }
       }
-    } 
-    // 检测三级标题（###），如果在"入门教程"中，将其作为独立的 section
-    else if (line.startsWith('### ') && isInPrimer) {
-      // 如果当前是"入门教程"主章节，先保存它
-      if (currentSection && currentSection.id === 'primer') {
-        const content = currentContent.join('\n').trim();
-        if (content) {
-          const { processedContent, imageScaleMap } = preprocessMarkdown(content);
-          currentSection.content = processMarkdownContent(marked.parse(processedContent), imageScaleMap);
-        } else {
-          // 如果"入门教程"主章节没有内容，创建一个提示
-          currentSection.content = '<p>请查看下方的子章节了解详细内容。</p>';
-        }
-        parsedSections.push(currentSection);
-      } else if (currentSection) {
-        // 保存上一个子章节
-        const content = currentContent.join('\n');
-        const { processedContent, imageScaleMap } = preprocessMarkdown(content);
-        currentSection.content = processMarkdownContent(marked.parse(processedContent), imageScaleMap);
-        parsedSections.push(currentSection);
-      }
-
-      // 创建新的子 section
-      let title = line.replace('### ', '');
-      // 移除开头的编号（如 "1. "、"2. " 等）
-      title = title.replace(/^\d+\.\s*/, '').trim();
-      sectionId = getSectionId(title);
-      
-      // 获取"入门教程"的更新时间
-      const primerSection = parsedSections.find(s => s.id === 'primer');
-      const updateTime = primerSection?.updateTime || '';
-      
-      currentSection = {
-        id: sectionId,
-        title: title,
-        content: '',
-        updateTime: updateTime,
-      };
-      currentContent = [];
-      isInPrimer = true; // 继续保持在"入门教程"中
-    } 
-    else if (line.startsWith('---')) {
+    } else if (line.startsWith('---')) {
       // 分隔符，跳过
       continue;
     } else {
-      currentContent.push(lines[i]);
+      // 所有非一级标题和非分隔符的内容都添加到当前 section
+      // 注意：我们不添加更新时间行，因为它已经被提取到 updateTime 属性中
+      if (!line.includes('最后更新时间')) {
+        currentContent.push(lines[i]);
+      }
     }
   }
 
@@ -320,15 +271,28 @@ const processMarkdownContent = (html, imageScaleMap = new Map()) => {
         }
       }
       
-      // 处理路径转换
+      // 处理路径转换 - 使用相对路径以适配 base 配置（如 /fabricTagCloud4/）
+      // 这样构建后路径会自动加上 base 前缀，变成 /fabricTagCloud4/img/xxx.png
       let src = originalSrc;
-      if (src.startsWith('../img/')) {
-        src = src.replace('../img/', '/img/');
+      
+      // 处理各种可能的路径格式
+      if (src.includes('public/img/')) {
+        // 从 ../../../public/img/xxx.png 或 public/img/xxx.png 提取出 img/xxx.png
+        src = src.replace(/.*public\/img\//, 'img/');
+      } else if (src.includes('../img/')) {
+        // 处理 ../img/ 或 ../../../img/ 等情况
+        src = src.replace(/.*\/img\//, 'img/');
+      } else if (src.startsWith('/img/')) {
+        // 如果已经是绝对路径 /img/xxx.png，改为相对路径 img/xxx.png
+        src = src.replace(/^\/img\//, 'img/');
       } else if (src.startsWith('img/')) {
-        src = '/' + src;
-      } else if (!src.startsWith('/') && !src.startsWith('http')) {
-        src = '/img/' + src;
+        // 已经是相对路径 img/xxx.png，保持不变
+        // 不做任何处理
+      } else if (!src.startsWith('http') && !src.startsWith('//') && !src.startsWith('/')) {
+        // 如果既不是 http/https 协议，也不是绝对路径，添加 img/ 前缀
+        src = 'img/' + src;
       }
+      // 其他情况（如 http:// 或 // 开头的 URL）保持不变
       
       // 如果原始路径没找到，尝试用处理后的路径查找
       if (scaleValue === '50%' && imageScaleMap.has(src)) {
@@ -370,16 +334,11 @@ const getSectionId = (title) => {
     '概述': 'introduction',
     '快速上手': 'getting-started',
     '入门教程': 'primer',
-    '地图显示模块': 'mapDisplay',
-    '数据管理模块': 'dataManagement',
-    '标签云生成模块': 'tagCloudGeneration',
-    '字体交互模块': 'fontChange',
-    '配色交互模块': 'colourChange',
-    '其余交互功能': 'remainingInteractive',
-    '常见问题': 'commonProblems',
-    '更新日志': 'updateLog',
-    '相关下载': 'relatedDownloads',
-    '视频专区': 'video',
+    '技术文档与参考资料': 'documents',
+    '视频教程专区': 'video',
+    '技术支持与社区': 'support',
+    '版本更新日志': 'version',
+    '附录':'appendix'
   };
   
   // 先尝试精确匹配
@@ -482,30 +441,16 @@ const generateToc = (sectionId) => {
   });
 };
 
-// 导航点击处理
+// 左侧目录点击处理，动态切换高亮/内容
 const handleNavClick = (id) => {
   activeNavId.value = id;
   activeSectionId.value = id;
-  showFooter.value = false; // 切换 section 时隐藏 footer
-  
-  // 立即重置滚动位置
-  if (helpPageRef.value) {
-    helpPageRef.value.scrollTop = 0;
-  }
-  
   nextTick(() => {
-    const section = document.getElementById(id);
-    if (section && helpPageRef.value) {
-      // 再次确保滚动位置为0
-      helpPageRef.value.scrollTop = 0;
-      generateToc(id);
-      // 重置目录高亮
-      if (currentToc.value.length > 0) {
-        activeTocId.value = currentToc.value[0].id;
-      } else {
-        activeTocId.value = '';
-      }
+    generateToc(id);
+    if (currentToc.value.length > 0) {
+      activeTocId.value = currentToc.value[0].id;
     }
+    handleScroll();
   });
 };
 
@@ -654,16 +599,13 @@ const handleScroll = () => {
 };
 
 onMounted(() => {
-  // 解析 Markdown
   sections.value = parseMarkdown();
-
-  // 设置默认激活的 section
+  // 设置自动首项为选中
   if (sections.value.length > 0) {
     activeSectionId.value = sections.value[0].id;
     activeNavId.value = sections.value[0].id;
     nextTick(() => {
       generateToc(sections.value[0].id);
-      // 设置默认高亮第一个目录项
       if (currentToc.value.length > 0) {
         activeTocId.value = currentToc.value[0].id;
       }
@@ -679,15 +621,13 @@ onMounted(() => {
     }
   });
 
-  // 配置 marked 选项
-  marked.setOptions({
+  // 配置 marked 选项 - marked 17+ 使用 marked.use() 或直接传递配置
+  // 注意：marked 17 移除了 setOptions，改为在 parse 时传递配置或使用 marked.use()
+  marked.use({
     breaks: true,
     gfm: true,
-    // 确保加粗、斜体等格式正常工作
     pedantic: false,
-    sanitize: false,
     smartLists: true,
-    smartypants: false,
   });
 });
 
@@ -766,7 +706,7 @@ onBeforeUnmount(() => {
   width: 100%;
   background: #ffffff;
   margin: 0 auto; /* 居中 */
-  padding-bottom: 120px; /* 为 footer 留出足够空间 */
+  // padding-bottom: 120px; /* 为 footer 留出足够空间 */
 }
 
 /* 左右侧导航栏 */
