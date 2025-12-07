@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .js,.vue",
-    "convert:csv": "python scripts/csv-to-json.py"
+    "convert:csv": "python scripts/csv-to-json-optimized.py"
   },
   "dependencies": {
     "@amap/amap-jsapi-loader": "^1.0.1",
