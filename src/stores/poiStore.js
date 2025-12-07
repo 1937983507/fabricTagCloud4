@@ -10,6 +10,7 @@ const JSON_DATA_URL = `${import.meta.env.BASE_URL}data/chinapoi.json`;
 export const usePoiStore = defineStore('poiStore', {
   state: () => ({
     poiList: [],
+    dataLoading: false, // 数据加载状态
     visibleMode: 'all',
     isEditable: false,
     selectedIds: [],
@@ -51,21 +52,34 @@ export const usePoiStore = defineStore('poiStore', {
      * 加载默认数据（根据配置自动选择JSON或CSV）
      */
     async loadDefaultData() {
-      if (DATA_SOURCE === 'json') {
-        try {
-          await this.loadDefaultDataFromJSON();
-        } catch (error) {
-          console.warn('[poiStore] JSON加载失败，尝试使用CSV:', error);
-          // JSON加载失败时，自动回退到CSV
+      // 如果已有数据，不重复加载
+      if (this.poiList.length > 0) {
+        return;
+      }
+      
+      this.dataLoading = true;
+      try {
+        if (DATA_SOURCE === 'json') {
+          try {
+            await this.loadDefaultDataFromJSON();
+          } catch (error) {
+            console.warn('[poiStore] JSON加载失败，尝试使用CSV:', error);
+            // JSON加载失败时，自动回退到CSV
+            await this.loadDefaultDataFromCSV();
+          }
+        } else {
           await this.loadDefaultDataFromCSV();
         }
-      } else {
-        await this.loadDefaultDataFromCSV();
+      } finally {
+        this.dataLoading = false;
       }
     },
 
     /**
      * 从JSON文件加载数据（推荐，性能更好）
+     * 支持两种格式：
+     * 1. 新格式：{columns: [...], data: [[...], ...]} - 更紧凑
+     * 2. 旧格式：[{id, name, ...}, ...] - 兼容旧数据
      */
     async loadDefaultDataFromJSON() {
       try {
@@ -77,24 +91,19 @@ export const usePoiStore = defineStore('poiStore', {
         });
         
         const rawData = response.data;
-        if (!Array.isArray(rawData)) {
-          throw new Error('JSON数据格式错误：期望数组格式');
-        }
         
-        this.poiList = rawData.map((item, index) => ({
-          id: item.id !== undefined ? item.id : index,
-          name: item.name || '',
-          name_en: item.name_en || '',
-          city: item.city || '',
-          rank: item.rank || 0,
-          rankInCity: item.rankInCity || 0,
-          lng: item.lng || 0,
-          lat: item.lat || 0,
-          fontSize: this.fontSettings.fontSizes[index % this.fontSettings.fontSizes.length],
-          fontColor: this.colorSettings.palette[index % this.colorSettings.palette.length],
-          typeface: this.fontSettings.fontFamily,
-          selected: false,
-        }));
+        // 检测数据格式：新格式（columns+data）或旧格式（数组）
+        if (rawData && typeof rawData === 'object' && 'columns' in rawData && 'data' in rawData) {
+          // 新格式：columns + data数组
+          console.info('[poiStore] 检测到新格式（columns+data），使用优化解析...');
+          await this.loadDefaultDataFromJSONOptimized(rawData);
+        } else if (Array.isArray(rawData)) {
+          // 旧格式：对象数组
+          console.info('[poiStore] 检测到旧格式（对象数组），使用兼容解析...');
+          await this.loadDefaultDataFromJSONLegacy(rawData);
+        } else {
+          throw new Error('JSON数据格式错误：期望columns+data格式或数组格式');
+        }
 
         this.selectedIds = [];
         
@@ -104,6 +113,80 @@ export const usePoiStore = defineStore('poiStore', {
         console.error('[poiStore] JSON数据加载失败:', error);
         throw error;
       }
+    },
+
+    /**
+     * 从新格式JSON加载数据（columns+data数组格式，更紧凑）
+     */
+    async loadDefaultDataFromJSONOptimized(jsonData) {
+      const { columns, data } = jsonData;
+      
+      if (!Array.isArray(columns) || !Array.isArray(data)) {
+        throw new Error('JSON数据格式错误：columns和data必须是数组');
+      }
+      
+      // 字段索引映射
+      const colIndex = {
+        id: columns.indexOf('id'),
+        name: columns.indexOf('name'),
+        name_en: columns.indexOf('name_en'),
+        city: columns.indexOf('city'),
+        rank: columns.indexOf('rank'),
+        rankInCity: columns.indexOf('rankInCity'),
+        lng: columns.indexOf('lng'),
+        lat: columns.indexOf('lat'),
+      };
+      
+      // 验证必需的字段
+      const requiredFields = ['id', 'name', 'city', 'rank', 'rankInCity', 'lng', 'lat'];
+      for (const field of requiredFields) {
+        if (colIndex[field] === -1) {
+          throw new Error(`JSON数据格式错误：缺少必需字段 "${field}"`);
+        }
+      }
+      
+      // 解析数据数组
+      this.poiList = data.map((row, index) => {
+        // 如果id字段不存在，使用索引
+        const id = colIndex.id >= 0 && row[colIndex.id] !== undefined 
+          ? row[colIndex.id] 
+          : index;
+        
+        return {
+          id: id,
+          name: colIndex.name >= 0 ? (row[colIndex.name] || '') : '',
+          name_en: colIndex.name_en >= 0 ? (row[colIndex.name_en] || '') : '',
+          city: colIndex.city >= 0 ? (row[colIndex.city] || '') : '',
+          rank: colIndex.rank >= 0 ? (row[colIndex.rank] || 0) : 0,
+          rankInCity: colIndex.rankInCity >= 0 ? (row[colIndex.rankInCity] || 0) : 0,
+          lng: colIndex.lng >= 0 ? (row[colIndex.lng] || 0) : 0,
+          lat: colIndex.lat >= 0 ? (row[colIndex.lat] || 0) : 0,
+          fontSize: this.fontSettings.fontSizes[index % this.fontSettings.fontSizes.length],
+          fontColor: this.colorSettings.palette[index % this.colorSettings.palette.length],
+          typeface: this.fontSettings.fontFamily,
+          selected: false,
+        };
+      });
+    },
+
+    /**
+     * 从旧格式JSON加载数据（对象数组格式，兼容旧数据）
+     */
+    async loadDefaultDataFromJSONLegacy(rawData) {
+      this.poiList = rawData.map((item, index) => ({
+        id: item.id !== undefined ? item.id : index,
+        name: item.name || '',
+        name_en: item.name_en || '',
+        city: item.city || '',
+        rank: item.rank || 0,
+        rankInCity: item.rankInCity || 0,
+        lng: item.lng || 0,
+        lat: item.lat || 0,
+        fontSize: this.fontSettings.fontSizes[index % this.fontSettings.fontSizes.length],
+        fontColor: this.colorSettings.palette[index % this.colorSettings.palette.length],
+        typeface: this.fontSettings.fontFamily,
+        selected: false,
+      }));
     },
 
     /**

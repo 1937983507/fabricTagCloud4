@@ -40,7 +40,15 @@
       </el-dropdown>
       <el-button text @click="openSearch = true">检索定位</el-button>
     </header>
-    <div ref="mapRef" class="map-canvas"></div>
+    <div ref="mapRef" class="map-canvas">
+      <!-- 数据加载遮罩 -->
+      <div v-if="poiStore.dataLoading" class="loading-overlay">
+        <div class="loading-content">
+          <el-icon class="loading-icon"><Loading /></el-icon>
+          <div class="loading-text">数据正在加载中，请稍后...</div>
+        </div>
+      </div>
+    </div>
     <el-dialog v-model="openSearch" title="搜索位置、公交站、地铁站" width="360px">
       <el-input v-model="searchKeyword" placeholder="请输入关键词" @keyup.enter="searchPlace">
         <template #append>
@@ -52,7 +60,7 @@
 </template>
 
 <script setup>
-import { ArrowDown } from '@element-plus/icons-vue';
+import { ArrowDown, Loading } from '@element-plus/icons-vue';
 import { usePoiStore } from '@/stores/poiStore';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
@@ -504,6 +512,56 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   overflow: hidden;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+  position: relative;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  border-radius: 12px;
+  transition: opacity 0.3s ease;
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  background-color: rgba(255, 255, 255, 0.98);
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.loading-icon {
+  font-size: 36px;
+  color: #409eff;
+  animation: rotating 2s linear infinite;
+}
+
+.loading-text {
+  font-size: 15px;
+  color: #606266;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+@keyframes rotating {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 </style>
 

@@ -51,6 +51,41 @@ const showHelpPage = ref(false);
 const showFeedbackPage = ref(false);
 
 let firstIntroStarted = false;
+let currentIntro = null;
+
+// localStorage key for tutorial preference
+const TUTORIAL_DISABLED_KEY = 'fabricTagCloud_tutorialDisabled';
+
+// Check if tutorial should be disabled
+const shouldDisableTutorial = () => {
+  return localStorage.getItem(TUTORIAL_DISABLED_KEY) === 'true';
+};
+
+// Save tutorial preference
+const saveTutorialPreference = (disabled) => {
+  localStorage.setItem(TUTORIAL_DISABLED_KEY, disabled ? 'true' : 'false');
+};
+
+// Get current tutorial preference
+const getTutorialPreference = () => {
+  return localStorage.getItem(TUTORIAL_DISABLED_KEY) === 'true';
+};
+
+// Expose function to window for inline event handler
+if (typeof window !== 'undefined') {
+  window.__saveTutorialPreference = saveTutorialPreference;
+  window.__getTutorialPreference = getTutorialPreference;
+}
+
+// Helper function to add checkbox to intro content
+const addCheckboxToIntro = (content) => {
+  // Always read from localStorage to get the latest value
+  const isChecked = getTutorialPreference();
+  const checkedAttr = isChecked ? 'checked' : '';
+  // Inline onchange: immediately save to localStorage and sync all checkboxes
+  const checkboxHtml = `<div style="margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:left;"><label style="display:flex;align-items:center;cursor:pointer;font-size:13px;color:#64748b;"><input type="checkbox" class="tutorial-disable-checkbox" ${checkedAttr} style="margin-right:8px;cursor:pointer;width:16px;height:16px;" onchange="if(window.__saveTutorialPreference) { window.__saveTutorialPreference(this.checked); const allCb = document.querySelectorAll('.tutorial-disable-checkbox'); allCb.forEach(cb => cb.checked = this.checked); }" /><span>最近不再默认显示此引导</span></label></div>`;
+  return content + checkboxHtml;
+};
 
 const handleChangePanel = (panel) => {
   activePanel.value = panel;
@@ -125,48 +160,66 @@ const getTutorialButtonElement = () => {
 };
 
 const createIntro = () => {
+  // Check if introJs is available
+  if (!introJs || typeof introJs.tour !== 'function') {
+    console.error('Intro.js is not properly loaded');
+    throw new Error('Intro.js is not properly loaded');
+  }
+  
   const intro = introJs.tour();
-  intro.addSteps([
+  
+  // Build steps array with checkbox in each step
+  const steps = [
     {
-      intro:
-        '<div style="text-align:center;padding:8px 0;"><div style="margin-bottom:12px;"><img src="/img/logo.png" alt="Logo" style="height:40px;object-fit:contain;" /></div><div style="font-size:16px;font-weight:600;color:#1f2333;margin-bottom:8px;">欢迎来到地名标签云网站！</div><div style="font-size:13px;color:#64748b;">让我们带您浏览主要功能，快速上手使用。</div></div>',
+      intro: addCheckboxToIntro(
+        '<div style="text-align:center;padding:8px 0;"><div style="margin-bottom:12px;"><img src="/img/logo.png" alt="Logo" style="height:40px;object-fit:contain;" /></div><div style="font-size:16px;font-weight:600;color:#1f2333;margin-bottom:8px;">欢迎来到地名标签云网站！</div><div style="font-size:13px;color:#64748b;">让我们带您浏览主要功能，快速上手使用。</div></div>'
+      ),
     },
     {
       element: getHeaderElement(),
-      intro:
-        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">导航栏</strong><br/><span style="color:#64748b;">您可以在此处查看网站帮助、进行意见反馈等操作。点击右上角的<span style="color:#399ceb;">"引导教程"</span>图标，可以随时重新查看本引导。</span></div>',
+      intro: addCheckboxToIntro(
+        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">导航栏</strong><br/><span style="color:#64748b;">您可以在此处查看网站帮助、进行意见反馈等操作。点击右上角的<span style="color:#399ceb;">"引导教程"</span>图标，可以随时重新查看本引导。</span></div>'
+      ),
     },
     {
       element: getSideMenuElement(),
-      intro:
-        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">左侧面板</strong><br/><span style="color:#64748b;">您可以在此切换不同的配置面板，包括内容、字体、配色等设置，按照顺序逐步完善标签云的展示效果。</span></div>',
+      intro: addCheckboxToIntro(
+        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">左侧面板</strong><br/><span style="color:#64748b;">您可以在此切换不同的配置面板，包括内容、字体、配色等设置，按照顺序逐步完善标签云的展示效果。</span></div>'
+      ),
     },
     {
       element: getMapElement(),
-      intro:
-        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">地图展示窗口</strong><br/><span style="color:#64748b;">您可以在此查看当前定位地图及景点数据。使用上方的"数据筛选"功能可以在地图上绘制区域来筛选数据。</span></div>',
+      intro: addCheckboxToIntro(
+        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">地图展示窗口</strong><br/><span style="color:#64748b;">您可以在此查看当前定位地图及景点数据。使用上方的"数据筛选"功能可以在地图上绘制区域来筛选数据。</span></div>'
+      ),
     },
     {
       element: getTableElement(),
-      intro:
-        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">数据详情窗口</strong><br/><span style="color:#64748b;">您可以在此查看所有的景点数据信息，包括地名、城市、排名等。支持编辑、筛选和批量操作。</span></div>',
+      intro: addCheckboxToIntro(
+        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">数据详情窗口</strong><br/><span style="color:#64748b;">您可以在此查看所有的景点数据信息，包括地名、城市、排名等。支持编辑、筛选和批量操作。</span></div>'
+      ),
     },
     {
       element: getTagCloudPanelElement(),
-      intro:
-        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">标签云操作面板</strong><br/><span style="color:#64748b;">您可以在此对标签云进行操作，包括显示排名、通行时间、调整显示精度、导出图片等功能。</span></div>',
+      intro: addCheckboxToIntro(
+        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">标签云操作面板</strong><br/><span style="color:#64748b;">您可以在此对标签云进行操作，包括显示排名、通行时间、调整显示精度、导出图片等功能。</span></div>'
+      ),
     },
     {
       element: getCanvasElement(),
-      intro:
-        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">标签云画布</strong><br/><span style="color:#64748b;">系统将会在此窗口显示标签云。您可以使用右侧工具栏进行缩放、漫游等操作。</span></div>',
+      intro: addCheckboxToIntro(
+        '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">标签云画布</strong><br/><span style="color:#64748b;">系统将会在此窗口显示标签云。您可以使用右侧工具栏进行缩放、漫游等操作。</span></div>'
+      ),
     },
     {
       element: getTutorialButtonElement(),
-      intro:
-        '<div style="text-align:center;line-height:1.6;"><div style="font-size:20px;margin-bottom:12px;">✨ 引导完成！</div><div style="color:#64748b;margin-bottom:16px;">您已经了解了主要功能。如需再次查看引导，请点击右上角的<span style="color:#399ceb;">"引导教程"</span>图标。</div><div style="font-size:12px;color:#94a3b8;">祝您使用愉快！</div></div>',
+      intro: addCheckboxToIntro(
+        '<div style="text-align:center;line-height:1.6;"><div style="font-size:20px;margin-bottom:12px;">✨ 引导完成！</div><div style="color:#64748b;margin-bottom:16px;">您已经了解了主要功能。如需再次查看引导，请点击右上角的<span style="color:#399ceb;">"引导教程"</span>图标。</div><div style="font-size:12px;color:#94a3b8;margin-top:12px;">祝您使用愉快！</div></div>'
+      ),
     },
-  ]);
+  ];
+  
+  intro.addSteps(steps);
 
   intro.setOptions({
     nextLabel: '下一步 →',
@@ -188,31 +241,217 @@ const createIntro = () => {
     tooltipRenderAsHtml: true,
   });
 
+  // Helper function to sync all checkboxes from localStorage
+  const syncAllCheckboxes = () => {
+    // Always read latest value from localStorage
+    const isDisabled = getTutorialPreference();
+    const checkboxes = document.querySelectorAll('.tutorial-disable-checkbox');
+    checkboxes.forEach((checkbox) => {
+      // Update checkbox state from localStorage
+      checkbox.checked = isDisabled;
+      // Add event listener if not already attached
+      if (!checkbox.hasAttribute('data-listener-attached')) {
+        checkbox.setAttribute('data-listener-attached', 'true');
+        checkbox.addEventListener('change', (e) => {
+          // Immediately save to localStorage when user clicks
+          saveTutorialPreference(e.target.checked);
+          // Immediately sync all checkboxes
+          const allCheckboxes = document.querySelectorAll('.tutorial-disable-checkbox');
+          allCheckboxes.forEach((cb) => {
+            cb.checked = e.target.checked;
+          });
+        });
+      }
+    });
+  };
+  
+  // Sync checkboxes when step changes - always read from localStorage
+  // Use multiple attempts to ensure DOM is fully rendered
+  if (typeof intro.onchange === 'function') {
+    intro.onchange(() => {
+      // Use requestAnimationFrame to ensure browser has rendered
+      requestAnimationFrame(() => {
+        nextTick(() => {
+          syncAllCheckboxes();
+          // Also try after a short delay to catch any late rendering
+          setTimeout(() => {
+            syncAllCheckboxes();
+          }, 100);
+        });
+      });
+    });
+  }
+  
+  // Also sync checkboxes when intro starts (for the first step)
+  // Use onstart if available, otherwise sync will happen on first step change
+  if (typeof intro.onstart === 'function') {
+    intro.onstart(() => {
+      nextTick(() => {
+        syncAllCheckboxes();
+        setTimeout(() => {
+          syncAllCheckboxes();
+        }, 50);
+      });
+    });
+  }
+  
+  // Use MutationObserver to catch tooltip rendering and sync checkboxes
+  let syncTimeout = null;
+  const observer = new MutationObserver((mutations) => {
+    // Debounce to avoid too frequent updates
+    if (syncTimeout) {
+      clearTimeout(syncTimeout);
+    }
+    syncTimeout = setTimeout(() => {
+      // Check if tooltip exists and has checkbox
+      const tooltip = document.querySelector('.introjs-tooltip');
+      if (tooltip) {
+        const checkbox = tooltip.querySelector('.tutorial-disable-checkbox');
+        if (checkbox) {
+          // Sync from localStorage
+          const isDisabled = getTutorialPreference();
+          checkbox.checked = isDisabled;
+          // Ensure listener is attached
+          if (!checkbox.hasAttribute('data-listener-attached')) {
+            checkbox.setAttribute('data-listener-attached', 'true');
+            checkbox.addEventListener('change', (e) => {
+              saveTutorialPreference(e.target.checked);
+              const allCheckboxes = document.querySelectorAll('.tutorial-disable-checkbox');
+              allCheckboxes.forEach((cb) => {
+                cb.checked = e.target.checked;
+              });
+            });
+          }
+        }
+      }
+    }, 10);
+  });
+  
+  // Start observing when intro starts
   intro.onComplete(() => {
+    observer.disconnect();
+    if (syncTimeout) {
+      clearTimeout(syncTimeout);
+    }
+  });
+  
+  intro.onExit(() => {
+    observer.disconnect();
+    if (syncTimeout) {
+      clearTimeout(syncTimeout);
+    }
+  });
+  
+  // Observe introjs tooltip container for changes
+  const observeTooltip = () => {
+    const tooltipContainer = document.querySelector('.introjs-tooltipReferenceLayer') || document.body;
+    observer.observe(tooltipContainer, {
+      childList: true,
+      subtree: true,
+      attributes: false,
+    });
+  };
+  
+  // Start observing after a short delay to ensure intro is initialized
+  setTimeout(() => {
+    observeTooltip();
+  }, 100);
+
+  intro.onComplete(() => {
+    // Check checkbox state when completing (check any checkbox, they should all be in sync)
+    const checkbox = document.querySelector('.tutorial-disable-checkbox');
+    if (checkbox) {
+      saveTutorialPreference(checkbox.checked);
+    }
     firstIntroStarted = false;
+    currentIntro = null;
   });
 
   intro.onExit(() => {
+    // Check checkbox state when exiting (check any checkbox, they should all be in sync)
+    const checkbox = document.querySelector('.tutorial-disable-checkbox');
+    if (checkbox) {
+      saveTutorialPreference(checkbox.checked);
+    }
     firstIntroStarted = false;
+    currentIntro = null;
   });
 
   return intro;
 };
 
 const restartIntro = () => {
+  // Exit current intro if exists
+  if (currentIntro) {
+    try {
+      if (typeof currentIntro.exit === 'function') {
+        currentIntro.exit(true);
+      } else if (typeof currentIntro.exitIntro === 'function') {
+        currentIntro.exitIntro(true);
+      }
+    } catch (e) {
+      console.warn('Error exiting current intro:', e);
+    }
+  }
+  
+  // Also try to exit any existing intro.js instance
+  try {
+    if (introJs && typeof introJs.exit === 'function') {
+      introJs.exit(true);
+    }
+  } catch (e) {
+    // Ignore errors
+  }
+  
   firstIntroStarted = false;
-  nextTick(() => {
-    const intro = createIntro();
-    intro.start();
-  });
+  currentIntro = null;
+  
+  // Wait a bit for cleanup, then start new intro
+  setTimeout(() => {
+    nextTick(() => {
+      try {
+        const intro = createIntro();
+        currentIntro = intro;
+        // Ensure intro.js is available
+        if (!intro || typeof intro.start !== 'function') {
+          console.error('Intro.js not properly initialized');
+          return;
+        }
+        console.log('Starting intro.js tour...');
+        intro.start();
+      } catch (error) {
+        console.error('Error starting intro:', error);
+        firstIntroStarted = false;
+        currentIntro = null;
+      }
+    });
+  }, 200);
 };
 
 const initIntro = () => {
+  // Check if user has disabled tutorial
+  if (shouldDisableTutorial()) {
+    return;
+  }
   if (firstIntroStarted || showHelpPage.value || showFeedbackPage.value) return;
   firstIntroStarted = true;
   nextTick(() => {
-    const intro = createIntro();
-    intro.start();
+    try {
+      const intro = createIntro();
+      currentIntro = intro;
+      // Ensure intro.js is available
+      if (!intro || typeof intro.start !== 'function') {
+        console.error('Intro.js not properly initialized');
+        firstIntroStarted = false;
+        currentIntro = null;
+        return;
+      }
+      intro.start();
+    } catch (error) {
+      console.error('Error starting intro:', error);
+      firstIntroStarted = false;
+      currentIntro = null;
+    }
   });
 };
 
