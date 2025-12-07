@@ -79,9 +79,11 @@ if (typeof window !== 'undefined') {
 
 // Helper function to add checkbox to intro content
 const addCheckboxToIntro = (content) => {
+  // Always read from localStorage to get the latest value
   const isChecked = getTutorialPreference();
   const checkedAttr = isChecked ? 'checked' : '';
-  const checkboxHtml = `<div style="margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:left;"><label style="display:flex;align-items:center;cursor:pointer;font-size:13px;color:#64748b;"><input type="checkbox" class="tutorial-disable-checkbox" ${checkedAttr} style="margin-right:8px;cursor:pointer;width:16px;height:16px;" onchange="window.__saveTutorialPreference && window.__saveTutorialPreference(this.checked); const allCheckboxes = document.querySelectorAll('.tutorial-disable-checkbox'); allCheckboxes.forEach(cb => cb.checked = this.checked);" /><span>最近不再默认显示此引导</span></label></div>`;
+  // Inline onchange: immediately save to localStorage and sync all checkboxes
+  const checkboxHtml = `<div style="margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:left;"><label style="display:flex;align-items:center;cursor:pointer;font-size:13px;color:#64748b;"><input type="checkbox" class="tutorial-disable-checkbox" ${checkedAttr} style="margin-right:8px;cursor:pointer;width:16px;height:16px;" onchange="if(window.__saveTutorialPreference) { window.__saveTutorialPreference(this.checked); const allCb = document.querySelectorAll('.tutorial-disable-checkbox'); allCb.forEach(cb => cb.checked = this.checked); }" /><span>最近不再默认显示此引导</span></label></div>`;
   return content + checkboxHtml;
 };
 
@@ -239,30 +241,121 @@ const createIntro = () => {
     tooltipRenderAsHtml: true,
   });
 
-  // Set up checkbox listeners when step changes (if callback is available)
-  // Note: We also use inline onchange handler in HTML as fallback
+  // Helper function to sync all checkboxes from localStorage
+  const syncAllCheckboxes = () => {
+    // Always read latest value from localStorage
+    const isDisabled = getTutorialPreference();
+    const checkboxes = document.querySelectorAll('.tutorial-disable-checkbox');
+    checkboxes.forEach((checkbox) => {
+      // Update checkbox state from localStorage
+      checkbox.checked = isDisabled;
+      // Add event listener if not already attached
+      if (!checkbox.hasAttribute('data-listener-attached')) {
+        checkbox.setAttribute('data-listener-attached', 'true');
+        checkbox.addEventListener('change', (e) => {
+          // Immediately save to localStorage when user clicks
+          saveTutorialPreference(e.target.checked);
+          // Immediately sync all checkboxes
+          const allCheckboxes = document.querySelectorAll('.tutorial-disable-checkbox');
+          allCheckboxes.forEach((cb) => {
+            cb.checked = e.target.checked;
+          });
+        });
+      }
+    });
+  };
+  
+  // Sync checkboxes when step changes - always read from localStorage
+  // Use multiple attempts to ensure DOM is fully rendered
   if (typeof intro.onchange === 'function') {
     intro.onchange(() => {
-      nextTick(() => {
-        // Update all checkboxes to reflect current state
-        const checkboxes = document.querySelectorAll('.tutorial-disable-checkbox');
-        const isDisabled = getTutorialPreference();
-        checkboxes.forEach((checkbox) => {
-          checkbox.checked = isDisabled;
-          if (!checkbox.hasAttribute('data-listener-attached')) {
-            checkbox.setAttribute('data-listener-attached', 'true');
-            checkbox.addEventListener('change', (e) => {
-              saveTutorialPreference(e.target.checked);
-              // Sync all checkboxes
-              document.querySelectorAll('.tutorial-disable-checkbox').forEach((cb) => {
-                cb.checked = e.target.checked;
-              });
-            });
-          }
+      // Use requestAnimationFrame to ensure browser has rendered
+      requestAnimationFrame(() => {
+        nextTick(() => {
+          syncAllCheckboxes();
+          // Also try after a short delay to catch any late rendering
+          setTimeout(() => {
+            syncAllCheckboxes();
+          }, 100);
         });
       });
     });
   }
+  
+  // Also sync checkboxes when intro starts (for the first step)
+  // Use onstart if available, otherwise sync will happen on first step change
+  if (typeof intro.onstart === 'function') {
+    intro.onstart(() => {
+      nextTick(() => {
+        syncAllCheckboxes();
+        setTimeout(() => {
+          syncAllCheckboxes();
+        }, 50);
+      });
+    });
+  }
+  
+  // Use MutationObserver to catch tooltip rendering and sync checkboxes
+  let syncTimeout = null;
+  const observer = new MutationObserver((mutations) => {
+    // Debounce to avoid too frequent updates
+    if (syncTimeout) {
+      clearTimeout(syncTimeout);
+    }
+    syncTimeout = setTimeout(() => {
+      // Check if tooltip exists and has checkbox
+      const tooltip = document.querySelector('.introjs-tooltip');
+      if (tooltip) {
+        const checkbox = tooltip.querySelector('.tutorial-disable-checkbox');
+        if (checkbox) {
+          // Sync from localStorage
+          const isDisabled = getTutorialPreference();
+          checkbox.checked = isDisabled;
+          // Ensure listener is attached
+          if (!checkbox.hasAttribute('data-listener-attached')) {
+            checkbox.setAttribute('data-listener-attached', 'true');
+            checkbox.addEventListener('change', (e) => {
+              saveTutorialPreference(e.target.checked);
+              const allCheckboxes = document.querySelectorAll('.tutorial-disable-checkbox');
+              allCheckboxes.forEach((cb) => {
+                cb.checked = e.target.checked;
+              });
+            });
+          }
+        }
+      }
+    }, 10);
+  });
+  
+  // Start observing when intro starts
+  intro.onComplete(() => {
+    observer.disconnect();
+    if (syncTimeout) {
+      clearTimeout(syncTimeout);
+    }
+  });
+  
+  intro.onExit(() => {
+    observer.disconnect();
+    if (syncTimeout) {
+      clearTimeout(syncTimeout);
+    }
+  });
+  
+  // Observe introjs tooltip container for changes
+  const observeTooltip = () => {
+    const tooltipContainer = document.querySelector('.introjs-tooltipReferenceLayer') || document.body;
+    observer.observe(tooltipContainer, {
+      childList: true,
+      subtree: true,
+      attributes: false,
+    });
+  };
+  
+  // Start observing after a short delay to ensure intro is initialized
+  setTimeout(() => {
+    observeTooltip();
+  }, 100);
 
   intro.onComplete(() => {
     // Check checkbox state when completing (check any checkbox, they should all be in sync)
