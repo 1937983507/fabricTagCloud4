@@ -10,6 +10,7 @@ const JSON_DATA_URL = `${import.meta.env.BASE_URL}data/chinapoi.json`;
 export const usePoiStore = defineStore('poiStore', {
   state: () => ({
     poiList: [],
+    dataLoading: false, // 数据加载状态
     visibleMode: 'all',
     isEditable: false,
     selectedIds: [],
@@ -51,16 +52,26 @@ export const usePoiStore = defineStore('poiStore', {
      * 加载默认数据（根据配置自动选择JSON或CSV）
      */
     async loadDefaultData() {
-      if (DATA_SOURCE === 'json') {
-        try {
-          await this.loadDefaultDataFromJSON();
-        } catch (error) {
-          console.warn('[poiStore] JSON加载失败，尝试使用CSV:', error);
-          // JSON加载失败时，自动回退到CSV
+      // 如果已有数据，不重复加载
+      if (this.poiList.length > 0) {
+        return;
+      }
+      
+      this.dataLoading = true;
+      try {
+        if (DATA_SOURCE === 'json') {
+          try {
+            await this.loadDefaultDataFromJSON();
+          } catch (error) {
+            console.warn('[poiStore] JSON加载失败，尝试使用CSV:', error);
+            // JSON加载失败时，自动回退到CSV
+            await this.loadDefaultDataFromCSV();
+          }
+        } else {
           await this.loadDefaultDataFromCSV();
         }
-      } else {
-        await this.loadDefaultDataFromCSV();
+      } finally {
+        this.dataLoading = false;
       }
     },
 
