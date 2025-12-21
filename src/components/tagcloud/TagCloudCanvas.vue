@@ -850,7 +850,7 @@ const calculateClassIndex = (data, index, total, colorNum, discreteMethod) => {
 // 绘制中心位置
 const drawCenter = (centerX, centerY) => {
   const language = poiStore.fontSettings.language || 'zh';
-  const centerLabelText = language === 'en' ? 'Center' : '中间位置';
+  const centerLabelText = language === 'en' ? 'Center' : '中心位置';
   const centerText = new Textbox(centerLabelText, {
     left: centerX,
     top: centerY,
