@@ -23,6 +23,7 @@ export const usePoiStore = defineStore('poiStore', {
       fontFamily: '等线',
       fontWeight: '700',
       language: 'zh', // 语言选择：'zh' 中文，'en' 英文
+      centerLabelMode: 'nearest', // 中心标签模式：'nearest' 使用最近地点名，'center' 显示"中心位置"
     },
     colorSettings: {
       background: '#0c1024',

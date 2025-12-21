@@ -848,9 +848,42 @@ const calculateClassIndex = (data, index, total, colorNum, discreteMethod) => {
 };
 
 // 绘制中心位置
-const drawCenter = (centerX, centerY) => {
+const drawCenter = (centerX, centerY, center, sourceList) => {
   const language = poiStore.fontSettings.language || 'zh';
-  const centerLabelText = language === 'en' ? 'Center' : '中心位置';
+  const centerLabelMode = poiStore.fontSettings.centerLabelMode || 'nearest';
+  
+  let centerLabelText;
+  
+  if (centerLabelMode === 'nearest' && sourceList && sourceList.length > 0) {
+    // 找到距离中心最近的POI
+    let nearestPoi = null;
+    let minDistance = Infinity;
+    
+    for (const poi of sourceList) {
+      const distance = calculateDistance(
+        center.lat,
+        center.lng,
+        poi.lat,
+        poi.lng,
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestPoi = poi;
+      }
+    }
+    
+    // 如果找到最近的POI，使用它的名称
+    if (nearestPoi) {
+      centerLabelText = getPoiDisplayName(nearestPoi);
+    } else {
+      // 如果没有找到，使用默认文本
+      centerLabelText = language === 'en' ? 'Center' : '中心位置';
+    }
+  } else {
+    // 显示"中心位置"
+    centerLabelText = language === 'en' ? 'Center' : '中心位置';
+  }
+  
   const centerText = new Textbox(centerLabelText, {
     left: centerX,
     top: centerY,
@@ -1267,12 +1300,37 @@ const renderCloud = async (forceReinitPyramid = false) => {
   originalCenterX = width * 0.08 + normalizedCenterX * width * 0.84;
   originalCenterY = height * 0.08 + (1 - normalizedCenterY) * height * 0.84;
 
+  // 如果中心标签使用最近地点名，则记录该POI的id，以便后续不再重复绘制该标签
+  let renderingData = currentData;
+  const centerLabelMode = poiStore.fontSettings.centerLabelMode || 'nearest';
+  if (centerLabelMode === 'nearest' && sourceList.length > 0) {
+    let nearestPoi = null;
+    let minDistance = Infinity;
+    for (const poi of sourceList) {
+      const distance = calculateDistance(
+        center.lat,
+        center.lng,
+        poi.lat,
+        poi.lng,
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestPoi = poi;
+      }
+    }
+    if (nearestPoi && renderingData && renderingData.length > 0) {
+      const nearestId = nearestPoi.id;
+      // 从当前要渲染的POI列表中排除该最近POI，避免与中心标签重复展示
+      renderingData = renderingData.filter((poi) => poi.id !== nearestId);
+    }
+  }
+
   // 绘制中心位置
-  drawCenter(originalCenterX, originalCenterY);
+  drawCenter(originalCenterX, originalCenterY, center, sourceList);
 
   // 构建布局条目（已按距离排序并分配颜色）
   const entries = await buildLayoutEntries(
-    currentData,
+    renderingData,
     bounds,
     center,
     poiStore.colorSettings,
@@ -2373,6 +2431,20 @@ watch(
     
     if (allowRenderCloud.value) {
       // 语言变化需要重新绘制（文本内容变化）
+      renderCloud(false);
+    }
+  },
+);
+
+// 监听中心标签模式变化（需要重新绘制，因为中心标签文本变化）
+watch(
+  () => poiStore.fontSettings.centerLabelMode,
+  () => {
+    // 如果正在清除，不触发重新渲染
+    if (isClearing.value) return;
+    
+    if (allowRenderCloud.value) {
+      // 中心标签模式变化需要重新绘制（中心标签文本变化）
       renderCloud(false);
     }
   },

@@ -18,6 +18,24 @@
       </div>
     </div>
 
+    <!-- 中心标签显示模式 -->
+    <div class="config-section">
+      <div class="section-header">
+        <span class="section-title">中心标签</span>
+        <span class="section-desc">选择中心位置的显示方式</span>
+      </div>
+      <div class="section-content">
+        <el-select
+          v-model="localSettings.centerLabelMode"
+          style="width: 200px"
+          @change="handleCenterLabelModeChange"
+        >
+          <el-option label="最近地点名" value="nearest" />
+          <el-option label="中心位置" value="center" />
+        </el-select>
+      </div>
+    </div>
+
     <!-- 标签层级设置 -->
     <div class="config-section">
       <div class="section-header">
@@ -138,6 +156,7 @@ const localSettings = reactive({
   language: poiStore.fontSettings.language || 'zh',
   levelCount: poiStore.fontSettings.levelCount,
   fontWeight: poiStore.fontSettings.fontWeight,
+  centerLabelMode: poiStore.fontSettings.centerLabelMode || 'nearest',
 });
 
 const localSizes = ref(
@@ -237,6 +256,13 @@ const handleLanguageChange = () => {
   
   poiStore.updateFontLevel(updatePayload);
   // 语言变化需要重新编译数据并重绘（TagCloudCanvas.vue 中的 watch 会自动处理）
+};
+
+const handleCenterLabelModeChange = () => {
+  poiStore.updateFontLevel({
+    centerLabelMode: localSettings.centerLabelMode,
+  });
+  // 中心标签模式变化需要重新绘制（TagCloudCanvas.vue 中的 watch 会自动处理）
 };
 </script>
 
