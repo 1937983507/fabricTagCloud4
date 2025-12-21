@@ -1286,8 +1286,18 @@ const renderCloud = async (forceReinitPyramid = false) => {
   // 获取当前层级的数据
   const currentData = poisPyramid[tagCloudScale] || poisPyramid[0] || sourceList;
   
-  // 计算中心位置（基于经纬度）
-  const center = computeCenter(sourceList);
+  // 计算中心位置：优先使用用户绘制的区域中心（如圆形圆心），否则使用POI列表的几何中心
+  let center;
+  if (poiStore.selectionCenter) {
+    // 使用用户绘制的区域中心（更准确，符合用户期望）
+    center = {
+      lng: poiStore.selectionCenter.lng,
+      lat: poiStore.selectionCenter.lat,
+    };
+  } else {
+    // 如果没有绘制区域，使用POI列表的几何中心
+    center = computeCenter(sourceList);
+  }
   const bounds = computeBounds(sourceList);
   
   // 将中心位置转换为屏幕坐标

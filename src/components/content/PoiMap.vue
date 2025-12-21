@@ -303,6 +303,8 @@ const clearDrawing = () => {
   // 清除POI选择
   poiStore.showAll();
   poiStore.applySelection([]);
+  // 清除绘制区域中心
+  poiStore.setSelectionContext(null);
   // 清除标签云（通过事件通知TagCloudCanvas）
   poiStore.clearTagCloud();
   updateLayerByView();
@@ -413,6 +415,40 @@ const filterPOIByGeometry = (geometry) => {
   });
   poiStore.applySelection(filtered.map((poi) => poi.id));
   poiStore.showSelected();
+  
+  // 保存绘制区域的中心到store，用于标签云的中心计算
+  let selectionCenter = null;
+  if (geometry) {
+    // 圆形：使用圆心
+    if (typeof geometry.getCenter === 'function') {
+      const center = geometry.getCenter();
+      selectionCenter = { lng: center.getLng(), lat: center.getLat() };
+    }
+    // 矩形：使用中心点
+    else if (typeof geometry.getBounds === 'function') {
+      const bounds = geometry.getBounds();
+      const center = bounds.getCenter();
+      selectionCenter = { lng: center.getLng(), lat: center.getLat() };
+    }
+    // 多边形：使用路径的中心点
+    else if (geometry.getPath && typeof geometry.getPath === 'function') {
+      const path = geometry.getPath();
+      if (path && path.length > 0) {
+        const lngs = path.map((p) => p.getLng());
+        const lats = path.map((p) => p.getLat());
+        selectionCenter = {
+          lng: (Math.min(...lngs) + Math.max(...lngs)) / 2,
+          lat: (Math.min(...lats) + Math.max(...lats)) / 2,
+        };
+      }
+    }
+  }
+  
+  // 保存到store
+  if (selectionCenter) {
+    poiStore.setSelectionContext({ center: selectionCenter, geometry });
+  }
+  
   updateLayerByView();
 };
 
