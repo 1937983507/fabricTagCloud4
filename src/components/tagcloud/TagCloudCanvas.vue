@@ -53,20 +53,37 @@
       
       <!-- 距离图例 -->
       <div class="distance-legend">
-        <p class="legend-title">{{ poiStore.fontSettings.language === 'en' ? 'Distance from Center' : '与中心的距离' }}</p>
-        <div class="legend-colors" ref="legendColorsRef">
-          <div
-            v-for="(color, index) in poiStore.colorSettings.palette"
-            :key="`legend-${index}`"
-            class="legend-color-item"
-            :style="{ background: color }"
-            @mouseenter="handleLegendHover(color)"
-            @mouseleave="handleLegendLeave"
-          ></div>
+        <p class="legend-title">{{ poiStore.fontSettings.language === 'en' ? 'Distance from Center (km)' : '与中心的距离(km)' }}</p>
+        <div class="legend-colors-wrapper">
+          <div class="legend-colors" ref="legendColorsRef">
+            <div
+              v-for="(color, index) in poiStore.colorSettings.palette"
+              :key="`legend-${index}`"
+              class="legend-color-item"
+              :style="{ background: color }"
+              @mouseenter="handleLegendHover(color)"
+              @mouseleave="handleLegendLeave"
+            ></div>
+          </div>
+          <!-- 在色块下面一行显示距离标签 -->
+          <div v-if="allowRenderCloud && colorBoundaries.length > 0" class="legend-boundaries">
+            <span class="legend-boundary-label legend-start">0</span>
+            <span
+              v-for="(boundary, index) in colorBoundaries"
+              :key="`boundary-${index}`"
+              class="legend-boundary-label legend-middle"
+              :style="{ left: `${((index + 1) * 100) / paletteCount}%` }"
+            >
+              {{ formatDistance(boundary) }}
+            </span>
+            <span
+              v-if="maxDistance > 0"
+              class="legend-boundary-label legend-max-distance"
+            >
+              {{ formatDistance(maxDistance) }}
+            </span>
+          </div>
         </div>
-        <p class="legend-max-distance">
-          <span>{{ maxDistanceText || '0 km' }}</span>
-        </p>
       </div>
       
       <!-- 交互工具栏 -->
@@ -235,6 +252,8 @@ let originalCenterY = 0;
 const maxDistance = ref(0); // 最大距离（米）- 使用ref以便响应式更新
 let poisPyramid = []; // POI数据金字塔
 let tagCloudScale = 0; // 当前显示层级
+const pyramidUpdateTrigger = ref(0); // 用于触发computed更新的触发器
+const paletteCount = computed(() => poiStore.colorSettings.palette.length || 1);
 let amapGlobal = null; // 高德地图全局对象
 let drivingInstance = null; // 高德地图驾车路径规划实例
 
@@ -252,10 +271,124 @@ const POI_THRESHOLD = 100; // POI数量阈值（首次渲染数量）
 
 let secondIntroStarted = false;
 
-// 最大距离文本
-const maxDistanceText = computed(() => {
-  if (maxDistance.value === 0) return '0 km';
-  return `${(maxDistance.value / 1000).toFixed(2)} km`;
+// 计算各个色块之间的分界点距离值
+const calculateColorBoundaries = () => {
+  // 访问触发器以确保响应式
+  pyramidUpdateTrigger.value;
+  
+  if (!allowRenderCloud.value || !poiStore.visibleList.length || poisPyramid.length === 0) {
+    return [];
+  }
+  
+  const sourceList = poiStore.visibleList;
+  const currentData = poisPyramid[tagCloudScale] || poisPyramid[0] || sourceList;
+  if (!currentData || currentData.length === 0) {
+    return [];
+  }
+  
+  const center = computeCenter(sourceList);
+  const colorSettings = poiStore.colorSettings;
+  const colorNum = colorSettings.discreteCount || colorSettings.palette.length;
+  const discreteMethod = colorSettings.discreteMethod || 'quantile';
+  
+  // 计算所有POI的距离
+  const entriesWithDistance = currentData.map((poi) => {
+    const distance = calculateDistance(
+      center.lat,
+      center.lng,
+      poi.lat,
+      poi.lng,
+    );
+    return { poi, distance };
+  });
+  
+  // 按距离升序排序
+  entriesWithDistance.sort((a, b) => a.distance - b.distance);
+  
+  const distances = entriesWithDistance.map(entry => entry.distance);
+  if (distances.length === 0) return [];
+  
+  // 预先计算颜色分类所需的公共值
+  let colorCache = {};
+  if (discreteMethod === 'equal' || discreteMethod === 'geometric') {
+    colorCache.minValue = Math.min(...distances);
+    colorCache.maxValue = Math.max(...distances);
+    if (discreteMethod === 'geometric') {
+      colorCache.ratio = Math.pow(colorCache.maxValue / colorCache.minValue, 1 / colorNum);
+    } else {
+      colorCache.range = colorCache.maxValue - colorCache.minValue;
+      colorCache.interval = colorCache.range / colorNum;
+    }
+  } else if (discreteMethod === 'stddev') {
+    colorCache.mean = distances.reduce((acc, curr) => acc + curr, 0) / distances.length;
+    colorCache.stdDev = Math.sqrt(
+      distances.reduce((acc, curr) => acc + Math.pow(curr - colorCache.mean, 2), 0) /
+        distances.length,
+    );
+    colorCache.stdDevInterval = colorCache.stdDev / colorNum;
+    colorCache.halfColorNum = Math.floor(colorNum / 2);
+  } else if (discreteMethod === 'jenks') {
+    const values = [...distances].sort((a, b) => a - b);
+    colorCache.jenksBreaks = calculateJenks(values, colorNum);
+  }
+  
+  // 为每个entry计算classIndex
+  const entriesWithClass = entriesWithDistance.map((entry, index) => {
+    let classIndex = 0;
+    
+    if (discreteMethod === 'quantile') {
+      const percentile = (index + 1) / entriesWithDistance.length;
+      classIndex = Math.ceil(colorNum * percentile) - 1;
+    } else {
+      // calculateClassIndexOptimized期望entry有distance属性
+      const entryForClass = { distance: entry.distance };
+      classIndex = calculateClassIndexOptimized(
+        entryForClass,
+        index,
+        entriesWithDistance.length,
+        colorNum,
+        discreteMethod,
+        colorCache,
+      );
+    }
+    return { ...entry, classIndex };
+  });
+  
+  // 计算每个色块的最大距离值（作为分界点），不包含最后一个色块
+  const boundaries = [];
+  for (let i = 0; i < colorNum - 1; i++) {
+    const entriesInClass = entriesWithClass.filter(e => e.classIndex === i);
+    if (entriesInClass.length > 0) {
+      const maxDist = Math.max(...entriesInClass.map(e => e.distance));
+      boundaries.push(maxDist);
+    } else {
+      // 如果没有数据，使用前一个分界点或最小值
+      boundaries.push(i > 0 ? boundaries[i - 1] : 0);
+    }
+  }
+  
+  return boundaries;
+};
+
+// 格式化距离数值，根据数值大小智能调整小数位数以避免重叠
+const formatDistance = (distanceInMeters) => {
+  const distanceInKm = distanceInMeters / 1000;
+  
+  // 如果距离 >= 100km，显示整数（0位小数）
+  if (distanceInKm >= 100) {
+    return Math.round(distanceInKm).toString();
+  }
+  // 如果距离 >= 10km，显示1位小数
+  if (distanceInKm >= 10) {
+    return distanceInKm.toFixed(1);
+  }
+  // 如果距离 < 10km，显示1位小数（保持一致性）
+  return distanceInKm.toFixed(1);
+};
+
+// 各个色块之间的分界点距离值
+const colorBoundaries = computed(() => {
+  return calculateColorBoundaries();
 });
 
 // 根据语言获取POI显示名称
@@ -1113,6 +1246,8 @@ const renderCloud = async (forceReinitPyramid = false) => {
   // 只有在数据变化或强制重新初始化时才重新构建金字塔
   if (forceReinitPyramid || poisPyramid.length === 0) {
     initPoisPyramid(sourceList);
+    // 触发computed更新
+    pyramidUpdateTrigger.value++;
   }
   
   // 获取当前层级的数据
@@ -1189,6 +1324,8 @@ const renderCloud = async (forceReinitPyramid = false) => {
     }
   }
 
+  // 渲染完成后，触发computed更新以确保图例显示
+  pyramidUpdateTrigger.value++;
   isRendering = false;
 };
 
@@ -1816,15 +1953,20 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
   
   // 获取语言设置
   const language = poiStore.fontSettings.language || 'zh';
-  const titleText = language === 'en' ? 'Distance from Center' : '与中心的距离';
+  const titleText = language === 'en' ? 'Distance from Center (km)' : '与中心的距离(km)';
   
   // 获取颜色调色板
   const palette = poiStore.colorSettings.palette || [];
   const colorCount = palette.length;
   const colorBarWidth = (legendWidth - padding * 2 - (colorBarGap * (colorCount - 1))) / colorCount;
   
-  // 获取最大距离文本
-  const distanceText = maxDistance.value === 0 ? '0 km' : `${(maxDistance.value / 1000).toFixed(2)} km`;
+  // 计算各个色块之间的分界点
+  const boundaries = calculateColorBoundaries();
+  const hasBoundaries = boundaries.length > 0 && allowRenderCloud.value;
+  
+  // 如果有距离标签，需要增加高度
+  const boundaryTextHeight = hasBoundaries ? textFontSize + 4 : 0;
+  const legendHeightWithBoundaries = legendHeight + boundaryTextHeight;
   
   // 构建SVG元素
   let legendSVG = '';
@@ -1833,7 +1975,7 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
   legendSVG += `<g id="distance-legend">`;
   
   // 绘制圆角矩形背景
-  legendSVG += `<rect x="${legendX}" y="${legendY}" width="${legendWidth}" height="${legendHeight}" rx="${radius}" ry="${radius}" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
+  legendSVG += `<rect x="${legendX}" y="${legendY}" width="${legendWidth}" height="${legendHeightWithBoundaries}" rx="${radius}" ry="${radius}" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
   
   // 转义XML特殊字符
   const escapeXML = (str) => {
@@ -1850,20 +1992,41 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
   
   // 绘制颜色条
   const colorBarY = legendY + padding + titleHeight;
+  let currentX = legendX + padding;
+  
   palette.forEach((color, index) => {
-    const colorX = legendX + padding + index * (colorBarWidth + colorBarGap);
-    // 确保颜色值正确（如果是rgb格式，需要转换）
+    // 绘制色块
     let fillColor = color;
     if (color.startsWith('rgb')) {
-      // 将rgb转换为hex格式，或者保持rgb格式
       fillColor = color;
     }
-    legendSVG += `<rect x="${colorX}" y="${colorBarY}" width="${colorBarWidth}" height="${colorBarHeight}" fill="${fillColor}" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>`;
+    legendSVG += `<rect x="${currentX}" y="${colorBarY}" width="${colorBarWidth}" height="${colorBarHeight}" fill="${fillColor}" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>`;
+    currentX += colorBarWidth + colorBarGap;
   });
   
-  // 绘制最大距离文本
-  const textY = colorBarY + colorBarHeight + 8 + textFontSize;
-  legendSVG += `<text x="${legendX + legendWidth - padding}" y="${textY}" font-family="sans-serif" font-size="${textFontSize}" fill="rgba(255,255,255,0.8)" text-anchor="end">${escapeXML(distanceText)}</text>`;
+  // 在色块下面一行绘制距离标签
+  if (hasBoundaries) {
+    const boundaryTextY = colorBarY + colorBarHeight + 4 + textFontSize;
+    
+    // 绘制第一个标签 "0"（在第一个色块的左边界）
+    legendSVG += `<text x="${legendX + padding}" y="${boundaryTextY}" font-family="sans-serif" font-size="${textFontSize}" fill="rgba(255,255,255,0.8)" text-anchor="start">0</text>`;
+    
+    // 绘制分界点标签（在每个色块的右边界）
+    let currentX = legendX + padding;
+    boundaries.forEach((boundary, index) => {
+      currentX += colorBarWidth + colorBarGap;
+      const boundaryText = formatDistance(boundary);
+      legendSVG += `<text x="${currentX}" y="${boundaryTextY}" font-family="sans-serif" font-size="${textFontSize}" fill="rgba(255,255,255,0.8)" text-anchor="middle">${escapeXML(boundaryText)}</text>`;
+    });
+    
+    // 绘制最远距离标签（在最右边）
+    if (maxDistance.value > 0) {
+      const maxDistanceText = formatDistance(maxDistance.value);
+      const totalBarWidth = legendWidth - padding * 2;
+      const rightEdgeX = legendX + padding + totalBarWidth; // 最后一个色块右边界
+      legendSVG += `<text x="${rightEdgeX}" y="${boundaryTextY}" font-family="sans-serif" font-size="${textFontSize}" fill="rgba(255,255,255,0.8)" text-anchor="middle">${escapeXML(maxDistanceText)}</text>`;
+    }
+  }
   
   legendSVG += `</g>`;
   
@@ -1950,7 +2113,7 @@ const drawLegendOnCanvas = (ctx, imageWidth, imageHeight, scaleX, scaleY, offset
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   const language = poiStore.fontSettings.language || 'zh';
-  const titleText = language === 'en' ? 'Distance from Center' : '与中心的距离';
+  const titleText = language === 'en' ? 'Distance from Center (km)' : '与中心的距离(km)';
   ctx.fillText(titleText, legendX + padding, legendY + padding);
   
   // 绘制颜色条
@@ -1959,22 +2122,71 @@ const drawLegendOnCanvas = (ctx, imageWidth, imageHeight, scaleX, scaleY, offset
   const colorCount = palette.length;
   const colorBarWidth = (legendWidth - padding * 2 - (colorBarGap * (colorCount - 1))) / colorCount;
   
+  // 计算各个色块之间的分界点
+  const boundaries = calculateColorBoundaries();
+  const hasBoundaries = boundaries.length > 0 && allowRenderCloud.value;
+  
+  // 如果有距离标签，需要增加高度
+  const boundaryTextHeight = hasBoundaries ? textFontSize + 4 * scaleY : 0;
+  const legendHeightWithBoundaries = legendHeight + boundaryTextHeight;
+  
+  // 更新背景高度
+  ctx.beginPath();
+  ctx.moveTo(legendX + radius, legendY);
+  ctx.lineTo(legendX + legendWidth - radius, legendY);
+  ctx.quadraticCurveTo(legendX + legendWidth, legendY, legendX + legendWidth, legendY + radius);
+  ctx.lineTo(legendX + legendWidth, legendY + legendHeightWithBoundaries - radius);
+  ctx.quadraticCurveTo(legendX + legendWidth, legendY + legendHeightWithBoundaries, legendX + legendWidth - radius, legendY + legendHeightWithBoundaries);
+  ctx.lineTo(legendX + radius, legendY + legendHeightWithBoundaries);
+  ctx.quadraticCurveTo(legendX, legendY + legendHeightWithBoundaries, legendX, legendY + legendHeightWithBoundaries - radius);
+  ctx.lineTo(legendX, legendY + radius);
+  ctx.quadraticCurveTo(legendX, legendY, legendX + radius, legendY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  
+  let currentX = legendX + padding;
+  
   palette.forEach((color, index) => {
-    const colorX = legendX + padding + index * (colorBarWidth + colorBarGap);
+    // 绘制色块
     ctx.fillStyle = color;
-    ctx.fillRect(colorX, colorBarY, colorBarWidth, colorBarHeight);
+    ctx.fillRect(currentX, colorBarY, colorBarWidth, colorBarHeight);
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
     ctx.lineWidth = 1 * scaleX;
-    ctx.strokeRect(colorX, colorBarY, colorBarWidth, colorBarHeight);
+    ctx.strokeRect(currentX, colorBarY, colorBarWidth, colorBarHeight);
+    currentX += colorBarWidth + colorBarGap;
   });
   
-  // 绘制最大距离文本
-  const textY = colorBarY + colorBarHeight + 8 * scaleY;
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-  ctx.font = `${textFontSize}px sans-serif`;
-  ctx.textAlign = 'right';
-  const distanceText = maxDistance.value === 0 ? '0 km' : `${(maxDistance.value / 1000).toFixed(2)} km`;
-  ctx.fillText(distanceText, legendX + legendWidth - padding, textY);
+  // 在色块下面一行绘制距离标签
+  if (hasBoundaries) {
+    const boundaryTextY = colorBarY + colorBarHeight + 4 * scaleY + textFontSize;
+    
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.font = `${textFontSize}px sans-serif`;
+    ctx.textBaseline = 'top';
+    
+    // 绘制第一个标签 "0"（在第一个色块的左边界）
+    ctx.textAlign = 'left';
+    ctx.fillText('0', legendX + padding, boundaryTextY);
+    
+    // 绘制分界点标签（在每个色块的右边界）
+    ctx.textAlign = 'center';
+    let currentX = legendX + padding;
+    boundaries.forEach((boundary, index) => {
+      currentX += colorBarWidth + colorBarGap;
+      const boundaryText = formatDistance(boundary);
+      ctx.fillText(boundaryText, currentX, boundaryTextY);
+    });
+    
+    // 绘制最远距离标签（在最右边）
+    if (maxDistance.value > 0) {
+      const maxDistanceText = formatDistance(maxDistance.value);
+      const totalBarWidth = legendWidth - padding * 2;
+      const rightEdgeX = legendX + padding + totalBarWidth; // 最后一个色块右边界
+      ctx.textAlign = 'center';
+      ctx.fillText(maxDistanceText, rightEdgeX, boundaryTextY);
+    }
+  }
 };
 
 // 导出为位图格式（PNG/JPEG）
@@ -2355,10 +2567,15 @@ canvas {
   font-weight: 500;
 }
 
+.legend-colors-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .legend-colors {
   display: flex;
   gap: 2px;
-  margin-bottom: 8px;
   height: 24px;
 }
 
@@ -2369,6 +2586,7 @@ canvas {
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
   min-width: 20px;
+  height: 24px;
 }
 
 .legend-color-item:hover {
@@ -2378,11 +2596,45 @@ canvas {
   position: relative;
 }
 
-.legend-max-distance {
-  margin: 0;
-  text-align: right;
-  font-size: 12px;
+.legend-boundaries {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  position: relative;
+  height: 16px;
+  padding: 0 2px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.legend-boundary-label {
+  font-size: 10px;
   color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  line-height: 16px;
+  position: absolute;
+  min-width: 0;
+}
+
+.legend-boundary-label.legend-start {
+  left: 2px;
+  text-align: left;
+}
+
+.legend-boundary-label.legend-middle {
+  text-align: center;
+  transform: translateX(-50%);
+  /* 确保标签不会超出边界 */
+  max-width: calc(100% / var(--color-count, 5) - 4px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.legend-boundary-label.legend-max-distance {
+  right: 0;
+  text-align: center;
+  transform: translateX(50%);
 }
 
 /* Canvas工具栏 */
