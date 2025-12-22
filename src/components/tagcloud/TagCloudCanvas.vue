@@ -264,9 +264,17 @@ const canvasKey = ref(0); // 用于强制重新渲染canvas
 const isClearing = ref(false); // 标记是否正在清除，用于防止watch触发重新渲染
 const renderedLabelCount = ref(0); // 当前渲染的标签数量
 const selectedPoi = ref(null); // 当前选中的POI信息
-const baseAngles = [-15, -10, -5, 0, 5, 10, 15];
+
+// 标签布局相关配置（参考 d3-cloud 的一些参数设计）
+// 对标 d3-cloud 的 cloud.timeInterval：控制每一帧用于布局运算的时间片，避免长时间卡顿
+const layoutTimeSliceMs = 16; // 每帧最多用于布局的时间（毫秒），16ms ≈ 60 FPS
+
+// 径向布局参数（对应当前「多角度径向偏移」算法）
+const baseAngles = [-15, -10, -5, 0, 5, 10, 15]; // 旧算法：多角度径向偏移使用的角度集合
 const stepDistance = 22;
-const maxIterations = 220;
+
+// 径向/布局通用参数
+const maxIterations = 2000; // 最大步数，用于控制单个标签的最大偏移尝试次数
 const POI_THRESHOLD = 100; // POI数量阈值（首次渲染数量）
 
 let secondIntroStarted = false;
@@ -997,8 +1005,11 @@ const buildLayoutEntries = async (list, bounds, center, colorSettings) => {
     };
   }));
 
-  // 按距离升序排序（先绘制距离近的）
-  entriesWithDistance.sort((a, b) => a.distance - b.distance);
+  // 按距离排序作为次要排序条件，保持中心型布局的特性
+  entriesWithDistance.sort((a, b) => {
+    // 按距离升序排序（距离近的优先）
+    return a.distance - b.distance;
+  });
 
   // 根据距离分配颜色（优化：预先计算需要的值，避免重复计算）
   const colorNum = colorSettings.discreteCount || colorSettings.palette.length;
@@ -1311,44 +1322,38 @@ const simulateDirection = (entry, originX, originY, angle, spatialIndex) => {
   return result;
 };
 
-// 多角度径向偏移策略绘制标签（优化版本：使用空间索引，提前退出）
+//（螺旋线算法已移除，保留多角度径向偏移算法）
+
+// 多角度径向偏移策略绘制标签（仅保留径向算法）
 const drawLabel = (entry, originX, originY, spatialIndex) => {
-  // 对每个角度进行模拟，找到所有可行的位置
-  // 优化：如果找到无碰撞位置，可以提前退出
+  let theNewLocation = null;
+
+  // 多角度径向偏移：对每个角度进行模拟，找到所有可行的位置
   const candidates = [];
-  let foundViable = false;
-  
+
   for (const angle of baseAngles) {
     const result = simulateDirection(entry, originX, originY, angle, spatialIndex);
     candidates.push(result);
-    
-    // 如果找到无碰撞的位置，可以提前退出（但为了找到最近的位置，继续检查所有角度）
-    if (!result.collision && !foundViable) {
-      foundViable = true;
-    }
   }
-  
-  // 优先选择没有碰撞的位置
+
   const viable = candidates.filter((c) => !c.collision);
   const selectFrom = viable.length > 0 ? viable : candidates;
-  
-  // 寻找距离中心最近的位置
+
   let theMinDistance = Infinity;
-  let theNewLocation = null;
-  
+
   for (const item of selectFrom) {
-    const tempDis = (item.x - originX) * (item.x - originX) + 
+    const tempDis =
+      (item.x - originX) * (item.x - originX) +
       (item.y - originY) * (item.y - originY);
     if (tempDis < theMinDistance) {
-      // 更新最近距离
       theMinDistance = tempDis;
       theNewLocation = { x: item.x, y: item.y };
     }
   }
-  
-  // 如果没有找到合适的位置，使用原始屏幕坐标
+
+  // 如果没有找到合适的位置，则放弃该标签（不进行摆放）
   if (!theNewLocation) {
-    theNewLocation = { x: entry.screenX, y: entry.screenY };
+    return null;
   }
 
   // 正式绘制标签（使用Text确保单行显示，直接拼接文本）
@@ -1526,21 +1531,20 @@ const renderCloud = async (forceReinitPyramid = false) => {
     spatialIndex.add(centerObj, centerX, centerY, centerBounds.width, centerBounds.height);
   }
 
-  // 优化渲染：批量渲染，减少延迟
-  const batchSize = 5; // 每批渲染标签个数
-  const renderDelay = 0.1; // 每批之间的延迟（ms）
-  
-  // 记录标签渲染开始时间
+  // 优化渲染：按时间片分批渲染（参考 d3-cloud 的 timeInterval）
+  // 而不是按固定批大小，这样在不同机器和浏览器上表现更稳定
   const labelRenderStartTime = performance.now();
+  let lastYieldTime = labelRenderStartTime;
   
   for (let i = 0; i < entries.length; i++) {
-    drawLabel(entries[i], originalCenterX, originalCenterY, spatialIndex);
+    const text = drawLabel(entries[i], originalCenterX, originalCenterY, spatialIndex);
     
-    // 每批渲染后暂停一下，使用requestAnimationFrame优化
-    if ((i + 1) % batchSize === 0 && i < entries.length - 1) {
-      await sleep(renderDelay);
-      // 使用requestAnimationFrame让浏览器有机会更新UI
+    // 按时间片让出主线程（参考 d3-cloud: while (Date.now() - start < timeInterval)）
+    const now = performance.now();
+    if (now - lastYieldTime >= layoutTimeSliceMs && i < entries.length - 1) {
+      // 使用 requestAnimationFrame 让浏览器有机会更新 UI
       await new Promise(resolve => requestAnimationFrame(resolve));
+      lastYieldTime = performance.now();
     }
   }
   
