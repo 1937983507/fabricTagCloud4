@@ -269,13 +269,23 @@ const selectedPoi = ref(null); // 当前选中的POI信息
 // 对标 d3-cloud 的 cloud.timeInterval：控制每一帧用于布局运算的时间片，避免长时间卡顿
 const layoutTimeSliceMs = 16; // 每帧最多用于布局的时间（毫秒），16ms ≈ 60 FPS
 
+// 布局模式：
+// - 'radial'：当前项目使用的“真实方向角 ±15° 的多角度径向偏移”布局
+// - 'spiral'：基于 d3-cloud 抽取出来的阿基米德螺旋布局
+// 预留变量，便于后续通过 UI 或配置在两种布局之间切换
+const layoutMode = ref('spiral'); // 可选值：'radial' | 'spiral'
+
 // 径向布局参数（对应当前「多角度径向偏移」算法）
 const baseAngles = [-15, -10, -5, 0, 5, 10, 15]; // 旧算法：多角度径向偏移使用的角度集合
 const stepDistance = 22;
 
-// 径向/布局通用参数
+// 布局通用参数
 const maxIterations = 2000; // 最大步数，用于控制单个标签的最大偏移尝试次数
 const POI_THRESHOLD = 100; // POI数量阈值（首次渲染数量）
+// 位图掩码（用于螺旋布局加速碰撞检测）
+const bitmapMaskCellSize = 4; // 单元大小（像素），越小越精细，越大越快
+let bitmapMask = null; // Set<string>，存储被占用的网格单元坐标
+const spiralPadding = 0; // 螺旋布局的标签间距（像素），尽量紧凑
 
 let secondIntroStarted = false;
 
@@ -1194,7 +1204,49 @@ const checkBoundsCollision = (bounds1, bounds2) => {
            bounds1.top > bottom2);
 };
 
+// 位图掩码：将对象的边界框离散到网格中，用于快速碰撞检测
+const resetBitmapMask = () => {
+  bitmapMask = new Set();
+};
+
+const addBoundsToBitmapMask = (bounds, pad = 0) => {
+  if (!bitmapMask) return;
+  const minX = Math.floor((bounds.left - pad) / bitmapMaskCellSize);
+  const maxX = Math.floor((bounds.left + bounds.width + pad) / bitmapMaskCellSize);
+  const minY = Math.floor((bounds.top - pad) / bitmapMaskCellSize);
+  const maxY = Math.floor((bounds.top + bounds.height + pad) / bitmapMaskCellSize);
+  for (let x = minX; x <= maxX; x++) {
+    for (let y = minY; y <= maxY; y++) {
+      bitmapMask.add(`${x},${y}`);
+    }
+  }
+};
+
+const addObjectToBitmapMask = (obj, pad = 0) => {
+  if (!bitmapMask) return;
+  obj.setCoords();
+  const bounds = obj.getBoundingRect();
+  addBoundsToBitmapMask(bounds, pad);
+};
+
+const isCollideWithBitmapMask = (bounds, pad = 0) => {
+  if (!bitmapMask) return false;
+  const minX = Math.floor((bounds.left - pad) / bitmapMaskCellSize);
+  const maxX = Math.floor((bounds.left + bounds.width + pad) / bitmapMaskCellSize);
+  const minY = Math.floor((bounds.top - pad) / bitmapMaskCellSize);
+  const maxY = Math.floor((bounds.top + bounds.height + pad) / bitmapMaskCellSize);
+  for (let x = minX; x <= maxX; x++) {
+    for (let y = minY; y <= maxY; y++) {
+      if (bitmapMask.has(`${x},${y}`)) {
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
 // 多角度径向偏移策略（优化版本：使用空间索引 + 边界框预检查）
+// 对应“真实方向角 ±15° 扇形区域内”的旧布局算法
 const simulateDirection = (entry, originX, originY, angle, spatialIndex) => {
   // 初始位置为圆形中心
   let newX = originX;
@@ -1322,32 +1374,190 @@ const simulateDirection = (entry, originX, originY, angle, spatialIndex) => {
   return result;
 };
 
-//（螺旋线算法已移除，保留多角度径向偏移算法）
+// 螺旋步长缩放（越小越密，越大扩张越快）
+const spiralStepScale = 0.15;
+const spiralAngleLimitRad = (15 * Math.PI) / 180; // 螺旋布局时的方向扇形限制：±15°
 
-// 多角度径向偏移策略绘制标签（仅保留径向算法）
+// 基于 d3-cloud 抽取的阿基米德螺旋函数
+// 与 d3-cloud 中 archimedeanSpiral(size) 形式保持一致：
+// size 为 [width, height]，返回一个函数 f(t) => [dx, dy]
+const archimedeanSpiral = (size) => {
+  const e = size[0] / size[1];
+  return (t) => {
+    t *= spiralStepScale;
+    return [e * t * Math.cos(t), t * Math.sin(t)];
+  };
+};
+
+// 使用阿基米德螺旋搜索可行位置（简化版 d3-cloud 的 place 函数）
+// 先用位图掩码做粗略碰撞预检查，再复用 Fabric.js + 空间索引做精确检测
+const simulateSpiral = (entry, originX, originY, spatialIndex) => {
+  const width = canvasInstance.getWidth();
+  const height = canvasInstance.getHeight();
+  const spiral = archimedeanSpiral([width, height]);
+  // 以 entry 相对于中心的方向作为主方向
+  const baseHeadingRad = Math.atan2(entry.screenY - originY, entry.screenX - originX);
+
+  // 起点：以圆形中心为基准，允许轻微随机偏移，避免完全重合
+  let newX = originX;
+  let newY = originY;
+
+  const temp = new Text(entry.textValue, {
+    originX: 'center',
+    originY: 'center',
+    left: newX,
+    top: newY,
+    fill: entry.fontColor,
+    fontSize: entry.fontSize,
+    fontFamily: entry.fontFamily,
+    fontWeight: entry.fontWeight,
+    selectable: false,
+  });
+  canvasInstance.add(temp);
+  temp.setCoords();
+
+  const cachedBounds = new WeakMap();
+  const maxDelta = Math.sqrt(width * width + height * height);
+  const maxSpiralRadius = maxDelta * 1.5; // 超过此半径则认为失败，避免无限扩张
+  const dt = Math.random() < 0.5 ? 1 : -1;
+  let t = -dt;
+
+  let iterations = 0;
+  const spiralMaxIterations = maxIterations * 4; // 螺旋允许更长的尝试次数
+
+  while (iterations < spiralMaxIterations) {
+    const dxdy = spiral((t += dt));
+    if (!dxdy) break;
+    const dx = dxdy[0];
+    const dy = dxdy[1];
+
+    if (Math.min(Math.abs(dx), Math.abs(dy)) >= maxDelta) break;
+
+    // 当前螺旋半径和局部角度
+    const r = Math.sqrt(dx * dx + dy * dy);
+    const localAngle = Math.atan2(dy, dx); // 相对螺旋坐标系的角度
+
+    // 在 ±15° 内“夹紧”角度偏移，保证始终处于扇形内部，
+    // 同时 r 随 t 单调增长，不会“跳过”半径
+    let angleOffset = localAngle;
+    if (angleOffset > spiralAngleLimitRad) angleOffset = spiralAngleLimitRad;
+    if (angleOffset < -spiralAngleLimitRad) angleOffset = -spiralAngleLimitRad;
+
+    const finalAngle = baseHeadingRad + angleOffset;
+    newX = originX + r * Math.cos(finalAngle);
+    newY = originY + r * Math.sin(finalAngle);
+
+    // 半径过大则放弃
+    const r2 = r * r;
+    if (r2 > maxSpiralRadius * maxSpiralRadius) {
+      break;
+    }
+
+    // 不限制在矩形画布内，直接尝试该位置
+    temp.set({ left: newX, top: newY });
+    temp.setCoords();
+    const tempBounds = temp.getBoundingRect();
+    const paddedBounds = {
+      left: tempBounds.left - spiralPadding,
+      top: tempBounds.top - spiralPadding,
+      width: tempBounds.width + 2 * spiralPadding,
+      height: tempBounds.height + 2 * spiralPadding,
+    };
+
+    // 位图掩码快速碰撞检测
+    if (isCollideWithBitmapMask(paddedBounds)) {
+      iterations++;
+      continue;
+    }
+
+    // 使用空间索引 / 全对象进行碰撞检测（与径向算法一致）
+    const nearbyObjects = spatialIndex
+      ? spatialIndex.getNearbyByBounds(
+          paddedBounds.left,
+          paddedBounds.top,
+          paddedBounds.width,
+          paddedBounds.height,
+        )
+      : canvasInstance.getObjects();
+
+    let hasCollision = false;
+
+    for (const obj of nearbyObjects) {
+      if (obj === temp) continue;
+
+      let objBounds = cachedBounds.get(obj);
+      if (!objBounds) {
+        objBounds = obj.getBoundingRect();
+        cachedBounds.set(obj, objBounds);
+      }
+
+      // 这里只对当前候选标签的边界做一次 padding，其他已放置标签使用真实边界，
+      // 确保唯一的“额外间距”来源就是 spiralPadding 本身
+      if (!checkBoundsCollision(paddedBounds, objBounds)) {
+        continue;
+      }
+
+      if (temp.intersectsWithObject(obj)) {
+        hasCollision = true;
+        break;
+      }
+    }
+
+    if (!hasCollision) {
+      const result = {
+        x: temp.left,
+        y: temp.top,
+        collision: false,
+      };
+      canvasInstance.remove(temp);
+      return result;
+    }
+
+    iterations++;
+  }
+
+  const result = {
+    x: temp.left,
+    y: temp.top,
+    collision: true,
+  };
+  canvasInstance.remove(temp);
+  return result;
+};
+
+// 多角度径向偏移 / 螺旋布局策略绘制标签
+// 根据 layoutMode 在两种算法之间切换
 const drawLabel = (entry, originX, originY, spatialIndex) => {
   let theNewLocation = null;
 
-  // 多角度径向偏移：对每个角度进行模拟，找到所有可行的位置
-  const candidates = [];
+  if (layoutMode.value === 'spiral') {
+    // 新的 d3-cloud 风格螺旋布局：单次沿螺旋线查找最近的无碰撞位置
+    const result = simulateSpiral(entry, originX, originY, spatialIndex);
+    if (!result.collision) {
+      theNewLocation = { x: result.x, y: result.y };
+    }
+  } else {
+    // 多角度径向偏移（保持原有行为）
+    const candidates = [];
 
-  for (const angle of baseAngles) {
-    const result = simulateDirection(entry, originX, originY, angle, spatialIndex);
-    candidates.push(result);
-  }
+    for (const angle of baseAngles) {
+      const result = simulateDirection(entry, originX, originY, angle, spatialIndex);
+      candidates.push(result);
+    }
 
-  const viable = candidates.filter((c) => !c.collision);
-  const selectFrom = viable.length > 0 ? viable : candidates;
+    const viable = candidates.filter((c) => !c.collision);
+    const selectFrom = viable.length > 0 ? viable : candidates;
 
-  let theMinDistance = Infinity;
+    let theMinDistance = Infinity;
 
-  for (const item of selectFrom) {
-    const tempDis =
-      (item.x - originX) * (item.x - originX) +
-      (item.y - originY) * (item.y - originY);
-    if (tempDis < theMinDistance) {
-      theMinDistance = tempDis;
-      theNewLocation = { x: item.x, y: item.y };
+    for (const item of selectFrom) {
+      const tempDis =
+        (item.x - originX) * (item.x - originX) +
+        (item.y - originY) * (item.y - originY);
+      if (tempDis < theMinDistance) {
+        theMinDistance = tempDis;
+        theNewLocation = { x: item.x, y: item.y };
+      }
     }
   }
 
@@ -1383,6 +1593,8 @@ const drawLabel = (entry, originX, originY, spatialIndex) => {
   canvasInstance.add(text);
   // 确保坐标已更新
   text.setCoords();
+  // 更新位图掩码
+  addObjectToBitmapMask(text);
   
   // 将新标签添加到空间索引（使用实际位置和边界框）
   if (spatialIndex) {
@@ -1410,6 +1622,8 @@ const renderCloud = async (forceReinitPyramid = false) => {
   await nextTick();
   // Canvas尺寸已固定，不需要更新
   initCanvas();
+  // 重置位图掩码
+  resetBitmapMask();
   
   const sourceList = poiStore.visibleList;
   if (!sourceList.length) {
@@ -1529,6 +1743,7 @@ const renderCloud = async (forceReinitPyramid = false) => {
     centerObj.setCoords(); // 确保坐标已更新
     const centerBounds = centerObj.getBoundingRect();
     spatialIndex.add(centerObj, centerX, centerY, centerBounds.width, centerBounds.height);
+    addBoundsToBitmapMask(centerBounds);
   }
 
   // 优化渲染：按时间片分批渲染（参考 d3-cloud 的 timeInterval）
