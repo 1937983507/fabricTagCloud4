@@ -22,7 +22,23 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <span class="label-count">标签数量: {{ renderedLabelCount }}</span>
+          <div class="label-progress">
+            <span class="label-count">
+              标签数量:
+              <span class="label-count-number">
+                {{ currentRenderedCount }}
+                <span v-if="totalLabelCount > 0">/ {{ totalLabelCount }}</span>
+              </span>
+            </span>
+            <el-progress
+              :percentage="renderProgress"
+              :stroke-width="16"
+              :show-text="true"
+              :text-inside="true"
+              :format="percentage => percentage + '%'"
+              class="label-progress-bar"
+            />
+          </div>
         </div>
       </div>
     </header>
@@ -262,8 +278,17 @@ const canvasWidth = ref(900);
 const canvasHeight = ref(900);
 const canvasKey = ref(0); // 用于强制重新渲染canvas
 const isClearing = ref(false); // 标记是否正在清除，用于防止watch触发重新渲染
-const renderedLabelCount = ref(0); // 当前渲染的标签数量
+const renderedLabelCount = ref(0); // 当前最终渲染完成的标签数量
+const totalLabelCount = ref(0); // 当前一次渲染中计划绘制的标签总数
+const currentRenderedCount = ref(0); // 当前已成功绘制的标签数量（用于进度条）
 const selectedPoi = ref(null); // 当前选中的POI信息
+
+// 渲染进度（0-100）
+const renderProgress = computed(() => {
+  if (!totalLabelCount.value) return 0;
+  const ratio = currentRenderedCount.value / totalLabelCount.value;
+  return Math.min(100, Math.max(0, Math.round(ratio * 100)));
+});
 
 // 标签布局相关配置（参考 d3-cloud 的一些参数设计）
 // 对标 d3-cloud 的 cloud.timeInterval：控制每一帧用于布局运算的时间片，避免长时间卡顿
@@ -578,7 +603,9 @@ const clearTagCloud = () => {
   poisPyramid = [];
   tagCloudScale = 0;
   isRendering = false;
-  renderedLabelCount.value = 0; // 重置标签数量
+  renderedLabelCount.value = 0; // 重置最终标签数量
+  totalLabelCount.value = 0; // 重置本轮总数
+  currentRenderedCount.value = 0; // 重置已绘制数量
   
   // 完全销毁canvas实例
   if (canvasInstance) {
@@ -1709,8 +1736,10 @@ const renderCloud = async (forceReinitPyramid = false) => {
     }
   });
 
-  // 更新标签数量
-  renderedLabelCount.value = entries.length;
+  // 更新标签数量与本轮渲染进度基准
+  renderedLabelCount.value = entries.length; // 最终标签数量
+  totalLabelCount.value = entries.length; // 本轮应绘制总数
+  currentRenderedCount.value = 0; // 从 0 开始累加
 
   // 创建空间索引以优化碰撞检测（网格大小根据标签平均大小调整）
   // 优化：根据标签的实际大小动态计算网格大小，平衡查询效率和准确性
@@ -1753,6 +1782,10 @@ const renderCloud = async (forceReinitPyramid = false) => {
   
   for (let i = 0; i < entries.length; i++) {
     const text = drawLabel(entries[i], originalCenterX, originalCenterY, spatialIndex);
+    // 仅在成功绘制时推进进度
+    if (text) {
+      currentRenderedCount.value += 1;
+    }
     
     // 按时间片让出主线程（参考 d3-cloud: while (Date.now() - start < timeInterval)）
     const now = performance.now();
@@ -1769,6 +1802,8 @@ const renderCloud = async (forceReinitPyramid = false) => {
 
   // 渲染完成后，触发computed更新以确保图例显示
   pyramidUpdateTrigger.value++;
+  // 确保进度条收敛到 100%
+  currentRenderedCount.value = totalLabelCount.value;
   
   // 计算总耗时
   const renderEndTime = performance.now();
@@ -3001,6 +3036,30 @@ canvas {
   font-size: 14px;
   margin-left: 12px;
   padding: 0 8px;
+}
+
+.label-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 200px;
+  flex-shrink: 0;
+}
+
+.label-count-number {
+  font-weight: 600;
+  display: inline-block;
+  min-width: 80px;
+  text-align: center;
+}
+
+.label-progress-bar {
+  width: 140px;
+}
+
+.label-progress-bar :deep(.el-progress__text) {
+  color: #fff;
+  font-size: 12px;
 }
 
 .tagcloud-toolbar {
