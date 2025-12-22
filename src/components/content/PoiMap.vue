@@ -93,16 +93,39 @@
           />
         </div>
         <!-- 定位加载提示 -->
-        <div v-if="locationLoading" class="location-loading">
+        <div v-if="locationLoading && !showManualInput" class="location-loading">
           <el-icon class="loading-icon"><Loading /></el-icon>
           <span class="loading-text">{{ currentLocationMethod || '正在定位中，请稍等...' }}</span>
+        </div>
+        <!-- 手动输入地点（兜底策略） -->
+        <div v-if="showManualInput" class="manual-location-input">
+          <el-alert
+            title="所有自动定位方式均失败，请手动输入地点或经纬度"
+            type="warning"
+            :closable="false"
+            show-icon
+            style="margin-bottom: 16px;"
+          />
+          <div class="filter-form-item">
+            <label class="filter-label">地点或经纬度：</label>
+            <el-input
+              v-model="manualLocationInput"
+              placeholder="请输入地点名称（如：湖北大学）或经纬度（如：114.3342,30.5768）"
+              @keyup.enter="handleManualLocation"
+            />
+            <div class="input-tips">
+              <p>• 支持地点名称搜索（如：湖北大学、北京天安门）</p>
+              <p>• 支持经纬度输入（格式：经度,纬度，如：114.3342,30.5768）</p>
+              <p style="color: #409eff; margin-top: 8px;">• 输入完成后点击【确定】按钮或按回车键进行搜索</p>
+            </div>
+          </div>
         </div>
       </div>
       <template #footer>
         <el-button @click="openLocationFilter = false">取消</el-button>
         <el-button 
           type="primary" 
-          @click="handleLocationFilter"
+          @click="handleLocationFilterOrManual"
           :loading="locationLoading"
         >
           确定
@@ -127,6 +150,9 @@ const filterRadius = ref(5); // 默认5km
 const locationLoading = ref(false);
 const locationError = ref('');
 const currentLocationMethod = ref(''); // 当前使用的定位方式
+const showManualInput = ref(false); // 是否显示手动输入框
+const manualLocationInput = ref('湖北大学'); // 手动输入的地点，默认湖北大学
+const skipAutoLocation = ref(false); // 调试开关：跳过自动定位，直接显示手动输入
 
 let mapInstance = null;
 let mapLayers = {};
@@ -141,6 +167,7 @@ let heatmapLayer = null;
 let massLayer = null;
 let MASS_STYLES = [];
 let geolocation = null; // 高德定位实例
+let geocoder = null; // 地理编码实例
 
 const loadMap = async () => {
   amapGlobal = await AMapLoader.load({
@@ -161,6 +188,7 @@ const loadMap = async () => {
       'AMap.CircleEditor',
       'AMap.RectangleEditor',
       'AMap.Geolocation', // 添加高德定位插件
+      'AMap.Geocoder', // 添加地理编码插件，用于地点搜索
     ],
   });
 
@@ -584,6 +612,209 @@ const handleLocationDialogClose = () => {
   locationError.value = '';
   currentLocationMethod.value = '';
   locationLoading.value = false;
+  showManualInput.value = false;
+  manualLocationInput.value = '湖北大学'; // 重置为默认值
+};
+
+// 处理确定按钮点击（自动定位或手动输入）
+const handleLocationFilterOrManual = async () => {
+  // 如果显示手动输入框，执行手动定位
+  if (showManualInput.value) {
+    await handleManualLocation();
+  } else {
+    // 否则执行自动定位
+    await handleLocationFilter();
+  }
+};
+
+// 处理手动输入地点
+const handleManualLocation = async () => {
+  if (!amapGlobal || !mapInstance) {
+    locationError.value = '地图未初始化，请稍后再试';
+    return;
+  }
+  
+  if (!manualLocationInput.value || !manualLocationInput.value.trim()) {
+    locationError.value = '请输入地点名称或经纬度';
+    return;
+  }
+  
+  locationLoading.value = true;
+  locationError.value = '';
+  
+  try {
+    const input = manualLocationInput.value.trim();
+    let userLocation = null;
+    
+    // 判断输入是否为经纬度格式（经度,纬度）
+    const coordPattern = /^-?\d+\.?\d*,\s*-?\d+\.?\d*$/;
+    if (coordPattern.test(input)) {
+      // 解析经纬度
+      const [lng, lat] = input.split(',').map(s => parseFloat(s.trim()));
+      if (isNaN(lng) || isNaN(lat) || lng < -180 || lng > 180 || lat < -90 || lat > 90) {
+        throw new Error('经纬度格式错误，经度范围：-180~180，纬度范围：-90~90');
+      }
+      userLocation = new amapGlobal.LngLat(lng, lat);
+      console.log('使用手动输入的经纬度:', lng, lat);
+    } else {
+      // 使用地点搜索
+      currentLocationMethod.value = '正在搜索地点，请稍等...';
+      
+      // 优先使用 Geocoder 进行地理编码（更可靠）
+      if (!geocoder) {
+        geocoder = new amapGlobal.Geocoder({
+          city: '全国', // 全国范围搜索
+        });
+      }
+      
+      // 尝试使用 Geocoder
+      try {
+        const geocodeResult = await new Promise((resolve, reject) => {
+          geocoder.getLocation(input, (status, result) => {
+            if (status === 'complete' && result.geocodes && result.geocodes.length > 0) {
+              resolve(result.geocodes[0]);
+            } else {
+              reject(new Error('Geocoder未找到该地点'));
+            }
+          });
+        });
+        
+        if (geocodeResult && geocodeResult.location) {
+          userLocation = geocodeResult.location;
+          console.log('地点搜索成功（Geocoder）:', input, userLocation);
+        }
+      } catch (geocodeError) {
+        console.warn('Geocoder搜索失败，尝试PlaceSearch:', geocodeError);
+        
+        // 如果 Geocoder 失败，尝试使用 PlaceSearch
+        if (!placeSearch) {
+          placeSearch = new amapGlobal.PlaceSearch({
+            map: mapInstance,
+            city: '全国', // 全国范围搜索
+          });
+        }
+        
+        const placeResult = await new Promise((resolve, reject) => {
+          placeSearch.search(input, (status, result) => {
+            console.log('PlaceSearch回调:', status, result);
+            
+            // 检查不同的结果结构
+            if (status === 'complete') {
+              // 尝试多种可能的结果结构
+              let poi = null;
+              
+              // 结构1: result.poiList.pois
+              if (result.poiList && result.poiList.pois && result.poiList.pois.length > 0) {
+                poi = result.poiList.pois[0];
+              }
+              // 结构2: result.poiList (直接是数组)
+              else if (result.poiList && Array.isArray(result.poiList) && result.poiList.length > 0) {
+                poi = result.poiList[0];
+              }
+              // 结构3: result.pois
+              else if (result.pois && Array.isArray(result.pois) && result.pois.length > 0) {
+                poi = result.pois[0];
+              }
+              
+              if (poi && poi.location) {
+                resolve(poi);
+              } else {
+                reject(new Error('未找到该地点，请检查输入是否正确'));
+              }
+            } else {
+              reject(new Error(`搜索失败: ${result.info || '未知错误'}`));
+            }
+          });
+        });
+        
+        if (placeResult && placeResult.location) {
+          userLocation = placeResult.location;
+          console.log('地点搜索成功（PlaceSearch）:', placeResult.name || input, userLocation);
+        } else {
+          throw new Error('未找到该地点，请检查输入是否正确');
+        }
+      }
+    }
+    
+    if (!userLocation) {
+      throw new Error('无法获取位置信息');
+    }
+    
+    // 执行后续的绘制和筛选逻辑
+    await createCircleAndFilter(userLocation);
+    
+    // 关闭对话框
+    openLocationFilter.value = false;
+    showManualInput.value = false;
+    
+  } catch (error) {
+    console.error('手动定位失败:', error);
+    locationError.value = error.message || '定位失败，请重试';
+  } finally {
+    locationLoading.value = false;
+    currentLocationMethod.value = '';
+  }
+};
+
+// 创建圆形覆盖物并执行筛选（提取公共逻辑）
+const createCircleAndFilter = async (userLocation) => {
+  // 将半径从km转换为米
+  const radiusInMeters = filterRadius.value * 1000;
+  
+  // 清除之前的绘制
+  resetDrawing();
+  
+  // 创建圆形覆盖物
+  const drawStyle = {
+    fillColor: '#00b0ff',
+    strokeColor: '#80d8ff',
+    fillOpacity: 0.2,
+  };
+  
+  drawObj = new amapGlobal.Circle({
+    center: userLocation,
+    radius: radiusInMeters,
+    ...drawStyle,
+  });
+  
+  // 将圆形添加到地图
+  drawObj.setMap(mapInstance);
+  
+  // 启用圆形编辑器
+  drawEditor = new amapGlobal.CircleEditor(mapInstance, drawObj);
+  drawEditor.open();
+  
+  // 更新圆形标记
+  updateCircleMarkers(drawObj);
+  
+  // 监听编辑器事件
+  drawEditor.on('move', () => {
+    updateCircleMarkers(drawObj);
+    filterPOIByGeometry(drawObj);
+  });
+  drawEditor.on('adjust', () => {
+    updateCircleMarkers(drawObj);
+    filterPOIByGeometry(drawObj);
+  });
+  drawEditor.on('end', () => {
+    updateCircleMarkers(drawObj);
+    filterPOIByGeometry(drawObj);
+  });
+  
+  // 将地图中心移动到用户位置，并调整缩放级别
+  mapInstance.setCenter(userLocation);
+  // 根据半径计算合适的缩放级别
+  const zoomLevel = calculateZoomByRadius(radiusInMeters);
+  mapInstance.setZoom(zoomLevel);
+  
+  // 等待地图渲染完成后再执行数据筛选
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  // 执行数据筛选
+  filterPOIByGeometry(drawObj);
+  
+  // 更新状态
+  poiStore.setHasDrawing(true);
 };
 
 // 处理定位筛选 - 使用多级定位策略
@@ -602,9 +833,20 @@ const handleLocationFilter = async () => {
   locationLoading.value = true;
   locationError.value = '';
   currentLocationMethod.value = '';
+  showManualInput.value = false;
   
   let userLocation = null;
   let locationMethod = '';
+  
+  // 调试开关：如果启用，跳过所有自动定位，直接显示手动输入
+  // 使用方法：在浏览器控制台执行 window.skipAutoLocation = true 来启用调试模式
+  // 或者在代码中临时设置 skipAutoLocation.value = true
+  if (skipAutoLocation.value || (typeof window !== 'undefined' && window.skipAutoLocation)) {
+    console.log('[调试模式] 跳过自动定位，直接显示手动输入');
+    locationLoading.value = false;
+    showManualInput.value = true;
+    return;
+  }
   
   // 策略1: 尝试浏览器定位（降低精度要求，增加超时时间）
   try {
@@ -1078,6 +1320,25 @@ onBeforeUnmount(() => {
   font-size: 14px;
   color: #409eff;
   font-weight: 500;
+}
+
+/* 手动输入地点样式 */
+.manual-location-input {
+  margin-top: 16px;
+}
+
+.input-tips {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.6;
+}
+
+.input-tips p {
+  margin: 2px 0;
 }
 </style>
 
