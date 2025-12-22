@@ -1053,6 +1053,8 @@ class SpatialIndex {
   constructor(cellSize = 100) {
     this.cellSize = cellSize;
     this.grid = new Map();
+    // 存储对象到网格键的映射，用于快速删除和更新
+    this.objToKeys = new WeakMap();
   }
 
   // 获取坐标对应的网格键
@@ -1062,13 +1064,45 @@ class SpatialIndex {
     return `${gridX},${gridY}`;
   }
 
-  // 添加对象到索引
-  add(obj, x, y) {
-    const key = this.getKey(x, y);
-    if (!this.grid.has(key)) {
-      this.grid.set(key, []);
+  // 获取边界框覆盖的所有网格键
+  getKeysForBounds(left, top, width, height) {
+    const minX = Math.floor(left / this.cellSize);
+    const maxX = Math.floor((left + width) / this.cellSize);
+    const minY = Math.floor(top / this.cellSize);
+    const maxY = Math.floor((top + height) / this.cellSize);
+    const keys = [];
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+        keys.push(`${x},${y}`);
+      }
     }
-    this.grid.get(key).push(obj);
+    return keys;
+  }
+
+  // 添加对象到索引（支持边界框）
+  add(obj, x, y, width = null, height = null) {
+    let keys;
+    if (width !== null && height !== null) {
+      // 如果提供了宽度和高度，将对象添加到所有覆盖的网格中
+      keys = this.getKeysForBounds(x - width / 2, y - height / 2, width, height);
+    } else {
+      // 否则只添加到中心点所在的网格
+      keys = [this.getKey(x, y)];
+    }
+    
+    // 存储对象到网格键的映射
+    this.objToKeys.set(obj, keys);
+    
+    // 将对象添加到所有相关的网格中
+    keys.forEach(key => {
+      if (!this.grid.has(key)) {
+        this.grid.set(key, []);
+      }
+      const cell = this.grid.get(key);
+      if (!cell.includes(obj)) {
+        cell.push(obj);
+      }
+    });
   }
 
   // 获取附近的对象（检查当前网格和相邻网格）
@@ -1077,6 +1111,7 @@ class SpatialIndex {
     const gridX = Math.floor(x / this.cellSize);
     const gridY = Math.floor(y / this.cellSize);
     const nearby = [];
+    const seen = new Set(); // 用于去重，避免同一对象被多次添加
     
     // 检查5x5网格区域（扩大检查范围，确保覆盖标签边界框）
     // 这样可以确保即使标签跨越多个网格，也能被检测到
@@ -1084,7 +1119,41 @@ class SpatialIndex {
       for (let dy = -2; dy <= 2; dy++) {
         const key = `${gridX + dx},${gridY + dy}`;
         if (this.grid.has(key)) {
-          nearby.push(...this.grid.get(key));
+          this.grid.get(key).forEach(obj => {
+            if (!seen.has(obj)) {
+              seen.add(obj);
+              nearby.push(obj);
+            }
+          });
+        }
+      }
+    }
+    return nearby;
+  }
+
+  // 根据边界框获取附近的对象（更精确的查询）
+  getNearbyByBounds(left, top, width, height) {
+    const keys = this.getKeysForBounds(left, top, width, height);
+    const nearby = [];
+    const seen = new Set();
+    
+    // 扩展查询范围，确保覆盖边界框周围的所有可能碰撞的网格
+    const minX = Math.floor(left / this.cellSize);
+    const maxX = Math.floor((left + width) / this.cellSize);
+    const minY = Math.floor(top / this.cellSize);
+    const maxY = Math.floor((top + height) / this.cellSize);
+    
+    // 扩展1个网格单位以确保覆盖
+    for (let x = minX - 1; x <= maxX + 1; x++) {
+      for (let y = minY - 1; y <= maxY + 1; y++) {
+        const key = `${x},${y}`;
+        if (this.grid.has(key)) {
+          this.grid.get(key).forEach(obj => {
+            if (!seen.has(obj)) {
+              seen.add(obj);
+              nearby.push(obj);
+            }
+          });
         }
       }
     }
@@ -1094,6 +1163,7 @@ class SpatialIndex {
   // 清空索引
   clear() {
     this.grid.clear();
+    this.objToKeys = new WeakMap();
   }
 }
 
@@ -1139,13 +1209,20 @@ const simulateDirection = (entry, originX, originY, angle, spatialIndex) => {
     // 默认不需要偏移
     let isShift = false;
     
-    // 获取所有已绘制的对象（排除临时对象）
-    // 重要：为了确保碰撞检测的准确性，始终检查所有已绘制的标签
-    // 空间索引主要用于其他优化，但碰撞检测必须检查所有对象
-    const allObjects = canvasInstance.getObjects();
+    // 使用空间索引获取附近的标签（大幅提升性能）
+    // 获取临时标签的边界框
+    const tempBounds = temp.getBoundingRect();
+    const nearbyObjects = spatialIndex 
+      ? spatialIndex.getNearbyByBounds(
+          tempBounds.left, 
+          tempBounds.top, 
+          tempBounds.width, 
+          tempBounds.height
+        )
+      : canvasInstance.getObjects(); // 如果没有空间索引，回退到检查所有对象
     
-    // 遍历所有元素，检查碰撞
-    for (const obj of allObjects) {
+    // 遍历附近的元素，检查碰撞
+    for (const obj of nearbyObjects) {
       // 排除当前正在移动的临时元素
       if (obj === temp) continue;
       
@@ -1248,11 +1325,13 @@ const drawLabel = (entry, originX, originY, spatialIndex) => {
   // 确保坐标已更新
   text.setCoords();
   
-  // 将新标签添加到空间索引（使用实际位置）
+  // 将新标签添加到空间索引（使用实际位置和边界框）
   if (spatialIndex) {
     const actualX = text.left || theNewLocation.x;
     const actualY = text.top || theNewLocation.y;
-    spatialIndex.add(text, actualX, actualY);
+    // 获取文本的边界框，用于更精确的空间索引
+    const bounds = text.getBoundingRect();
+    spatialIndex.add(text, actualX, actualY, bounds.width, bounds.height);
   }
   
   return text;
@@ -1264,6 +1343,9 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const renderCloud = async (forceReinitPyramid = false) => {
   if (!allowRenderCloud.value || !poiStore.visibleList.length) return;
   if (isRendering) return; // 如果正在渲染，则跳过
+  
+  // 记录渲染开始时间
+  const renderStartTime = performance.now();
   
   isRendering = true;
   await nextTick();
@@ -1358,28 +1440,44 @@ const renderCloud = async (forceReinitPyramid = false) => {
   renderedLabelCount.value = entries.length;
 
   // 创建空间索引以优化碰撞检测（网格大小根据标签平均大小调整）
-  // 注意：为了确保碰撞检测准确性，网格大小应该足够大以包含标签的边界框
-  const avgFontSize = entries.length > 0 
-    ? entries.reduce((sum, e) => sum + e.fontSize, 0) / entries.length 
-    : 20;
-  // 网格大小应该至少是最大标签宽度的2-3倍，以确保能覆盖标签的边界框
-  // 估算：文本宽度大约是字号的0.6-1倍（取决于文本长度），所以使用字号*3作为网格大小
-  const cellSize = Math.max(avgFontSize * 3, 100); // 网格大小至少为平均字号的3倍，最小100
+  // 优化：根据标签的实际大小动态计算网格大小，平衡查询效率和准确性
+  let cellSize = 100; // 默认网格大小
+  if (entries.length > 0) {
+    // 估算标签的平均宽度和高度
+    // 文本宽度大约是字号的0.6-1.5倍（取决于文本长度），高度大约是字号的1.2倍
+    const avgFontSize = entries.reduce((sum, e) => sum + e.fontSize, 0) / entries.length;
+    // 估算平均文本长度（假设平均文本长度为10-15个字符）
+    const avgTextLength = entries.reduce((sum, e) => sum + (e.textValue?.length || 10), 0) / entries.length;
+    // 文本宽度估算：字号 * 字符数 * 0.6（中文字符宽度约为字号的0.6倍）
+    const avgTextWidth = avgFontSize * Math.min(avgTextLength, 15) * 0.6;
+    const avgTextHeight = avgFontSize * 1.2;
+    
+    // 网格大小设置为平均标签尺寸的2-3倍，确保每个标签至少覆盖一个网格
+    // 但不要太大，否则查询效率会降低
+    const maxDimension = Math.max(avgTextWidth, avgTextHeight);
+    cellSize = Math.max(maxDimension * 2, 80); // 至少是标签尺寸的2倍，最小80
+    cellSize = Math.min(cellSize, 200); // 最大200，避免网格过大导致查询效率降低
+  }
   const spatialIndex = new SpatialIndex(cellSize);
   
-  // 将中心点添加到空间索引
+  // 将中心点添加到空间索引（使用边界框）
   const centerObjects = canvasInstance.getObjects();
   if (centerObjects.length > 0) {
     const centerObj = centerObjects[0];
-    // 使用对象的实际中心位置
+    // 使用对象的实际中心位置和边界框
     const centerX = centerObj.left || originalCenterX;
     const centerY = centerObj.top || originalCenterY;
-    spatialIndex.add(centerObj, centerX, centerY);
+    centerObj.setCoords(); // 确保坐标已更新
+    const centerBounds = centerObj.getBoundingRect();
+    spatialIndex.add(centerObj, centerX, centerY, centerBounds.width, centerBounds.height);
   }
 
   // 优化渲染：批量渲染，减少延迟
   const batchSize = 5; // 每批渲染标签个数
   const renderDelay = 1; // 每批之间的延迟（ms）
+  
+  // 记录标签渲染开始时间
+  const labelRenderStartTime = performance.now();
   
   for (let i = 0; i < entries.length; i++) {
     drawLabel(entries[i], originalCenterX, originalCenterY, spatialIndex);
@@ -1391,9 +1489,21 @@ const renderCloud = async (forceReinitPyramid = false) => {
       await new Promise(resolve => requestAnimationFrame(resolve));
     }
   }
+  
+  // 记录标签渲染结束时间
+  const labelRenderEndTime = performance.now();
+  const labelRenderDuration = labelRenderEndTime - labelRenderStartTime;
 
   // 渲染完成后，触发computed更新以确保图例显示
   pyramidUpdateTrigger.value++;
+  
+  // 计算总耗时
+  const renderEndTime = performance.now();
+  const totalDuration = renderEndTime - renderStartTime;
+  
+  // 输出性能统计信息到控制台
+  console.log(`[词云渲染完成] 标签数量: ${entries.length}, 标签渲染耗时: ${labelRenderDuration.toFixed(2)}ms, 总耗时: ${totalDuration.toFixed(2)}ms`);
+  
   isRendering = false;
 };
 
