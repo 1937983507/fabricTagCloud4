@@ -1167,7 +1167,23 @@ class SpatialIndex {
   }
 }
 
-// 多角度径向偏移策略（优化版本：使用空间索引）
+// 快速边界框碰撞检测（参考 d3-cloud 的 collideRects 优化）
+// 在精确碰撞检测前先进行矩形边界框检查，大幅提升性能
+const checkBoundsCollision = (bounds1, bounds2) => {
+  // 检查两个边界框是否重叠
+  // bounds: { left, top, width, height }
+  const right1 = bounds1.left + bounds1.width;
+  const bottom1 = bounds1.top + bounds1.height;
+  const right2 = bounds2.left + bounds2.width;
+  const bottom2 = bounds2.top + bounds2.height;
+  
+  return !(right1 < bounds2.left || 
+           bounds1.left > right2 || 
+           bottom1 < bounds2.top || 
+           bounds1.top > bottom2);
+};
+
+// 多角度径向偏移策略（优化版本：使用空间索引 + 边界框预检查）
 const simulateDirection = (entry, originX, originY, angle, spatialIndex) => {
   // 初始位置为圆形中心
   let newX = originX;
@@ -1202,16 +1218,36 @@ const simulateDirection = (entry, originX, originY, angle, spatialIndex) => {
   canvasInstance.add(temp);
   temp.setCoords(); // 初始化坐标
 
+  // 缓存已放置对象的边界框（避免重复计算，参考 d3-cloud 优化）
+  const cachedBounds = new WeakMap();
+  
+  // 获取画布尺寸（用于边界检查，参考 d3-cloud 优化）
+  const canvasWidth = canvasInstance.getWidth();
+  const canvasHeight = canvasInstance.getHeight();
+  
   // 开始偏移（沿着旋转后的方向，参考原有项目strategy 3）
   let iterations = 0;
+  let lastTempBounds = null; // 缓存临时标签的边界框，避免重复计算
   
   while (iterations < maxIterations) {
     // 默认不需要偏移
     let isShift = false;
     
-    // 使用空间索引获取附近的标签（大幅提升性能）
-    // 获取临时标签的边界框
+    // 获取临时标签的边界框（只在位置改变时重新计算）
     const tempBounds = temp.getBoundingRect();
+    
+    // 边界检查优化（参考 d3-cloud）：如果标签移出画布边界，提前跳过碰撞检测
+    // 但允许标签部分超出边界，因为后续可能会移回
+    const margin = 50; // 允许标签超出边界的边距
+    if (tempBounds.left + tempBounds.width < -margin || 
+        tempBounds.left > canvasWidth + margin ||
+        tempBounds.top + tempBounds.height < -margin || 
+        tempBounds.top > canvasHeight + margin) {
+      // 标签完全移出画布（包括边距），继续偏移可能会移回
+      // 这里不提前退出，让算法继续尝试
+    }
+    
+    // 使用空间索引获取附近的标签（大幅提升性能）
     const nearbyObjects = spatialIndex 
       ? spatialIndex.getNearbyByBounds(
           tempBounds.left, 
@@ -1221,12 +1257,27 @@ const simulateDirection = (entry, originX, originY, angle, spatialIndex) => {
         )
       : canvasInstance.getObjects(); // 如果没有空间索引，回退到检查所有对象
     
-    // 遍历附近的元素，检查碰撞
+    // 遍历附近的元素，检查碰撞（使用边界框预检查优化）
     for (const obj of nearbyObjects) {
       // 排除当前正在移动的临时元素
       if (obj === temp) continue;
       
-      // 检查对象是否与另一个对象相交
+      // 优化：先进行快速的边界框检查（参考 d3-cloud 的 collideRects）
+      // 如果边界框不重叠，直接跳过精确碰撞检测
+      let objBounds = cachedBounds.get(obj);
+      if (!objBounds) {
+        // 缓存边界框，避免重复计算
+        objBounds = obj.getBoundingRect();
+        cachedBounds.set(obj, objBounds);
+      }
+      
+      // 快速边界框碰撞检测
+      if (!checkBoundsCollision(tempBounds, objBounds)) {
+        // 边界框不重叠，跳过精确检测
+        continue;
+      }
+      
+      // 边界框重叠，进行精确碰撞检测
       if (temp.intersectsWithObject(obj)) {
         // 有重叠，得继续偏移
         isShift = true;
@@ -1236,6 +1287,9 @@ const simulateDirection = (entry, originX, originY, angle, spatialIndex) => {
         // 更新临时标签位置
         temp.set({ left: newX, top: newY });
         temp.setCoords();
+        // 清除缓存的边界框（因为位置改变了）
+        cachedBounds.delete(obj);
+        lastTempBounds = null; // 清除缓存的临时边界框
         break; // 找到碰撞就退出，继续下一轮
       }
     }
@@ -1474,7 +1528,7 @@ const renderCloud = async (forceReinitPyramid = false) => {
 
   // 优化渲染：批量渲染，减少延迟
   const batchSize = 5; // 每批渲染标签个数
-  const renderDelay = 1; // 每批之间的延迟（ms）
+  const renderDelay = 0.1; // 每批之间的延迟（ms）
   
   // 记录标签渲染开始时间
   const labelRenderStartTime = performance.now();
