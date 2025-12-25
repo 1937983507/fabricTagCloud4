@@ -226,6 +226,7 @@ import {
 } from 'vue';
 import { usePoiStore } from '@/stores/poiStore';
 import { cityNameToPinyin } from '@/utils/cityNameToPinyin';
+import { recordTagCloudGeneration } from '@/utils/statistics';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import introJs from 'intro.js';
 import 'intro.js/minified/introjs.min.css';
@@ -590,7 +591,7 @@ const startDrawGuideIntro = () => {
   });
 };
 
-function handleRenderCloud() {
+async function handleRenderCloud() {
   // 如果没有筛选数据，启动第二个引导并阻止绘制
   if (!poiStore.hasDrawing) {
     startDrawGuideIntro();
@@ -599,7 +600,12 @@ function handleRenderCloud() {
   
   allowRenderCloud.value = true;
   // 每次点击【运行生成标签云】时，强制重新构建POI金字塔，使用最新的筛选数据
-  renderCloud(true);
+  try {
+    await renderCloud(true);
+    // 记录和刷新已在 renderCloud 函数内部处理
+  } catch (error) {
+    console.error('生成标签云失败:', error);
+  }
 }
 
 // 清除标签云
@@ -1828,6 +1834,17 @@ const renderCloud = async (forceReinitPyramid = false) => {
   
   // 输出性能统计信息到控制台
   console.log(`[词云渲染完成] 标签数量: ${entries.length}, 标签渲染耗时: ${labelRenderDuration.toFixed(2)}ms, 总耗时: ${totalDuration.toFixed(2)}ms`);
+  
+  // 记录标签云生成并触发刷新事件（只有在成功渲染了标签时才记录）
+  if (entries.length > 0) {
+    try {
+      await recordTagCloudGeneration('tagcloud');
+      // 触发自定义事件，通知 FooterBar 刷新统计数据
+      window.dispatchEvent(new CustomEvent('tagcloud-generated'));
+    } catch (error) {
+      console.warn('记录标签云生成失败:', error);
+    }
+  }
   
   isRendering = false;
 };
