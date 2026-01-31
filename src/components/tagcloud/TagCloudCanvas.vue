@@ -718,6 +718,9 @@ const measureText = (text, fontSize, fontFamily, fontWeight) => {
   };
 };
 
+/**
+ * 多角度径向移位算法：在标签与中心位置的真实角方向附近（±15度扇形区域）内，通过螺旋搜索找到可放置的空余位置
+ */
 const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placedLabels) => {
   const sectorHalfAngle = 15;
   const minAngle = bearing - sectorHalfAngle;
@@ -758,6 +761,49 @@ const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placed
       angle = minAngle;
       radius += radiusIncrement;
     }
+  }
+};
+
+/**
+ * 单角度径向移位算法：对于每个非中心地点标签，直接按照标签与中心位置的真实角方向，一直沿着这个角度往外移动，找到可以放置的空余位置
+ */
+const findPositionWithSingleAngle = (centerX, centerY, bearing, width, height, placedLabels) => {
+  const startRadius = 5;
+  const radiusIncrement = 5;
+  
+  // 将角度转换为弧度
+  const angleRad = (bearing * Math.PI) / 180;
+  
+  let radius = startRadius;
+
+  while (true) {
+    // 沿着真实角度方向计算位置
+    const x = centerX + radius * Math.sin(angleRad);
+    const y = centerY - radius * Math.cos(angleRad);
+
+    const candidateRect = {
+      x: x - width / 2,
+      y: y - height / 2,
+      width: width,
+      height: height,
+    };
+
+    // 检查是否与已放置的标签重叠
+    let hasCollision = false;
+    for (const placed of placedLabels) {
+      if (isOverlapping(candidateRect, placed, 2)) {
+        hasCollision = true;
+        break;
+      }
+    }
+
+    // 如果没有碰撞，返回这个位置
+    if (!hasCollision) {
+      return { x, y };
+    }
+
+    // 如果有碰撞，增加半径继续往外移动
+    radius += radiusIncrement;
   }
 };
 
@@ -958,7 +1004,7 @@ const initPoisPyramid = (data) => {
 };
 
 /**
- * 使用多角度径向移位算法布局标签
+ * 使用径向移位算法布局标签（支持多角度和单角度两种算法）
  * @param {Array} pois - POI数组
  * @param {Object} center - 中心点 {lat, lng}
  * @param {number} centerX - 画布中心X坐标
@@ -969,6 +1015,8 @@ const initPoisPyramid = (data) => {
  * @returns {Array} 布局结果数组 [{poi, text, x, y, width, height, fontSize, bearing}, ...]
  */
 const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisplayName, centerLabelRect = null) => {
+  // 获取算法设置
+  const algorithm = poiStore.algorithmSettings.algorithm || 'multi-angle';
   const layoutResults = [];
   const placedLabels = [];
   
@@ -1042,16 +1090,30 @@ const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisp
       fontSettings.fontWeight
     );
     
-    // 5. 调用多角度径向移位算法查找位置（传递中心标签矩形以优化起始半径）
-    const position = findPositionWithSpiral(
-      centerX,
-      centerY,
-      bearing,
-      width,
-      height,
-      placedLabels,
-      centerLabelRect
-    );
+    // 5. 根据算法设置选择使用哪个算法查找位置
+    let position;
+    if (algorithm === 'single-angle') {
+      // 使用单角度径向移位算法
+      position = findPositionWithSingleAngle(
+        centerX,
+        centerY,
+        bearing,
+        width,
+        height,
+        placedLabels
+      );
+    } else {
+      // 使用多角度径向移位算法（默认）
+      position = findPositionWithSpiral(
+        centerX,
+        centerY,
+        bearing,
+        width,
+        height,
+        placedLabels,
+        centerLabelRect
+      );
+    }
     
     // 6. 记录已放置的标签
     const placedRect = {
@@ -2232,6 +2294,20 @@ watch([showRank, showTime], () => {
   
   if (allowRenderCloud.value) renderCloud();
 });
+
+// 监听算法设置变化（需要重新绘制，因为布局算法变化）
+watch(
+  () => poiStore.algorithmSettings.algorithm,
+  () => {
+    // 如果正在清除，不触发重新渲染
+    if (isClearing.value) return;
+    
+    if (allowRenderCloud.value) {
+      // 算法变化需要重新绘制（布局变化）
+      renderCloud(false);
+    }
+  },
+);
 
 onBeforeUnmount(() => {
   if (canvasInstance) canvasInstance.dispose();

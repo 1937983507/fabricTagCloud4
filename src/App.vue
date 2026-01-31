@@ -19,6 +19,7 @@
           <PoiContent ref="poiContentRef" v-show="activePanel === 'content'" />
           <TypefacePanel v-show="activePanel === 'typeface'" />
           <ColorPanel v-show="activePanel === 'color'" />
+          <AlgorithmPanel v-show="activePanel === 'algorithm'" />
         </div>
         <SplitterBar />
         <TagCloudCanvas ref="tagCloudCanvasRef" />
@@ -38,6 +39,7 @@ import SideMenu from '@/components/layout/SideMenu.vue';
 import PoiContent from '@/components/content/PoiContent.vue';
 import TypefacePanel from '@/components/typeface/TypefacePanel.vue';
 import ColorPanel from '@/components/color/ColorPanel.vue';
+import AlgorithmPanel from '@/components/algorithm/AlgorithmPanel.vue';
 import TagCloudCanvas from '@/components/tagcloud/TagCloudCanvas.vue';
 import SplitterBar from '@/components/common/SplitterBar.vue';
 import HelpPage from '@/components/help/HelpPage.vue';

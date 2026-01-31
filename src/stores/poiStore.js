@@ -33,6 +33,9 @@ export const usePoiStore = defineStore('poiStore', {
       discreteMethod: 'quantile',
       discreteCount: 5,
     },
+    algorithmSettings: {
+      algorithm: 'multi-angle', // 'multi-angle' 多角度径向移位算法, 'single-angle' 单角度径向移位算法
+    },
   }),
   getters: {
     totalCount: (state) => state.poiList.length,
@@ -325,6 +328,12 @@ export const usePoiStore = defineStore('poiStore', {
         ...poi,
         fontColor: this.colorSettings.palette[index % this.colorSettings.palette.length],
       }));
+    },
+    updateAlgorithmSettings(payload) {
+      this.algorithmSettings = {
+        ...this.algorithmSettings,
+        ...payload,
+      };
     },
     setSelectionContext(context) {
       this.selectionCenter = context?.center ?? null;
