@@ -238,6 +238,7 @@ import {
   Close,
   ArrowDown,
 } from '@element-plus/icons-vue';
+import { recordTagCloudGeneration } from '@/utils/statistics';
 
 const canvasRef = ref(null);
 const wrapperRef = ref(null);
@@ -1420,6 +1421,15 @@ const renderCloud = async (rebuildPyramid = false) => {
       maxDistance: maxDistance.value,
     });
     
+    // 记录词云生成（包括重绘）
+    try {
+      await recordTagCloudGeneration('tagcloud');
+      // 触发事件通知 FooterBar 更新统计数据
+      window.dispatchEvent(new CustomEvent('tagcloud-generated'));
+    } catch (error) {
+      console.warn('记录词云生成失败:', error);
+    }
+    
   } catch (error) {
     console.error('渲染标签云失败:', error);
   } finally {
@@ -2231,6 +2241,20 @@ watch(
     }
   },
   { deep: true },
+);
+
+// 监听字体分级数量变化（需要重新绘制，因为分级数量影响字号分配）
+watch(
+  () => poiStore.fontSettings.levelCount,
+  () => {
+    // 如果正在清除，不触发重新渲染
+    if (isClearing.value) return;
+    
+    if (allowRenderCloud.value) {
+      // 分级数量变化需要重新绘制（影响字号分配和布局）
+      renderCloud(false);
+    }
+  },
 );
 
 // 监听颜色设置变化（直接更新，不重新绘制）
