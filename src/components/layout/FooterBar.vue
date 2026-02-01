@@ -4,9 +4,15 @@
       <div class="footer-left">
         <div class="footer-brand">
           <img src="/img/logo.png" alt="Logo" class="footer-logo" />
-          <div class="brand-info">
-            <h3 class="brand-name">地名标签云</h3>
-            <p class="brand-desc">专业的地点可视化平台</p>
+          <div class="footer-stats">
+            <div class="stats-item">
+              <span class="stats-label">累计访问量：</span>
+              <span class="stats-value">{{ statistics.totalVisits }}</span>
+            </div>
+            <div class="stats-item">
+              <span class="stats-label">累计生成标签云：</span>
+              <span class="stats-value">{{ statistics.tagcloud }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -54,11 +60,68 @@
 </template>
 
 <script setup>
+import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { getStatistics } from '@/utils/statistics';
+
 const emit = defineEmits(['navigate']);
+
+const statistics = ref({
+  totalVisits: 0,
+  tagcloud: 0,
+});
+
+let statsRefreshTimer = null;
+
+const loadStatistics = async () => {
+  try {
+    const stats = await getStatistics();
+    statistics.value = stats;
+  } catch (error) {
+    console.warn('加载统计数据失败:', error);
+  }
+};
 
 const handleLinkClick = (key) => {
   emit('navigate', key);
 };
+
+onMounted(() => {
+  // 监听页面访问记录完成事件，立即加载最新的统计数据
+  const handlePageVisitRecorded = () => {
+    loadStatistics();
+  };
+  window.addEventListener('page-visit-recorded', handlePageVisitRecorded);
+  
+  // 监听标签云生成事件，立即刷新统计数据
+  const handleTagCloudGenerated = () => {
+    loadStatistics();
+  };
+  window.addEventListener('tagcloud-generated', handleTagCloudGenerated);
+  
+  // 每30秒刷新一次统计数据
+  statsRefreshTimer = setInterval(() => {
+    loadStatistics();
+  }, 30000);
+  
+  // 保存事件监听器引用，用于清理
+  window._tagCloudGeneratedHandler = handleTagCloudGenerated;
+  window._pageVisitRecordedHandler = handlePageVisitRecorded;
+});
+
+onBeforeUnmount(() => {
+  if (statsRefreshTimer) {
+    clearInterval(statsRefreshTimer);
+  }
+  // 移除事件监听器
+  if (window._tagCloudGeneratedHandler) {
+    window.removeEventListener('tagcloud-generated', window._tagCloudGeneratedHandler);
+    delete window._tagCloudGeneratedHandler;
+  }
+  if (window._pageVisitRecordedHandler) {
+    window.removeEventListener('page-visit-recorded', window._pageVisitRecordedHandler);
+    delete window._pageVisitRecordedHandler;
+  }
+});
 </script>
 
 <style scoped>
@@ -95,29 +158,19 @@ const handleLinkClick = (key) => {
   height: 100%;
 }
 
+.footer-left .footer-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  /* min-width: 200px; */
+}
+
 .footer-logo {
   height: 40px;
   object-fit: contain;
 }
 
-.brand-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.brand-name {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2333;
-}
-
-.brand-desc {
-  margin: 0;
-  font-size: 12px;
-  color: #64748b;
-}
 
 
 .footer-main {
@@ -133,6 +186,32 @@ const handleLinkClick = (key) => {
   flex-direction: column;
   gap: 20px;
   align-items: flex-end;
+}
+
+
+.stats-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #64748b;
+  width: 100%;
+}
+
+.stats-label {
+  color: #64748b;
+  text-align: left;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.stats-value {
+  color: #399ceb;
+  font-weight: 600;
+  text-align: right;
+  flex-shrink: 0;
+  margin-left: auto;
+  min-width: 25px;
 }
 
 .footer-links {
@@ -292,6 +371,10 @@ const handleLinkClick = (key) => {
     align-items: center;
   }
   
+  .footer-left .footer-stats {
+    align-items: center;
+  }
+  
   .footer-social {
     align-items: center;
   }
@@ -308,6 +391,12 @@ const handleLinkClick = (key) => {
   
   .footer-brand {
     justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .footer-left .footer-stats {
+    align-items: center;
   }
 }
 </style>

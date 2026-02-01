@@ -36,12 +36,14 @@ import {
   BrushFilled,
   Collection,
   EditPen,
+  Grid,
 } from '@element-plus/icons-vue';
 
 const mainMenu = [
   { key: 'content', label: '内容', icon: Collection },
   { key: 'typeface', label: '字体', icon: EditPen },
   { key: 'color', label: '配色', icon: BrushFilled },
+  { key: 'algorithm', label: '算法', icon: Grid },
 ];
 
 const handleShortcutClick = () => {

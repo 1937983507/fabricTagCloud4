@@ -23,6 +23,7 @@ export const usePoiStore = defineStore('poiStore', {
       fontFamily: '等线',
       fontWeight: '700',
       language: 'zh', // 语言选择：'zh' 中文，'en' 英文
+      centerLabelMode: 'nearest', // 中心标签模式：'nearest' 使用最近地点名，'center' 显示"中心位置"
     },
     colorSettings: {
       background: '#0c1024',
@@ -31,6 +32,9 @@ export const usePoiStore = defineStore('poiStore', {
       inverted: false,
       discreteMethod: 'quantile',
       discreteCount: 5,
+    },
+    algorithmSettings: {
+      algorithm: 'multi-angle', // 'multi-angle' 多角度径向移位算法, 'single-angle' 单角度径向移位算法
     },
   }),
   getters: {
@@ -324,6 +328,12 @@ export const usePoiStore = defineStore('poiStore', {
         ...poi,
         fontColor: this.colorSettings.palette[index % this.colorSettings.palette.length],
       }));
+    },
+    updateAlgorithmSettings(payload) {
+      this.algorithmSettings = {
+        ...this.algorithmSettings,
+        ...payload,
+      };
     },
     setSelectionContext(context) {
       this.selectionCenter = context?.center ?? null;

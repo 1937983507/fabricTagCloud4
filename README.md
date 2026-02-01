@@ -99,6 +99,21 @@ fabricTagCloud4/
    npm run preview
    ```
 
+5. **环境变量配置（可选）**
+
+   如果需要自定义统计服务后端地址，创建 `.env` 文件：
+
+   ```bash
+   # 开发环境：使用 localhost
+   VITE_STATS_API_URL=http://localhost:3001
+   
+   # 生产环境：留空使用相对路径（通过 Nginx 代理）
+   # 或者设置为完整的后端地址
+   VITE_STATS_API_URL=
+   ```
+
+   生产环境推荐使用相对路径 `/stats-api`，通过 Nginx 代理到后端服务。
+
 ---
 
 ## 🔧 核心模块说明

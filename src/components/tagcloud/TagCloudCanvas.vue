@@ -22,7 +22,23 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <span class="label-count">标签数量: {{ renderedLabelCount }}</span>
+          <div class="label-progress">
+            <span class="label-count">
+              标签数量:
+              <span class="label-count-number">
+                {{ currentRenderedCount }}
+                <span v-if="totalLabelCount > 0">/ {{ totalLabelCount }}</span>
+              </span>
+            </span>
+            <el-progress
+              :percentage="renderProgress"
+              :stroke-width="16"
+              :show-text="true"
+              :text-inside="true"
+              :format="percentage => percentage + '%'"
+              class="label-progress-bar"
+            />
+          </div>
         </div>
       </div>
     </header>
@@ -53,20 +69,37 @@
       
       <!-- 距离图例 -->
       <div class="distance-legend">
-        <p class="legend-title">{{ poiStore.fontSettings.language === 'en' ? 'Distance from Center' : '与中心的距离' }}</p>
-        <div class="legend-colors" ref="legendColorsRef">
-          <div
-            v-for="(color, index) in poiStore.colorSettings.palette"
-            :key="`legend-${index}`"
-            class="legend-color-item"
-            :style="{ background: color }"
-            @mouseenter="handleLegendHover(color)"
-            @mouseleave="handleLegendLeave"
-          ></div>
+        <p class="legend-title">{{ poiStore.fontSettings.language === 'en' ? 'Distance from Center (km)' : '与中心的距离(km)' }}</p>
+        <div class="legend-colors-wrapper">
+          <div class="legend-colors">
+            <div
+              v-for="(color, index) in poiStore.colorSettings.palette"
+              :key="`legend-${index}`"
+              class="legend-color-item"
+              :style="{ background: color }"
+              @mouseenter="handleLegendHover(color)"
+              @mouseleave="handleLegendLeave"
+            ></div>
+          </div>
+          <!-- 在色块下面一行显示距离标签 -->
+          <div v-if="allowRenderCloud && colorBoundaries.length > 0" class="legend-boundaries">
+            <span class="legend-boundary-label legend-start">0</span>
+            <span
+              v-for="(boundary, index) in colorBoundaries"
+              :key="`boundary-${index}`"
+              class="legend-boundary-label legend-middle"
+              :style="{ left: `${((index + 1) * 100) / paletteCount}%` }"
+            >
+              {{ formatDistance(boundary) }}
+            </span>
+            <span
+              v-if="maxDistance > 0"
+              class="legend-boundary-label legend-max-distance"
+            >
+              {{ formatDistance(maxDistance) }}
+            </span>
+          </div>
         </div>
-        <p class="legend-max-distance">
-          <span>{{ maxDistanceText || '0 km' }}</span>
-        </p>
       </div>
       
       <!-- 交互工具栏 -->
@@ -205,11 +238,11 @@ import {
   Close,
   ArrowDown,
 } from '@element-plus/icons-vue';
+import { recordTagCloudGeneration } from '@/utils/statistics';
 
 const canvasRef = ref(null);
 const wrapperRef = ref(null);
-const legendColorsRef = ref(null);
-const showRank = ref(false); // 默认不显示排名
+const showRank = ref(false);
 const showTime = ref(false);
 const poiStore = usePoiStore();
 
@@ -224,38 +257,154 @@ const origWidth = ref(800);
 const origHeight = ref(600);
 let _aspectRatio = 1;
 
+const POI_THRESHOLD = 100;
+
 let canvasInstance;
-let resolutionScale = 1;
-let resizeObserver;
-let isRendering = false; // 标记是否正在渲染
-let isPanning = ref(true); // 是否启用漫游（默认开启）
-let vpt = [1, 0, 0, 1, 0, 0]; // viewport transform
-let originalCenterX = 0;
-let originalCenterY = 0;
-const maxDistance = ref(0); // 最大距离（米）- 使用ref以便响应式更新
-let poisPyramid = []; // POI数据金字塔
-let tagCloudScale = 0; // 当前显示层级
-let amapGlobal = null; // 高德地图全局对象
-let drivingInstance = null; // 高德地图驾车路径规划实例
+let isRendering = false;
+let isPanning = ref(true);
+let vpt = [1, 0, 0, 1, 0, 0];
+const maxDistance = ref(0);
+let poisPyramid = [];
+let tagCloudScale = 0;
+const pyramidUpdateTrigger = ref(0);
+const paletteCount = computed(() => poiStore.colorSettings.palette.length || 1);
+let amapGlobal = null;
+let drivingInstance = null;
 
 const allowRenderCloud = ref(false);
 const canvasWidth = ref(900);
 const canvasHeight = ref(900);
-const canvasKey = ref(0); // 用于强制重新渲染canvas
-const isClearing = ref(false); // 标记是否正在清除，用于防止watch触发重新渲染
-const renderedLabelCount = ref(0); // 当前渲染的标签数量
-const selectedPoi = ref(null); // 当前选中的POI信息
-const baseAngles = [-15, -10, -5, 0, 5, 10, 15];
-const stepDistance = 22;
-const maxIterations = 220;
-const POI_THRESHOLD = 100; // POI数量阈值（首次渲染数量）
+const canvasKey = ref(0);
+const isClearing = ref(false);
+const renderedLabelCount = ref(0);
+const totalLabelCount = ref(0);
+const currentRenderedCount = ref(0);
+const selectedPoi = ref(null);
+
+const renderProgress = computed(() => {
+  if (!totalLabelCount.value) return 0;
+  const ratio = currentRenderedCount.value / totalLabelCount.value;
+  return Math.min(100, Math.max(0, Math.round(ratio * 100)));
+});
 
 let secondIntroStarted = false;
 
-// 最大距离文本
-const maxDistanceText = computed(() => {
-  if (maxDistance.value === 0) return '0 km';
-  return `${(maxDistance.value / 1000).toFixed(2)} km`;
+// 计算各个色块之间的分界点距离值
+const calculateColorBoundaries = () => {
+  pyramidUpdateTrigger.value;
+  
+  if (!allowRenderCloud.value || !poiStore.visibleList.length || poisPyramid.length === 0) {
+    return [];
+  }
+  
+  const sourceList = poiStore.visibleList;
+  const currentData = poisPyramid[tagCloudScale] || poisPyramid[0] || sourceList;
+  if (!currentData || currentData.length === 0) {
+    return [];
+  }
+  
+  const selectionCenter = poiStore.selectionCenter;
+  if (!selectionCenter) return [];
+  
+  const colorSettings = poiStore.colorSettings;
+  const colorNum = colorSettings.discreteCount || colorSettings.palette.length;
+  const discreteMethod = colorSettings.discreteMethod || 'quantile';
+  
+  // 计算所有POI的距离
+  const entriesWithDistance = currentData.map((poi) => {
+    const distance = calculateDistance(
+      selectionCenter.lat,
+      selectionCenter.lng,
+      poi.lat,
+      poi.lng,
+    );
+    return { poi, distance };
+  });
+  
+  entriesWithDistance.sort((a, b) => a.distance - b.distance);
+  
+  const distances = entriesWithDistance.map(entry => entry.distance);
+  if (distances.length === 0) return [];
+  
+  // 预先计算颜色分类所需的公共值
+  let colorCache = {};
+  if (discreteMethod === 'equal' || discreteMethod === 'geometric') {
+    colorCache.minValue = Math.min(...distances);
+    colorCache.maxValue = Math.max(...distances);
+    if (discreteMethod === 'geometric') {
+      colorCache.ratio = Math.pow(colorCache.maxValue / colorCache.minValue, 1 / colorNum);
+    } else {
+      colorCache.range = colorCache.maxValue - colorCache.minValue;
+      colorCache.interval = colorCache.range / colorNum;
+    }
+  } else if (discreteMethod === 'stddev') {
+    colorCache.mean = distances.reduce((acc, curr) => acc + curr, 0) / distances.length;
+    colorCache.stdDev = Math.sqrt(
+      distances.reduce((acc, curr) => acc + Math.pow(curr - colorCache.mean, 2), 0) /
+        distances.length,
+    );
+    colorCache.stdDevInterval = colorCache.stdDev / colorNum;
+    colorCache.halfColorNum = Math.floor(colorNum / 2);
+  } else if (discreteMethod === 'jenks') {
+    const values = [...distances].sort((a, b) => a - b);
+    colorCache.jenksBreaks = calculateJenks(values, colorNum);
+  }
+  
+  // 为每个entry计算classIndex
+  const entriesWithClass = entriesWithDistance.map((entry, index) => {
+    let classIndex = 0;
+    
+    if (discreteMethod === 'quantile') {
+      const percentile = (index + 1) / entriesWithDistance.length;
+      classIndex = Math.ceil(colorNum * percentile) - 1;
+    } else {
+      const entryForClass = { distance: entry.distance };
+      classIndex = calculateClassIndexOptimized(
+        entryForClass,
+        index,
+        entriesWithDistance.length,
+        colorNum,
+        discreteMethod,
+        colorCache,
+      );
+    }
+    return { ...entry, classIndex };
+  });
+  
+  // 计算每个色块的最大距离值（作为分界点），不包含最后一个色块
+  const boundaries = [];
+  for (let i = 0; i < colorNum - 1; i++) {
+    const entriesInClass = entriesWithClass.filter(e => e.classIndex === i);
+    if (entriesInClass.length > 0) {
+      const maxDist = Math.max(...entriesInClass.map(e => e.distance));
+      boundaries.push(maxDist);
+    } else {
+      boundaries.push(i > 0 ? boundaries[i - 1] : 0);
+    }
+  }
+  
+  return boundaries;
+};
+
+// 格式化距离数值，根据数值大小智能调整小数位数以避免重叠
+const formatDistance = (distanceInMeters) => {
+  const distanceInKm = distanceInMeters / 1000;
+  
+  // 如果距离 >= 100km，显示整数（0位小数）
+  if (distanceInKm >= 100) {
+    return Math.round(distanceInKm).toString();
+  }
+  // 如果距离 >= 10km，显示1位小数
+  if (distanceInKm >= 10) {
+    return distanceInKm.toFixed(1);
+  }
+  // 如果距离 < 10km，显示1位小数（保持一致性）
+  return distanceInKm.toFixed(1);
+};
+
+// 各个色块之间的分界点距离值
+const colorBoundaries = computed(() => {
+  return calculateColorBoundaries();
 });
 
 // 根据语言获取POI显示名称
@@ -272,10 +421,9 @@ const getPoiDisplayName = (poi) => {
 };
 
 const initCanvas = () => {
-  if (!canvasRef.value) return; // 确保canvas元素存在
+  if (!canvasRef.value) return;
   
   if (canvasInstance) {
-    // 保存当前的viewport transform
     vpt = canvasInstance.viewportTransform;
     canvasInstance.dispose();
   }
@@ -285,19 +433,16 @@ const initCanvas = () => {
     defaultCursor: isPanning.value ? 'grab' : 'default',
   });
   
-  // 如果漫游已开启，立即设置鼠标样式
   if (isPanning.value) {
     canvasInstance.defaultCursor = 'grab';
   }
   canvasInstance.setWidth(canvasWidth.value);
   canvasInstance.setHeight(canvasHeight.value);
   
-  // 恢复viewport transform
   if (vpt) {
     canvasInstance.setViewportTransform(vpt);
   }
   
-  // 设置鼠标交互
   setupCanvasInteractions();
 };
 
@@ -306,7 +451,6 @@ watch(
   () => poiStore.colorSettings.background,
   (newColor) => {
     if (canvasInstance && newColor) {
-      // Fabric.js v6 中直接设置 backgroundColor 属性
       canvasInstance.backgroundColor = newColor;
       canvasInstance.renderAll();
     }
@@ -318,11 +462,8 @@ watch(
 const initCanvasSize = () => {
   if (!wrapperRef.value) return;
   const rect = wrapperRef.value.getBoundingClientRect();
-  // 使用容器的初始尺寸，固定canvas大小
-  const width = Math.floor(rect.width);
-  const height = Math.floor(rect.height);
-  canvasWidth.value = width;
-  canvasHeight.value = height;
+  canvasWidth.value = Math.floor(rect.width);
+  canvasHeight.value = Math.floor(rect.height);
 };
 
 const getDataFilterButtonElement = () => {
@@ -406,37 +547,36 @@ const startDrawGuideIntro = () => {
   });
 };
 
-function handleRenderCloud() {
-  // 如果没有筛选数据，启动第二个引导并阻止绘制
+async function handleRenderCloud() {
   if (!poiStore.hasDrawing) {
     startDrawGuideIntro();
     return;
   }
   
   allowRenderCloud.value = true;
-  // 每次点击【运行生成标签云】时，强制重新构建POI金字塔，使用最新的筛选数据
-  renderCloud(true);
+  try {
+    await renderCloud(true);
+  } catch (error) {
+    console.error('生成标签云失败:', error);
+  }
 }
 
 // 清除标签云
 const clearTagCloud = () => {
-  // 设置清除标志，防止watch触发重新渲染
   isClearing.value = true;
   allowRenderCloud.value = false;
   maxDistance.value = 0;
   poisPyramid = [];
   tagCloudScale = 0;
   isRendering = false;
-  renderedLabelCount.value = 0; // 重置标签数量
+  renderedLabelCount.value = 0;
+  totalLabelCount.value = 0;
+  currentRenderedCount.value = 0;
   
-  // 完全销毁canvas实例
   if (canvasInstance) {
     try {
-      // 先移除所有对象
       const objects = canvasInstance.getObjects();
-      objects.forEach(obj => {
-        canvasInstance.remove(obj);
-      });
+      objects.forEach(obj => canvasInstance.remove(obj));
       canvasInstance.dispose();
     } catch (e) {
       console.warn('Canvas dispose error:', e);
@@ -444,22 +584,19 @@ const clearTagCloud = () => {
     canvasInstance = null;
   }
   
-  // 通过更新key来强制Vue删除旧的canvas元素并创建新的
   canvasKey.value += 1;
   
-  // 等待Vue重新创建canvas元素后，初始化新的canvas实例
   nextTick(() => {
     if (canvasRef.value) {
       initCanvas();
     }
-    // 清除完成后，重置标志
     isClearing.value = false;
   });
 };
 
 // 初始化高德地图和Driving实例
 const initAMapDriving = async () => {
-  if (amapGlobal && drivingInstance) return; // 已经初始化
+  if (amapGlobal && drivingInstance) return;
   
   try {
     amapGlobal = await AMapLoader.load({
@@ -467,10 +604,8 @@ const initAMapDriving = async () => {
       version: '2.0',
       plugins: ['AMap.Driving'],
     });
-    
-    // 创建驾车路径规划实例
     drivingInstance = new amapGlobal.Driving({
-      policy: amapGlobal.DrivingPolicy.LEAST_TIME, // 最便捷的驾车策略
+      policy: amapGlobal.DrivingPolicy.LEAST_TIME,
     });
   } catch (error) {
     console.warn('高德地图加载失败:', error);
@@ -509,36 +644,24 @@ const calculateTravelTimeAPI = (centerLng, centerLat, poiLng, poiLat) => {
 
 // 计算通行时间（基于经纬度估算）- 新方法
 const calculateTravelTime = (centerLng, centerLat, poiLng, poiLat) => {
-  // 计算直线距离（米）
   const distanceInMeters = calculateDistance(centerLat, centerLng, poiLat, poiLng);
+  const roadDistanceKm = (distanceInMeters / 1000) * 1.4;
   
-  // 实际道路距离通常比直线距离长，使用系数1.4（考虑城市道路的绕行）
-  const roadDistanceFactor = 1.4;
-  const roadDistanceKm = (distanceInMeters / 1000) * roadDistanceFactor;
-  
-  // 根据距离选择不同的平均车速
-  // 短距离（<10km）：城市道路，平均30km/h
-  // 中距离（10-50km）：混合道路，平均45km/h
-  // 长距离（>50km）：高速公路为主，平均70km/h
   let averageSpeed;
   if (roadDistanceKm < 10) {
-    averageSpeed = 30; // 城市道路
+    averageSpeed = 30;
   } else if (roadDistanceKm < 50) {
-    averageSpeed = 45; // 混合道路
+    averageSpeed = 45;
   } else {
-    averageSpeed = 70; // 高速公路为主
+    averageSpeed = 70;
   }
   
-  // 计算时间：时间(分钟) = 距离(km) / 速度(km/h) * 60
   const timeInMinutes = Math.round((roadDistanceKm / averageSpeed) * 60);
-  
-  // 至少返回1分钟
   return Math.max(1, timeInMinutes);
 };
 
-// 计算两点之间的经纬度距离（使用Haversine公式，返回米）
 const calculateDistance = (lat1, lng1, lat2, lng2) => {
-  const R = 6371000; // 地球半径（米）
+  const R = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a =
@@ -551,7 +674,6 @@ const calculateDistance = (lat1, lng1, lat2, lng2) => {
   return R * c;
 };
 
-// 计算中心位置（基于经纬度的几何中心）
 const computeCenter = (list) => {
   if (!list.length) return { lng: 0, lat: 0 };
   const lngs = list.map((poi) => poi.lng);
@@ -562,18 +684,147 @@ const computeCenter = (list) => {
   };
 };
 
-const computeBounds = (list) => {
-  const lngs = list.map((poi) => poi.lng);
-  const lats = list.map((poi) => poi.lat);
+const calculateBearing = (centerLat, centerLng, poiLat, poiLng) => {
+  const lat1 = (centerLat * Math.PI) / 180;
+  const lat2 = (poiLat * Math.PI) / 180;
+  const dLng = ((poiLng - centerLng) * Math.PI) / 180;
+
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  
+  let bearing = Math.atan2(y, x);
+  bearing = (bearing * 180) / Math.PI;
+  bearing = (bearing + 360) % 360; // 转换为0-360度
+
+  return bearing;
+};
+
+const isOverlapping = (rect1, rect2, padding = 2) => {
+  return !(
+    rect1.x + rect1.width + padding < rect2.x ||
+    rect2.x + rect2.width + padding < rect1.x ||
+    rect1.y + rect1.height + padding < rect2.y ||
+    rect2.y + rect2.height + padding < rect1.y
+  );
+};
+
+const measureText = (text, fontSize, fontFamily, fontWeight) => {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  const metrics = ctx.measureText(text);
   return {
-    minLng: Math.min(...lngs),
-    maxLng: Math.max(...lngs),
-    minLat: Math.min(...lats),
-    maxLat: Math.max(...lats),
+    width: metrics.width,
+    height: fontSize * 1.2,
   };
 };
 
-// 计算自然间断点（Jenks算法）
+/**
+ * 多角度径向移位算法：在标签与中心位置的真实角方向附近（±15度扇形区域）内，通过螺旋搜索找到可放置的空余位置
+ */
+const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placedLabels) => {
+  const sectorHalfAngle = 15;
+  const minAngle = bearing - sectorHalfAngle;
+  const maxAngle = bearing + sectorHalfAngle;
+  const startRadius = 5;
+  const radiusIncrement = 5;
+  const angleStep = 5;
+
+  let radius = startRadius;
+  let angle = minAngle;
+
+  while (true) {
+    const angleRad = (angle * Math.PI) / 180;
+    const x = centerX + radius * Math.sin(angleRad);
+    const y = centerY - radius * Math.cos(angleRad);
+
+    const candidateRect = {
+      x: x - width / 2,
+      y: y - height / 2,
+      width: width,
+      height: height,
+    };
+
+    let hasCollision = false;
+    for (const placed of placedLabels) {
+      if (isOverlapping(candidateRect, placed, 2)) {
+        hasCollision = true;
+        break;
+      }
+    }
+
+    if (!hasCollision) {
+      return { x, y };
+    }
+
+    angle += angleStep;
+    if (angle > maxAngle) {
+      angle = minAngle;
+      radius += radiusIncrement;
+    }
+  }
+};
+
+/**
+ * 单角度径向移位算法：对于每个非中心地点标签，直接按照标签与中心位置的真实角方向，一直沿着这个角度往外移动，找到可以放置的空余位置
+ */
+const findPositionWithSingleAngle = (centerX, centerY, bearing, width, height, placedLabels) => {
+  const startRadius = 5;
+  const radiusIncrement = 5;
+  
+  // 将角度转换为弧度
+  const angleRad = (bearing * Math.PI) / 180;
+  
+  let radius = startRadius;
+
+  while (true) {
+    // 沿着真实角度方向计算位置
+    const x = centerX + radius * Math.sin(angleRad);
+    const y = centerY - radius * Math.cos(angleRad);
+
+    const candidateRect = {
+      x: x - width / 2,
+      y: y - height / 2,
+      width: width,
+      height: height,
+    };
+
+    // 检查是否与已放置的标签重叠
+    let hasCollision = false;
+    for (const placed of placedLabels) {
+      if (isOverlapping(candidateRect, placed, 2)) {
+        hasCollision = true;
+        break;
+      }
+    }
+
+    // 如果没有碰撞，返回这个位置
+    if (!hasCollision) {
+      return { x, y };
+    }
+
+    // 如果有碰撞，增加半径继续往外移动
+    radius += radiusIncrement;
+  }
+};
+
+const findNearestPoi = (pois, center) => {
+  if (!pois || pois.length === 0 || !center) return null;
+  
+  let nearestPoi = null;
+  let minDistance = Infinity;
+  
+  for (const poi of pois) {
+    const distance = calculateDistance(center.lat, center.lng, poi.lat, poi.lng);
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearestPoi = poi;
+    }
+  }
+  
+  return nearestPoi;
+};
+
 const calculateJenks = (data, numClasses) => {
   const n = data.length;
   const mat1 = [];
@@ -683,515 +934,6 @@ const calculateClassIndexOptimized = (entry, index, total, colorNum, discreteMet
   return classIndex;
 };
 
-// 保留原函数以兼容（如果其他地方有调用）
-const calculateClassIndex = (data, index, total, colorNum, discreteMethod) => {
-  const entry = data[index];
-  // 如果没有缓存，使用原逻辑（性能较差，但兼容）
-  let colorCache = {};
-  if (discreteMethod === 'equal' || discreteMethod === 'geometric') {
-    const distances = data.map((item) => item.distance);
-    colorCache.minValue = Math.min(...distances);
-    colorCache.maxValue = Math.max(...distances);
-    if (discreteMethod === 'geometric') {
-      colorCache.ratio = Math.pow(colorCache.maxValue / colorCache.minValue, 1 / colorNum);
-    } else {
-      colorCache.range = colorCache.maxValue - colorCache.minValue;
-      colorCache.interval = colorCache.range / colorNum;
-    }
-  } else if (discreteMethod === 'stddev') {
-    const allValues = data.map((item) => item.distance);
-    colorCache.mean = allValues.reduce((acc, curr) => acc + curr, 0) / allValues.length;
-    colorCache.stdDev = Math.sqrt(
-      allValues.reduce((acc, curr) => acc + Math.pow(curr - colorCache.mean, 2), 0) /
-        allValues.length,
-    );
-    colorCache.stdDevInterval = colorCache.stdDev / colorNum;
-    colorCache.halfColorNum = Math.floor(colorNum / 2);
-  } else if (discreteMethod === 'jenks') {
-    const values = data.map((item) => item.distance).sort((a, b) => a - b);
-    colorCache.jenksBreaks = calculateJenks(values, colorNum);
-  }
-  return calculateClassIndexOptimized(entry, index, total, colorNum, discreteMethod, colorCache);
-};
-
-// 绘制中心位置
-const drawCenter = (centerX, centerY) => {
-  const language = poiStore.fontSettings.language || 'zh';
-  const centerLabelText = language === 'en' ? 'Center' : '中间位置';
-  const centerText = new Textbox(centerLabelText, {
-    left: centerX,
-    top: centerY,
-    fill: 'rgb(255, 255, 255)',
-    fontSize: 60 * resolutionScale,
-    strokeWidth: 5,
-    fontWeight: 1000,
-    stroke: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Comic Sans',
-    textAlign: 'center',
-    originX: 'center',
-    originY: 'center',
-    selectable: false,
-  });
-  canvasInstance.add(centerText);
-};
-
-const rotate = (cx, cy, x, y, angle) => {
-  const radians = (Math.PI / 180) * angle;
-  const cos = Math.cos(radians);
-  const sin = Math.sin(radians);
-  const nx = cos * (x - cx) + sin * (y - cy) + cx;
-  const ny = cos * (y - cy) - sin * (x - cx) + cy;
-  return [nx, ny];
-};
-
-const buildLayoutEntries = async (list, bounds, center, colorSettings) => {
-  const width = canvasInstance.getWidth();
-  const height = canvasInstance.getHeight();
-  const { fontSettings } = poiStore;
-
-  // 先按rank排序，用于计算字号分级
-  const sortedByRank = [...list].sort((a, b) => (a.rank || 0) - (b.rank || 0));
-  const dataLength = sortedByRank.length;
-  const levelCount = fontSettings.levelCount || fontSettings.fontSizes.length;
-  // 只使用前levelCount个字号
-  const effectiveFontSizes = fontSettings.fontSizes.slice(0, levelCount);
-  const itemsPerLevel = dataLength / levelCount;
-
-  // 创建rank到字号级别的映射
-  const rankToFontSizeIndex = new Map();
-  sortedByRank.forEach((poi, index) => {
-    // 计算当前POI所属的级别（rank小的级别更小，字号更大）
-    // 例如：100个POI，5级，每级20个
-    // index 0-19 -> classIndex 0 (最大字号)
-    // index 20-39 -> classIndex 1
-    // index 40-59 -> classIndex 2
-    // index 60-79 -> classIndex 3
-    // index 80-99 -> classIndex 4 (最小字号)
-    const classIndex = Math.floor(index / itemsPerLevel);
-    // 确保classIndex在有效范围内（0 到 levelCount-1）
-    const fontSizeIndex = Math.min(classIndex, levelCount - 1);
-    rankToFontSizeIndex.set(poi.id, fontSizeIndex);
-  });
-
-  // 计算每个POI到中心的距离，并添加距离信息
-  const entriesWithDistance = await Promise.all(list.map(async (poi) => {
-    const distance = calculateDistance(
-      center.lat,
-      center.lng,
-      poi.lat,
-      poi.lng,
-    );
-
-    const normalizedX =
-      (poi.lng - bounds.minLng) / ((bounds.maxLng - bounds.minLng) || 1);
-    const normalizedY =
-      (poi.lat - bounds.minLat) / ((bounds.maxLat - bounds.minLat) || 1);
-    const screenX = width * 0.08 + normalizedX * width * 0.84;
-    const screenY = height * 0.08 + (1 - normalizedY) * height * 0.84;
-
-    // 如果需要显示通行时间且还没有计算，则计算通行时间
-    // 优化：不阻塞渲染，如果计算时间过长则使用估算值
-    if (showTime.value && !poi.time) {
-      // 使用估算方法（更快），如果需要精确值可以后续异步更新
-      const travelTime = calculateTravelTime(center.lng, center.lat, poi.lng, poi.lat);
-      if (travelTime !== null) {
-        poi.time = travelTime;
-      }
-    }
-
-    // 构建标签文本：格式为"名称 排名|时间"或"名称 排名"或"名称 时间"
-    const displayName = getPoiDisplayName(poi);
-    let labelText = displayName;
-    const rankPart = showRank.value && poi.rank ? String(poi.rank) : '';
-    const timePart = showTime.value && poi.time ? String(poi.time) : '';
-    if (rankPart && timePart) {
-      labelText = `${displayName} ${rankPart}|${timePart}`;
-    } else if (rankPart) {
-      labelText = `${displayName} ${rankPart}`;
-    } else if (timePart) {
-      labelText = `${displayName} ${timePart}`;
-    }
-
-    // 根据rank排序后的位置获取字号级别
-    const fontSizeIndex = rankToFontSizeIndex.get(poi.id) || 0;
-
-    return {
-      id: poi.id,
-      textValue: labelText,
-      fontSize:
-        effectiveFontSizes[fontSizeIndex] *
-        resolutionScale,
-      fontFamily: fontSettings.fontFamily,
-      fontWeight: fontSettings.fontWeight,
-      screenX,
-      screenY,
-      distance,
-      lat: poi.lat,
-      lng: poi.lng,
-    };
-  }));
-
-  // 按距离升序排序（先绘制距离近的）
-  entriesWithDistance.sort((a, b) => a.distance - b.distance);
-
-  // 根据距离分配颜色（优化：预先计算需要的值，避免重复计算）
-  const colorNum = colorSettings.discreteCount || colorSettings.palette.length;
-  const discreteMethod = colorSettings.discreteMethod || 'quantile';
-  const palette = colorSettings.palette;
-  const total = entriesWithDistance.length;
-
-  // 预先计算颜色分类所需的公共值（避免在循环中重复计算）
-  let colorCache = {};
-  if (discreteMethod === 'equal' || discreteMethod === 'geometric') {
-    const distances = entriesWithDistance.map((item) => item.distance);
-    colorCache.minValue = Math.min(...distances);
-    colorCache.maxValue = Math.max(...distances);
-    if (discreteMethod === 'geometric') {
-      colorCache.ratio = Math.pow(colorCache.maxValue / colorCache.minValue, 1 / colorNum);
-    } else {
-      colorCache.range = colorCache.maxValue - colorCache.minValue;
-      colorCache.interval = colorCache.range / colorNum;
-    }
-  } else if (discreteMethod === 'stddev') {
-    const allValues = entriesWithDistance.map((item) => item.distance);
-    colorCache.mean = allValues.reduce((acc, curr) => acc + curr, 0) / allValues.length;
-    colorCache.stdDev = Math.sqrt(
-      allValues.reduce((acc, curr) => acc + Math.pow(curr - colorCache.mean, 2), 0) /
-        allValues.length,
-    );
-    colorCache.stdDevInterval = colorCache.stdDev / colorNum;
-    colorCache.halfColorNum = Math.floor(colorNum / 2);
-  } else if (discreteMethod === 'jenks') {
-    const values = entriesWithDistance.map((item) => item.distance).sort((a, b) => a - b);
-    colorCache.jenksBreaks = calculateJenks(values, colorNum);
-  }
-
-  return entriesWithDistance.map((entry, index) => {
-    const classIndex = calculateClassIndexOptimized(
-      entry,
-      index,
-      total,
-      colorNum,
-      discreteMethod,
-      colorCache,
-    );
-    return {
-      ...entry,
-      fontColor: palette[classIndex] || palette[0],
-    };
-  });
-};
-
-// 空间索引：用于快速查找附近的标签（优化碰撞检测）
-class SpatialIndex {
-  constructor(cellSize = 100) {
-    this.cellSize = cellSize;
-    this.grid = new Map();
-  }
-
-  // 获取坐标对应的网格键
-  getKey(x, y) {
-    const gridX = Math.floor(x / this.cellSize);
-    const gridY = Math.floor(y / this.cellSize);
-    return `${gridX},${gridY}`;
-  }
-
-  // 添加对象到索引
-  add(obj, x, y) {
-    const key = this.getKey(x, y);
-    if (!this.grid.has(key)) {
-      this.grid.set(key, []);
-    }
-    this.grid.get(key).push(obj);
-  }
-
-  // 获取附近的对象（检查当前网格和相邻网格）
-  // 为了确保覆盖标签的边界框，检查更大的区域（5x5网格）
-  getNearby(x, y) {
-    const gridX = Math.floor(x / this.cellSize);
-    const gridY = Math.floor(y / this.cellSize);
-    const nearby = [];
-    
-    // 检查5x5网格区域（扩大检查范围，确保覆盖标签边界框）
-    // 这样可以确保即使标签跨越多个网格，也能被检测到
-    for (let dx = -2; dx <= 2; dx++) {
-      for (let dy = -2; dy <= 2; dy++) {
-        const key = `${gridX + dx},${gridY + dy}`;
-        if (this.grid.has(key)) {
-          nearby.push(...this.grid.get(key));
-        }
-      }
-    }
-    return nearby;
-  }
-
-  // 清空索引
-  clear() {
-    this.grid.clear();
-  }
-}
-
-// 多角度径向偏移策略（优化版本：使用空间索引）
-const simulateDirection = (entry, originX, originY, angle, spatialIndex) => {
-  // 初始位置为圆形中心
-  let newX = originX;
-  let newY = originY;
-  
-  // 计算旋转后的目标方向
-  const target = rotate(originX, originY, entry.screenX, entry.screenY, angle);
-  const offsetXX = target[0] - originX;
-  const offsetYY = target[1] - originY;
-  
-  // 计算单位方向向量和步长（对应原有项目的20像素）
-  const xie = Math.sqrt(offsetXX * offsetXX + offsetYY * offsetYY);
-  if (xie === 0) {
-    // 如果距离为0，直接返回中心位置
-    return { x: originX, y: originY, collision: false };
-  }
-  const stepX = (offsetXX / xie) * stepDistance;
-  const stepY = (offsetYY / xie) * stepDistance;
-
-  // 创建临时标签用于碰撞检测（使用Text确保单行显示）
-  const temp = new Text(entry.textValue, {
-    originX: 'center',
-    originY: 'center',
-    left: newX,
-    top: newY,
-    fill: entry.fontColor,
-    fontSize: entry.fontSize,
-    fontFamily: entry.fontFamily,
-    fontWeight: entry.fontWeight,
-    selectable: false,
-  });
-  canvasInstance.add(temp);
-  temp.setCoords(); // 初始化坐标
-
-  // 开始偏移（沿着旋转后的方向，参考原有项目strategy 3）
-  let iterations = 0;
-  
-  while (iterations < maxIterations) {
-    // 默认不需要偏移
-    let isShift = false;
-    
-    // 获取所有已绘制的对象（排除临时对象）
-    // 重要：为了确保碰撞检测的准确性，始终检查所有已绘制的标签
-    // 空间索引主要用于其他优化，但碰撞检测必须检查所有对象
-    const allObjects = canvasInstance.getObjects();
-    
-    // 遍历所有元素，检查碰撞
-    for (const obj of allObjects) {
-      // 排除当前正在移动的临时元素
-      if (obj === temp) continue;
-      
-      // 检查对象是否与另一个对象相交
-      if (temp.intersectsWithObject(obj)) {
-        // 有重叠，得继续偏移
-        isShift = true;
-        // 计算偏移后的坐标（沿着旋转后的方向）
-        newX = newX + stepX;
-        newY = newY + stepY;
-        // 更新临时标签位置
-        temp.set({ left: newX, top: newY });
-        temp.setCoords();
-        break; // 找到碰撞就退出，继续下一轮
-      }
-    }
-    
-    // 如果不需要偏移了，退出循环
-    if (!isShift) {
-      break;
-    }
-    
-    iterations++;
-  }
-
-  const result = { 
-    x: temp.left, 
-    y: temp.top, 
-    collision: iterations >= maxIterations // 如果达到最大迭代次数，认为有碰撞
-  };
-  canvasInstance.remove(temp);
-  return result;
-};
-
-// 多角度径向偏移策略绘制标签（优化版本：使用空间索引，提前退出）
-const drawLabel = (entry, originX, originY, spatialIndex) => {
-  // 对每个角度进行模拟，找到所有可行的位置
-  // 优化：如果找到无碰撞位置，可以提前退出
-  const candidates = [];
-  let foundViable = false;
-  
-  for (const angle of baseAngles) {
-    const result = simulateDirection(entry, originX, originY, angle, spatialIndex);
-    candidates.push(result);
-    
-    // 如果找到无碰撞的位置，可以提前退出（但为了找到最近的位置，继续检查所有角度）
-    if (!result.collision && !foundViable) {
-      foundViable = true;
-    }
-  }
-  
-  // 优先选择没有碰撞的位置
-  const viable = candidates.filter((c) => !c.collision);
-  const selectFrom = viable.length > 0 ? viable : candidates;
-  
-  // 寻找距离中心最近的位置
-  let theMinDistance = Infinity;
-  let theNewLocation = null;
-  
-  for (const item of selectFrom) {
-    const tempDis = (item.x - originX) * (item.x - originX) + 
-      (item.y - originY) * (item.y - originY);
-    if (tempDis < theMinDistance) {
-      // 更新最近距离
-      theMinDistance = tempDis;
-      theNewLocation = { x: item.x, y: item.y };
-    }
-  }
-  
-  // 如果没有找到合适的位置，使用原始屏幕坐标
-  if (!theNewLocation) {
-    theNewLocation = { x: entry.screenX, y: entry.screenY };
-  }
-
-  // 正式绘制标签（使用Text确保单行显示，直接拼接文本）
-  const text = new Text(entry.textValue, {
-    originX: 'center',
-    originY: 'center',
-    left: theNewLocation.x,
-    top: theNewLocation.y,
-    fill: entry.fontColor,
-    fontSize: entry.fontSize,
-    fontFamily: entry.fontFamily,
-    fontWeight: entry.fontWeight,
-    strokeWidth: 0, // 不使用轮廓
-    shadow: {
-      color: 'rgba(0, 0, 0, 0.25)',
-      offsetX: 2,
-      offsetY: 2,
-      blur: 8,
-    },
-    selectable: false,
-  });
-  
-  // 存储距离信息和POI ID到canvas对象上，用于后续颜色更新和点击事件
-  text.distance = entry.distance;
-  text.poiId = entry.id; // 存储POI ID，用于点击时查找POI数据
-  
-  canvasInstance.add(text);
-  // 确保坐标已更新
-  text.setCoords();
-  
-  // 将新标签添加到空间索引（使用实际位置）
-  if (spatialIndex) {
-    const actualX = text.left || theNewLocation.x;
-    const actualY = text.top || theNewLocation.y;
-    spatialIndex.add(text, actualX, actualY);
-  }
-  
-  return text;
-};
-
-// 逐步渲染标签的延迟函数
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const renderCloud = async (forceReinitPyramid = false) => {
-  if (!allowRenderCloud.value || !poiStore.visibleList.length) return;
-  if (isRendering) return; // 如果正在渲染，则跳过
-  
-  isRendering = true;
-  await nextTick();
-  // Canvas尺寸已固定，不需要更新
-  initCanvas();
-  
-  const sourceList = poiStore.visibleList;
-  if (!sourceList.length) {
-    isRendering = false;
-    return;
-  }
-
-  // 只有在数据变化或强制重新初始化时才重新构建金字塔
-  if (forceReinitPyramid || poisPyramid.length === 0) {
-    initPoisPyramid(sourceList);
-  }
-  
-  // 获取当前层级的数据
-  const currentData = poisPyramid[tagCloudScale] || poisPyramid[0] || sourceList;
-  
-  // 计算中心位置（基于经纬度）
-  const center = computeCenter(sourceList);
-  const bounds = computeBounds(sourceList);
-  
-  // 将中心位置转换为屏幕坐标
-  const width = canvasInstance.getWidth();
-  const height = canvasInstance.getHeight();
-  const normalizedCenterX =
-    (center.lng - bounds.minLng) / ((bounds.maxLng - bounds.minLng) || 1);
-  const normalizedCenterY =
-    (center.lat - bounds.minLat) / ((bounds.maxLat - bounds.minLat) || 1);
-  originalCenterX = width * 0.08 + normalizedCenterX * width * 0.84;
-  originalCenterY = height * 0.08 + (1 - normalizedCenterY) * height * 0.84;
-
-  // 绘制中心位置
-  drawCenter(originalCenterX, originalCenterY);
-
-  // 构建布局条目（已按距离排序并分配颜色）
-  const entries = await buildLayoutEntries(
-    currentData,
-    bounds,
-    center,
-    poiStore.colorSettings,
-  );
-  
-  // 计算最大距离（基于构建后的entries，因为entries已经计算了距离）
-  maxDistance.value = 0;
-  entries.forEach((entry) => {
-    if (entry.distance > maxDistance.value) {
-      maxDistance.value = entry.distance;
-    }
-  });
-
-  // 更新标签数量
-  renderedLabelCount.value = entries.length;
-
-  // 创建空间索引以优化碰撞检测（网格大小根据标签平均大小调整）
-  // 注意：为了确保碰撞检测准确性，网格大小应该足够大以包含标签的边界框
-  const avgFontSize = entries.length > 0 
-    ? entries.reduce((sum, e) => sum + e.fontSize, 0) / entries.length 
-    : 20;
-  // 网格大小应该至少是最大标签宽度的2-3倍，以确保能覆盖标签的边界框
-  // 估算：文本宽度大约是字号的0.6-1倍（取决于文本长度），所以使用字号*3作为网格大小
-  const cellSize = Math.max(avgFontSize * 3, 100); // 网格大小至少为平均字号的3倍，最小100
-  const spatialIndex = new SpatialIndex(cellSize);
-  
-  // 将中心点添加到空间索引
-  const centerObjects = canvasInstance.getObjects();
-  if (centerObjects.length > 0) {
-    const centerObj = centerObjects[0];
-    // 使用对象的实际中心位置
-    const centerX = centerObj.left || originalCenterX;
-    const centerY = centerObj.top || originalCenterY;
-    spatialIndex.add(centerObj, centerX, centerY);
-  }
-
-  // 优化渲染：批量渲染，减少延迟
-  const batchSize = 5; // 每批渲染标签个数
-  const renderDelay = 1; // 每批之间的延迟（ms）
-  
-  for (let i = 0; i < entries.length; i++) {
-    drawLabel(entries[i], originalCenterX, originalCenterY, spatialIndex);
-    
-    // 每批渲染后暂停一下，使用requestAnimationFrame优化
-    if ((i + 1) % batchSize === 0 && i < entries.length - 1) {
-      await sleep(renderDelay);
-      // 使用requestAnimationFrame让浏览器有机会更新UI
-      await new Promise(resolve => requestAnimationFrame(resolve));
-    }
-  }
-
-  isRendering = false;
-};
-
 // 按排名升序排列
 const upRank = (a, b) => a.rank - b.rank;
 
@@ -1260,6 +1002,439 @@ const initPoisPyramid = (data) => {
     currentScale: tagCloudScale,
     layerSizes: poisPyramid.map((layer, idx) => ({ scale: idx, count: layer.length }))
   });
+};
+
+/**
+ * 使用径向移位算法布局标签（支持多角度和单角度两种算法）
+ * @param {Array} pois - POI数组
+ * @param {Object} center - 中心点 {lat, lng}
+ * @param {number} centerX - 画布中心X坐标
+ * @param {number} centerY - 画布中心Y坐标
+ * @param {Object} fontSettings - 字体设置
+ * @param {Function} getPoiDisplayName - 获取POI显示名称的函数
+ * @param {Object} centerLabelRect - 中心标签的矩形（可选）
+ * @returns {Array} 布局结果数组 [{poi, text, x, y, width, height, fontSize, bearing}, ...]
+ */
+const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisplayName, centerLabelRect = null) => {
+  // 获取算法设置
+  const algorithm = poiStore.algorithmSettings.algorithm || 'multi-angle';
+  const layoutResults = [];
+  const placedLabels = [];
+  
+  // 如果有中心标签，先添加到已放置标签列表
+  if (centerLabelRect) {
+    placedLabels.push(centerLabelRect);
+  }
+  
+  // 1. 为每个POI计算距离和排名信息
+  const poisWithInfo = pois.map(poi => {
+    const distance = calculateDistance(center.lat, center.lng, poi.lat, poi.lng);
+    const rank = poi.rank || 999999; // rank字段就是rankInChina
+    return { poi, distance, rank };
+  });
+  
+  // 2. 按照rankInChina（rank字段）排序，用于字号分级
+  // rank字段对应全国排名（rankInChina），排名数字越小表示排名越靠前
+  const sortedByRank = [...poisWithInfo].sort((a, b) => a.rank - b.rank);
+  
+  // 3. 根据当前层级的POI数量和levelCount重新分级，分配字号
+  // 每个金字塔层级都要重新分级，例如100个标签分成5级，50个标签也分成5级
+  const levelCount = fontSettings.levelCount || 5;
+  const fontSizes = fontSettings.fontSizes || [64, 52, 44, 36, 28];
+  const totalPois = sortedByRank.length;
+  
+  // 创建POI到级别的映射（基于排名）
+  const poiLevelMap = new Map();
+  for (let i = 0; i < sortedByRank.length; i++) {
+    // 计算级别：0到levelCount-1
+    // 根据当前层级的POI数量重新分级
+    const level = Math.floor((i / totalPois) * levelCount);
+    const finalLevel = Math.min(level, levelCount - 1);
+    // 获取对应级别的字号（如果fontSizes数量不足，循环使用）
+    const fontSizeIndex = Math.min(finalLevel, fontSizes.length - 1);
+    const fontSize = fontSizes[fontSizeIndex];
+    poiLevelMap.set(sortedByRank[i].poi.id, { level: finalLevel, fontSize });
+  }
+  
+  // 4. 按照与中心距离的远近排序，用于布局顺序（近的先摆，远的后摆）
+  const sortedByDistance = [...poisWithInfo].sort((a, b) => a.distance - b.distance);
+  
+  // 5. 遍历所有POI，按距离顺序逐一布局
+  for (let i = 0; i < sortedByDistance.length; i++) {
+    const { poi, distance } = sortedByDistance[i];
+    
+    // 1. 计算真实方位角
+    const bearing = calculateBearing(center.lat, center.lng, poi.lat, poi.lng);
+    
+    // 2. 构建标签文本
+    const displayName = getPoiDisplayName(poi);
+    let labelText = displayName;
+    const rankPart = showRank.value && poi.rank ? String(poi.rank) : '';
+    const timePart = showTime.value && poi.time ? String(poi.time) : '';
+    if (rankPart && timePart) {
+      labelText = `${displayName} ${rankPart}|${timePart}`;
+    } else if (rankPart) {
+      labelText = `${displayName} ${rankPart}`;
+    } else if (timePart) {
+      labelText = `${displayName} ${timePart}`;
+    }
+    
+    // 3. 根据排名级别确定字号（从映射中获取）
+    const levelInfo = poiLevelMap.get(poi.id);
+    const fontSize = levelInfo ? levelInfo.fontSize : fontSizes[0];
+    
+    // 4. 测量文本尺寸
+    const { width, height } = measureText(
+      labelText,
+      fontSize,
+      fontSettings.fontFamily,
+      fontSettings.fontWeight
+    );
+    
+    // 5. 根据算法设置选择使用哪个算法查找位置
+    let position;
+    if (algorithm === 'single-angle') {
+      // 使用单角度径向移位算法
+      position = findPositionWithSingleAngle(
+        centerX,
+        centerY,
+        bearing,
+        width,
+        height,
+        placedLabels
+      );
+    } else {
+      // 使用多角度径向移位算法（默认）
+      position = findPositionWithSpiral(
+        centerX,
+        centerY,
+        bearing,
+        width,
+        height,
+        placedLabels,
+        centerLabelRect
+      );
+    }
+    
+    // 6. 记录已放置的标签
+    const placedRect = {
+      x: position.x - width / 2,
+      y: position.y - height / 2,
+      width: width,
+      height: height,
+    };
+    placedLabels.push(placedRect);
+    
+    // 7. 保存布局结果
+    layoutResults.push({
+      poi: poi,
+      text: labelText,
+      x: position.x,
+      y: position.y,
+      width: width,
+      height: height,
+      fontSize: fontSize,
+      bearing: bearing,
+    });
+  }
+  
+  return layoutResults;
+};
+
+/**
+ * 渲染标签云
+ * @param {boolean} rebuildPyramid - 是否重新构建POI金字塔
+ */
+const renderCloud = async (rebuildPyramid = false) => {
+  if (isRendering) {
+    console.warn('正在渲染中，跳过本次请求');
+    return;
+  }
+  
+  if (!allowRenderCloud.value || !canvasInstance) {
+    return;
+  }
+  
+  isRendering = true;
+  
+  try {
+    // 1. 获取筛选后的POI数据
+    const sourceList = poiStore.visibleList;
+    if (!sourceList || sourceList.length === 0) {
+      console.warn('没有可用的POI数据');
+      isRendering = false;
+      return;
+    }
+    
+    // 2. 获取区域中心坐标
+    const selectionCenter = poiStore.selectionCenter;
+    if (!selectionCenter) {
+      console.warn('没有选择区域中心坐标');
+      isRendering = false;
+      return;
+    }
+    
+    // 3. 确定中心地点
+    let centerPoi = null;
+    let centerLabelText = '';
+    const centerLabelMode = poiStore.fontSettings.centerLabelMode || 'nearest';
+    
+    if (centerLabelMode === 'nearest') {
+      // 查找距离中心点最近的POI
+      centerPoi = findNearestPoi(sourceList, selectionCenter);
+      if (centerPoi) {
+        centerLabelText = getPoiDisplayName(centerPoi);
+      } else {
+        // 如果找不到，使用"中心位置"
+        centerLabelText = poiStore.fontSettings.language === 'en' ? 'Center' : '中心位置';
+      }
+    } else {
+      // 使用"中心位置"
+      centerLabelText = poiStore.fontSettings.language === 'en' ? 'Center' : '中心位置';
+    }
+    
+    // 4. 重新构建POI金字塔（如果需要）
+    if (rebuildPyramid) {
+      initPoisPyramid(sourceList);
+    }
+    
+    if (poisPyramid.length === 0) {
+      console.warn('POI金字塔未初始化');
+      isRendering = false;
+      return;
+    }
+    
+    // 5. 获取当前层级的POI数据
+    const currentData = poisPyramid[tagCloudScale] || poisPyramid[0] || sourceList;
+    if (!currentData || currentData.length === 0) {
+      console.warn('当前层级没有POI数据');
+      isRendering = false;
+      return;
+    }
+    
+    // 6. 计算所有POI的通行时间（如果需要显示）
+    if (showTime.value) {
+      for (const poi of currentData) {
+        if (!poi.time) {
+          // 如果POI还没有通行时间，计算它
+          poi.time = calculateTravelTime(
+            selectionCenter.lng,
+            selectionCenter.lat,
+            poi.lng,
+            poi.lat
+          );
+        }
+      }
+      // 如果中心POI存在，也计算其通行时间
+      if (centerPoi && !centerPoi.time) {
+        centerPoi.time = calculateTravelTime(
+          selectionCenter.lng,
+          selectionCenter.lat,
+          centerPoi.lng,
+          centerPoi.lat
+        );
+      }
+    }
+    
+    // 7. 过滤掉中心POI（如果存在）
+    const otherPois = centerPoi 
+      ? currentData.filter(poi => poi.id !== centerPoi.id)
+      : currentData;
+    
+    // 8. 计算画布中心坐标
+    const centerX = canvasWidth.value / 2;
+    const centerY = canvasHeight.value / 2;
+    
+    // 9. 清空canvas
+    canvasInstance.clear();
+    canvasInstance.backgroundColor = poiStore.colorSettings.background;
+    
+    // 10. 绘制中心标签（特殊样式，借鉴tagCloud_Similarity项目）
+    // 中心标签字号比第1级字号大20%
+    const firstLevelFontSize = poiStore.fontSettings.fontSizes[0] || 64;
+    const centerFontSize = Math.round(firstLevelFontSize * 1.2); // 比第1级大20%（64 -> 77）
+    
+    // 使用统一的measureText函数计算中心标签的尺寸
+    // 注意：对于多单词的英文地名，需要确保不换行，所以使用一个足够大的宽度
+    const { width: centerWidth, height: centerHeight } = measureText(
+      centerLabelText,
+      centerFontSize,
+      'Comic Sans', // 中心标签使用的字体
+      1000 // 中心标签使用的字体粗细
+    );
+    
+    const centerLabelRect = {
+      x: centerX - centerWidth / 2,
+      y: centerY - centerHeight / 2,
+      width: centerWidth,
+      height: centerHeight,
+    };
+    
+    // 创建中心标签文本对象（使用Textbox，白色加粗，白色半透明描边）
+    // 设置足够大的width来防止多单词换行，确保单行显示
+    // 使用一个非常大的宽度值（比如画布宽度的80%），确保任何长度的地名都能单行显示
+    const maxWidth = canvasWidth.value * 0.8;
+    const centerTextObj = new Textbox(centerLabelText, {
+      left: centerX,
+      top: centerY,
+      fill: 'rgb(255, 255, 255)', // 白色
+      fontSize: centerFontSize,
+      fontWeight: 1000, // 字重1000
+      strokeWidth: 5, // 描边宽度5
+      stroke: 'rgba(255,255,255,0.7)', // 白色半透明描边
+      fontFamily: 'Comic Sans', // 使用Comic Sans字体
+      textAlign: 'center',
+      originX: 'center',
+      originY: 'center',
+      selectable: false,
+      evented: false,
+      width: Math.max(centerWidth * 2, maxWidth), // 设置足够大的宽度，确保单行显示（至少是文本宽度的2倍，或画布的80%）
+      splitByGrapheme: false, // 不按字符分割
+      lockScalingFlip: true, // 锁定缩放翻转
+    });
+    canvasInstance.add(centerTextObj);
+    
+    // 11. 使用多角度径向移位算法布局其他标签
+    // 注意：centerLabelRect已经添加到placedLabels中，确保其他标签不会与中心标签重叠
+    const layoutResults = layoutTagCloud(
+      otherPois,
+      selectionCenter,
+      centerX,
+      centerY,
+      poiStore.fontSettings,
+      getPoiDisplayName,
+      centerLabelRect
+    );
+    
+    // 12. 计算最大距离（用于颜色分类）
+    const distances = layoutResults.map(result => {
+      return calculateDistance(
+        selectionCenter.lat,
+        selectionCenter.lng,
+        result.poi.lat,
+        result.poi.lng
+      );
+    });
+    maxDistance.value = distances.length > 0 ? Math.max(...distances) : 0;
+    
+    // 13. 计算颜色分类
+    const colorSettings = poiStore.colorSettings;
+    const colorNum = colorSettings.discreteCount || colorSettings.palette.length;
+    const discreteMethod = colorSettings.discreteMethod || 'quantile';
+    const palette = colorSettings.palette;
+    
+    // 预先计算颜色分类所需的公共值
+    let colorCache = {};
+    if (discreteMethod === 'equal' || discreteMethod === 'geometric') {
+      colorCache.minValue = Math.min(...distances);
+      colorCache.maxValue = Math.max(...distances);
+      if (discreteMethod === 'geometric') {
+        colorCache.ratio = Math.pow(colorCache.maxValue / colorCache.minValue, 1 / colorNum);
+      } else {
+        colorCache.range = colorCache.maxValue - colorCache.minValue;
+        colorCache.interval = colorCache.range / colorNum;
+      }
+    } else if (discreteMethod === 'stddev') {
+      colorCache.mean = distances.reduce((acc, curr) => acc + curr, 0) / distances.length;
+      colorCache.stdDev = Math.sqrt(
+        distances.reduce((acc, curr) => acc + Math.pow(curr - colorCache.mean, 2), 0) /
+          distances.length,
+      );
+      colorCache.stdDevInterval = colorCache.stdDev / colorNum;
+      colorCache.halfColorNum = Math.floor(colorNum / 2);
+    } else if (discreteMethod === 'jenks') {
+      const values = [...distances].sort((a, b) => a - b);
+      colorCache.jenksBreaks = calculateJenks(values, colorNum);
+    }
+    
+    // 14. 绘制所有标签
+    totalLabelCount.value = layoutResults.length;
+    currentRenderedCount.value = 0;
+    
+    // 按距离排序（用于quantile方法）
+    const entriesWithDistance = layoutResults.map((result, index) => ({
+      result,
+      distance: distances[index],
+      index,
+    }));
+    entriesWithDistance.sort((a, b) => a.distance - b.distance);
+    
+    for (let i = 0; i < entriesWithDistance.length; i++) {
+      const { result, distance, index } = entriesWithDistance[i];
+      
+      // 计算颜色类别索引
+      let classIndex = 0;
+      if (discreteMethod === 'quantile') {
+        const percentile = (i + 1) / entriesWithDistance.length;
+        classIndex = Math.ceil(colorNum * percentile) - 1;
+      } else {
+        const entry = { distance };
+        classIndex = calculateClassIndexOptimized(
+          entry,
+          i,
+          entriesWithDistance.length,
+          colorNum,
+          discreteMethod,
+          colorCache,
+        );
+      }
+      
+      const color = palette[classIndex] || palette[0];
+      
+      // 创建文本对象
+      const textObj = new Text(result.text, {
+        left: result.x,
+        top: result.y,
+        fontSize: result.fontSize,
+        fontFamily: poiStore.fontSettings.fontFamily,
+        fontWeight: poiStore.fontSettings.fontWeight,
+        fill: color,
+        originX: 'center',
+        originY: 'center',
+        selectable: false,
+        evented: true,
+        poiId: result.poi.id,
+        distance: distance,
+      });
+      
+      canvasInstance.add(textObj);
+      currentRenderedCount.value++;
+      
+      // 使用requestAnimationFrame分批渲染，避免阻塞UI
+      if (i % 10 === 0) {
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+    }
+    
+    // 15. 更新最终渲染数量
+    renderedLabelCount.value = layoutResults.length;
+    
+    // 16. 触发金字塔更新（用于响应式计算）
+    pyramidUpdateTrigger.value++;
+    
+    // 17. 渲染canvas
+    canvasInstance.renderAll();
+    
+    console.log('标签云渲染完成:', {
+      totalLabels: layoutResults.length,
+      centerLabel: centerLabelText,
+      maxDistance: maxDistance.value,
+    });
+    
+    // 记录词云生成（包括重绘）
+    try {
+      await recordTagCloudGeneration('tagcloud');
+      // 触发事件通知 FooterBar 更新统计数据
+      window.dispatchEvent(new CustomEvent('tagcloud-generated'));
+    } catch (error) {
+      console.warn('记录词云生成失败:', error);
+    }
+    
+  } catch (error) {
+    console.error('渲染标签云失败:', error);
+  } finally {
+    isRendering = false;
+  }
 };
 
 // 切换分辨率（粗略/精细显示）
@@ -1485,78 +1660,57 @@ const handleLegendLeave = () => {
 };
 
 // 更新标签颜色（不重新绘制，只更新颜色属性）
-// 重要：基于当前要渲染展示的POI数据重新计算颜色分类
 const updateLabelColors = () => {
   if (!canvasInstance || !allowRenderCloud.value) return;
   
-  const sourceList = poiStore.visibleList;
-  if (!sourceList.length || poisPyramid.length === 0) return;
-  
-  // 使用当前的tagCloudScale，获取当前要渲染展示的POI数据
-  const currentData = poisPyramid[tagCloudScale];
-  if (!currentData) {
-    console.warn(`tagCloudScale ${tagCloudScale} 超出范围，使用第0层`);
+  // 获取区域中心坐标（用户绘制的区域中心）
+  const selectionCenter = poiStore.selectionCenter;
+  if (!selectionCenter) {
+    console.warn('没有选择区域中心坐标，无法更新颜色');
     return;
   }
   
-  const center = computeCenter(sourceList);
   const colorSettings = poiStore.colorSettings;
   const colorNum = colorSettings.discreteCount || colorSettings.palette.length;
   const discreteMethod = colorSettings.discreteMethod || 'quantile';
   const palette = colorSettings.palette;
   
-  // 创建POI文本到POI数据的映射（用于快速查找）
-  const textToPoiMap = new Map();
-  currentData.forEach((poi) => {
-    // 构建标签文本（与buildLayoutEntries中的逻辑一致）
-    const displayName = getPoiDisplayName(poi);
-    let labelText = displayName;
-    const rankPart = showRank.value && poi.rank ? String(poi.rank) : '';
-    const timePart = showTime.value && poi.time ? String(poi.time) : '';
-    if (rankPart && timePart) {
-      labelText = `${displayName} ${rankPart}|${timePart}`;
-    } else if (rankPart) {
-      labelText = `${displayName} ${rankPart}`;
-    } else if (timePart) {
-      labelText = `${displayName} ${timePart}`;
-    }
-    textToPoiMap.set(labelText, poi);
-  });
-  
-  // 重要：基于当前要渲染展示的POI数据重新计算所有距离
-  // 这样可以确保颜色分类是基于当前展示的POI数量，而不是已绘制的对象数量
-  const entriesWithDistance = currentData.map((poi) => {
+  // 收集canvas上所有标签对象（跳过中心标签）
+  const labelObjects = [];
+  canvasInstance.forEachObject((obj, i) => {
+    if (i === 0) return; // 跳过中心标签
+    if (!obj.poiId) return; // 跳过没有poiId的对象
+    
+    // 获取POI数据（从poiStore中查找）
+    const poi = poiStore.visibleList.find(p => p.id === obj.poiId);
+    if (!poi) return;
+    
+    // 计算与中心的距离
     const distance = calculateDistance(
-      center.lat,
-      center.lng,
+      selectionCenter.lat,
+      selectionCenter.lng,
       poi.lat,
       poi.lng,
     );
     
-    // 构建标签文本
-    const displayName = getPoiDisplayName(poi);
-    let labelText = displayName;
-    const rankPart = showRank.value && poi.rank ? String(poi.rank) : '';
-    const timePart = showTime.value && poi.time ? String(poi.time) : '';
-    if (rankPart && timePart) {
-      labelText = `${displayName} ${rankPart}|${timePart}`;
-    } else if (rankPart) {
-      labelText = `${displayName} ${rankPart}`;
-    } else if (timePart) {
-      labelText = `${displayName} ${timePart}`;
-    }
-    
-    return {
-      textValue: labelText,
+    labelObjects.push({
+      obj,
+      poi,
       distance,
-    };
+      text: obj.text,
+    });
   });
   
-  // 按距离升序排序（用于quantile方法）
-  entriesWithDistance.sort((a, b) => a.distance - b.distance);
+  if (labelObjects.length === 0) {
+    console.warn('没有找到可更新的标签对象');
+    return;
+  }
+  
+  // 按距离升序排序（距离中心最近的在前）
+  labelObjects.sort((a, b) => a.distance - b.distance);
   
   // 提取所有距离值
-  const distances = entriesWithDistance.map(entry => entry.distance);
+  const distances = labelObjects.map(item => item.distance);
   
   // 预先计算颜色分类所需的公共值（避免在循环中重复计算）
   let colorCache = {};
@@ -1588,91 +1742,45 @@ const updateLabelColors = () => {
     }
   }
   
-  // 创建文本到颜色类别的映射
-  const textToColorMap = new Map();
-  entriesWithDistance.forEach((entry, index) => {
+  // 为每个标签对象计算颜色类别索引
+  labelObjects.forEach((item, index) => {
     let classIndex = 0;
     
     if (discreteMethod === 'quantile') {
       // 分位数：基于排序后的索引
-      const percentile = (index + 1) / entriesWithDistance.length;
+      const percentile = (index + 1) / labelObjects.length;
       classIndex = Math.ceil(colorNum * percentile) - 1;
     } else {
+      // 其他方法：基于距离值计算
+      const entry = { distance: item.distance };
       classIndex = calculateClassIndexOptimized(
         entry,
         index,
-        entriesWithDistance.length,
+        labelObjects.length,
         colorNum,
         discreteMethod,
         colorCache,
       );
     }
     
-    const color = palette[classIndex] || palette[0];
-    textToColorMap.set(entry.textValue, color);
+    const newColor = palette[classIndex] || palette[0];
+    
+    // 更新对象颜色
+    if (item.obj.fill !== newColor) {
+      item.obj.set({ fill: newColor });
+      item.obj.distance = item.distance; // 更新存储的距离信息
+      item.obj.setCoords();
+    }
   });
   
-  // 更新canvas中的标签颜色（只更新fill属性，不触发重绘）
-  // 使用set方法批量更新，确保Fabric.js正确更新属性
-  let hasUpdates = false;
-  let updatedCount = 0;
-  let skippedCount = 0;
-  
-  // 临时禁用canvas的渲染，避免逐个更新时触发重绘
+  // 恢复canvas的渲染设置并渲染
   const wasRenderOnAddRemove = canvasInstance.renderOnAddRemove;
   canvasInstance.renderOnAddRemove = false;
-  
-  canvasInstance.forEachObject((obj, i) => {
-    if (i === 0) return; // 跳过中心点
-    
-    // 从映射中获取新颜色
-    const newColor = textToColorMap.get(obj.text);
-    if (!newColor) {
-      // 如果找不到对应的颜色，可能是文本不匹配，尝试调试
-      skippedCount++;
-      return;
-    }
-    
-    // 只更新颜色，不触发重绘
-    if (obj.fill !== newColor) {
-      // 使用set方法更新属性，确保Fabric.js正确更新内部状态
-      // 注意：set方法会触发对象更新，但不会立即渲染（因为已禁用renderOnAddRemove）
-      obj.set({ fill: newColor });
-      // 同时更新存储的距离信息（如果存在）
-      const poi = textToPoiMap.get(obj.text);
-      if (poi) {
-        obj.distance = calculateDistance(
-          center.lat,
-          center.lng,
-          poi.lat,
-          poi.lng,
-        );
-      }
-      // 确保对象状态已更新
-      obj.setCoords();
-      hasUpdates = true;
-      updatedCount++;
-    }
-  });
-  
-  // 恢复canvas的渲染设置
+  canvasInstance.renderAll();
   canvasInstance.renderOnAddRemove = wasRenderOnAddRemove;
-  
-  // 如果有更新，立即渲染所有更新
-  if (hasUpdates) {
-    // 强制渲染所有对象，确保所有颜色更新都显示出来
-    // 直接调用renderAll，不使用requestAnimationFrame，确保立即渲染
-    canvasInstance.renderAll();
-  }
-  
-  // 调试信息（开发时使用）
-  if (process.env.NODE_ENV === 'development' && (updatedCount > 0 || skippedCount > 0)) {
-    console.log(`颜色更新: 已更新 ${updatedCount} 个标签, 跳过 ${skippedCount} 个标签, 总对象数: ${canvasInstance.getObjects().length - 1}`);
-  }
 };
 
 // 更新标签字体和字重（不重新绘制，只更新属性）
-// 优化：使用与updateLabelColors相同的方式，批量更新后一次性渲染
 const updateLabelFonts = () => {
   if (!canvasInstance || !allowRenderCloud.value) return;
   
@@ -1718,16 +1826,8 @@ const updateLabelFonts = () => {
   // 恢复canvas的渲染设置
   canvasInstance.renderOnAddRemove = wasRenderOnAddRemove;
   
-  // 如果有更新，立即渲染所有更新（一次性渲染，不会一个一个重绘）
   if (hasUpdates) {
-    // 强制渲染所有对象，确保所有字体更新都显示出来
-    // 直接调用renderAll，不使用requestAnimationFrame，确保立即渲染
     canvasInstance.renderAll();
-  }
-  
-  // 调试信息（开发时使用）
-  if (process.env.NODE_ENV === 'development' && updatedCount > 0) {
-    console.log(`字体更新: 已更新 ${updatedCount} 个标签的字体/字重`);
   }
 };
 
@@ -1744,7 +1844,6 @@ const handleExportCommand = (command) => {
 // 准备导出对话框
 function prepareExportDialog(format) {
   exportFormat.value = format;
-  // 尺寸默认用canvas实际宽高
   if (canvasInstance) {
     const w = canvasInstance.getWidth();
     const h = canvasInstance.getHeight();
@@ -1816,15 +1915,20 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
   
   // 获取语言设置
   const language = poiStore.fontSettings.language || 'zh';
-  const titleText = language === 'en' ? 'Distance from Center' : '与中心的距离';
+  const titleText = language === 'en' ? 'Distance from Center (km)' : '与中心的距离(km)';
   
   // 获取颜色调色板
   const palette = poiStore.colorSettings.palette || [];
   const colorCount = palette.length;
   const colorBarWidth = (legendWidth - padding * 2 - (colorBarGap * (colorCount - 1))) / colorCount;
   
-  // 获取最大距离文本
-  const distanceText = maxDistance.value === 0 ? '0 km' : `${(maxDistance.value / 1000).toFixed(2)} km`;
+  // 计算各个色块之间的分界点
+  const boundaries = calculateColorBoundaries();
+  const hasBoundaries = boundaries.length > 0 && allowRenderCloud.value;
+  
+  // 如果有距离标签，需要增加高度
+  const boundaryTextHeight = hasBoundaries ? textFontSize + 4 : 0;
+  const legendHeightWithBoundaries = legendHeight + boundaryTextHeight;
   
   // 构建SVG元素
   let legendSVG = '';
@@ -1833,7 +1937,7 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
   legendSVG += `<g id="distance-legend">`;
   
   // 绘制圆角矩形背景
-  legendSVG += `<rect x="${legendX}" y="${legendY}" width="${legendWidth}" height="${legendHeight}" rx="${radius}" ry="${radius}" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
+  legendSVG += `<rect x="${legendX}" y="${legendY}" width="${legendWidth}" height="${legendHeightWithBoundaries}" rx="${radius}" ry="${radius}" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
   
   // 转义XML特殊字符
   const escapeXML = (str) => {
@@ -1850,20 +1954,41 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
   
   // 绘制颜色条
   const colorBarY = legendY + padding + titleHeight;
+  let currentX = legendX + padding;
+  
   palette.forEach((color, index) => {
-    const colorX = legendX + padding + index * (colorBarWidth + colorBarGap);
-    // 确保颜色值正确（如果是rgb格式，需要转换）
+    // 绘制色块
     let fillColor = color;
     if (color.startsWith('rgb')) {
-      // 将rgb转换为hex格式，或者保持rgb格式
       fillColor = color;
     }
-    legendSVG += `<rect x="${colorX}" y="${colorBarY}" width="${colorBarWidth}" height="${colorBarHeight}" fill="${fillColor}" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>`;
+    legendSVG += `<rect x="${currentX}" y="${colorBarY}" width="${colorBarWidth}" height="${colorBarHeight}" fill="${fillColor}" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>`;
+    currentX += colorBarWidth + colorBarGap;
   });
   
-  // 绘制最大距离文本
-  const textY = colorBarY + colorBarHeight + 8 + textFontSize;
-  legendSVG += `<text x="${legendX + legendWidth - padding}" y="${textY}" font-family="sans-serif" font-size="${textFontSize}" fill="rgba(255,255,255,0.8)" text-anchor="end">${escapeXML(distanceText)}</text>`;
+  // 在色块下面一行绘制距离标签
+  if (hasBoundaries) {
+    const boundaryTextY = colorBarY + colorBarHeight + 4 + textFontSize;
+    
+    // 绘制第一个标签 "0"（在第一个色块的左边界）
+    legendSVG += `<text x="${legendX + padding}" y="${boundaryTextY}" font-family="sans-serif" font-size="${textFontSize}" fill="rgba(255,255,255,0.8)" text-anchor="start">0</text>`;
+    
+    // 绘制分界点标签（在每个色块的右边界）
+    let currentX = legendX + padding;
+    boundaries.forEach((boundary, index) => {
+      currentX += colorBarWidth + colorBarGap;
+      const boundaryText = formatDistance(boundary);
+      legendSVG += `<text x="${currentX}" y="${boundaryTextY}" font-family="sans-serif" font-size="${textFontSize}" fill="rgba(255,255,255,0.8)" text-anchor="middle">${escapeXML(boundaryText)}</text>`;
+    });
+    
+    // 绘制最远距离标签（在最右边）
+    if (maxDistance.value > 0) {
+      const maxDistanceText = formatDistance(maxDistance.value);
+      const totalBarWidth = legendWidth - padding * 2;
+      const rightEdgeX = legendX + padding + totalBarWidth; // 最后一个色块右边界
+      legendSVG += `<text x="${rightEdgeX}" y="${boundaryTextY}" font-family="sans-serif" font-size="${textFontSize}" fill="rgba(255,255,255,0.8)" text-anchor="middle">${escapeXML(maxDistanceText)}</text>`;
+    }
+  }
   
   legendSVG += `</g>`;
   
@@ -1874,20 +1999,12 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
 const exportAsSVG = () => {
   if (!canvasInstance) return;
   
-  // Fabric.js 6.x 使用 toSVG 方法
   let svgString = canvasInstance.toSVG();
   
-  // 如果用户选择包含图例，添加图例元素
   if (includeLegend.value) {
-    // 获取canvas尺寸
     const canvasWidth = canvasInstance.getWidth();
     const canvasHeight = canvasInstance.getHeight();
-    
-    // 生成图例SVG
     const legendSVG = generateLegendSVG(canvasWidth, canvasHeight);
-    
-    // 将图例插入到SVG中（在</svg>标签之前）
-    // 使用正则表达式确保只替换最后一个</svg>标签
     svgString = svgString.replace(/<\/svg>\s*$/, `${legendSVG}</svg>`);
   }
   
@@ -1902,12 +2019,10 @@ const exportAsSVG = () => {
 
 // 在canvas上绘制图例
 const drawLegendOnCanvas = (ctx, imageWidth, imageHeight, scaleX, scaleY, offsetX = 0, offsetY = 0) => {
-  // 图例在原始canvas中的位置（右上角，距离边缘16px）
   const legendRight = 16;
   const legendTop = 16;
   const legendMinWidth = 180;
   
-  // 计算图例在导出canvas中的位置和尺寸（相对于图片的位置）
   const legendX = offsetX + imageWidth - (legendRight * scaleX) - (legendMinWidth * scaleX);
   const legendY = offsetY + legendTop * scaleY;
   const legendWidth = legendMinWidth * scaleX;
@@ -1916,28 +2031,31 @@ const drawLegendOnCanvas = (ctx, imageWidth, imageHeight, scaleX, scaleY, offset
   const colorBarHeight = 24 * scaleY;
   const colorBarGap = 2 * scaleX;
   const textFontSize = 12 * scaleY;
+  const radius = 8 * scaleX;
   
-  // 绘制图例背景
   ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
   ctx.lineWidth = 1 * scaleX;
   
-  // 计算图例高度
   const titleHeight = titleFontSize + 8 * scaleY;
   const colorBarArea = colorBarHeight + 8 * scaleY;
   const textHeight = textFontSize + 8 * scaleY;
   const legendHeight = padding * 2 + titleHeight + colorBarArea + textHeight;
   
+  const boundaries = calculateColorBoundaries();
+  const hasBoundaries = boundaries.length > 0 && allowRenderCloud.value;
+  const boundaryTextHeight = hasBoundaries ? textFontSize + 4 * scaleY : 0;
+  const legendHeightWithBoundaries = legendHeight + boundaryTextHeight;
+  
   // 绘制圆角矩形背景
-  const radius = 8 * scaleX;
   ctx.beginPath();
   ctx.moveTo(legendX + radius, legendY);
   ctx.lineTo(legendX + legendWidth - radius, legendY);
   ctx.quadraticCurveTo(legendX + legendWidth, legendY, legendX + legendWidth, legendY + radius);
-  ctx.lineTo(legendX + legendWidth, legendY + legendHeight - radius);
-  ctx.quadraticCurveTo(legendX + legendWidth, legendY + legendHeight, legendX + legendWidth - radius, legendY + legendHeight);
-  ctx.lineTo(legendX + radius, legendY + legendHeight);
-  ctx.quadraticCurveTo(legendX, legendY + legendHeight, legendX, legendY + legendHeight - radius);
+  ctx.lineTo(legendX + legendWidth, legendY + legendHeightWithBoundaries - radius);
+  ctx.quadraticCurveTo(legendX + legendWidth, legendY + legendHeightWithBoundaries, legendX + legendWidth - radius, legendY + legendHeightWithBoundaries);
+  ctx.lineTo(legendX + radius, legendY + legendHeightWithBoundaries);
+  ctx.quadraticCurveTo(legendX, legendY + legendHeightWithBoundaries, legendX, legendY + legendHeightWithBoundaries - radius);
   ctx.lineTo(legendX, legendY + radius);
   ctx.quadraticCurveTo(legendX, legendY, legendX + radius, legendY);
   ctx.closePath();
@@ -1950,7 +2068,7 @@ const drawLegendOnCanvas = (ctx, imageWidth, imageHeight, scaleX, scaleY, offset
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   const language = poiStore.fontSettings.language || 'zh';
-  const titleText = language === 'en' ? 'Distance from Center' : '与中心的距离';
+  const titleText = language === 'en' ? 'Distance from Center (km)' : '与中心的距离(km)';
   ctx.fillText(titleText, legendX + padding, legendY + padding);
   
   // 绘制颜色条
@@ -1959,60 +2077,68 @@ const drawLegendOnCanvas = (ctx, imageWidth, imageHeight, scaleX, scaleY, offset
   const colorCount = palette.length;
   const colorBarWidth = (legendWidth - padding * 2 - (colorBarGap * (colorCount - 1))) / colorCount;
   
-  palette.forEach((color, index) => {
-    const colorX = legendX + padding + index * (colorBarWidth + colorBarGap);
+  let currentX = legendX + padding;
+  palette.forEach((color) => {
     ctx.fillStyle = color;
-    ctx.fillRect(colorX, colorBarY, colorBarWidth, colorBarHeight);
+    ctx.fillRect(currentX, colorBarY, colorBarWidth, colorBarHeight);
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
     ctx.lineWidth = 1 * scaleX;
-    ctx.strokeRect(colorX, colorBarY, colorBarWidth, colorBarHeight);
+    ctx.strokeRect(currentX, colorBarY, colorBarWidth, colorBarHeight);
+    currentX += colorBarWidth + colorBarGap;
   });
   
-  // 绘制最大距离文本
-  const textY = colorBarY + colorBarHeight + 8 * scaleY;
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-  ctx.font = `${textFontSize}px sans-serif`;
-  ctx.textAlign = 'right';
-  const distanceText = maxDistance.value === 0 ? '0 km' : `${(maxDistance.value / 1000).toFixed(2)} km`;
-  ctx.fillText(distanceText, legendX + legendWidth - padding, textY);
+  // 绘制距离标签
+  if (hasBoundaries) {
+    const boundaryTextY = colorBarY + colorBarHeight + 4 * scaleY + textFontSize;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.font = `${textFontSize}px sans-serif`;
+    ctx.textBaseline = 'top';
+    
+    ctx.textAlign = 'left';
+    ctx.fillText('0', legendX + padding, boundaryTextY);
+    
+    ctx.textAlign = 'center';
+    currentX = legendX + padding;
+    boundaries.forEach((boundary) => {
+      currentX += colorBarWidth + colorBarGap;
+      ctx.fillText(formatDistance(boundary), currentX, boundaryTextY);
+    });
+    
+    if (maxDistance.value > 0) {
+      const totalBarWidth = legendWidth - padding * 2;
+      const rightEdgeX = legendX + padding + totalBarWidth;
+      ctx.fillText(formatDistance(maxDistance.value), rightEdgeX, boundaryTextY);
+    }
+  }
 };
 
 // 导出为位图格式（PNG/JPEG）
 const exportAsRaster = async (format = 'png', exportWidth = 800, exportHeight = 600) => {
   if (!canvasInstance) return;
   
-  // 获取当前canvas尺寸
   const currentWidth = canvasInstance.getWidth();
   const currentHeight = canvasInstance.getHeight();
-  
-  // 计算缩放比例（使用较大的比例以确保覆盖目标尺寸）
   const scaleX = exportWidth / currentWidth;
   const scaleY = exportHeight / currentHeight;
   const multiplier = Math.max(scaleX, scaleY);
   
-  // 使用Fabric.js的toDataURL方法，通过multiplier参数控制分辨率
-  // 注意：multiplier是相对于当前canvas尺寸的倍数
   const dataURL = canvasInstance.toDataURL({
     format: format === 'jpeg' ? 'jpeg' : 'png',
     multiplier: multiplier,
     quality: format === 'jpeg' ? 0.92 : 1,
   });
   
-  // 如果目标尺寸与当前canvas尺寸不同，需要调整到精确尺寸
   const img = new Image();
   img.onload = function() {
-    // 创建临时canvas，精确控制输出尺寸
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = exportWidth;
     tempCanvas.height = exportHeight;
     const tempCtx = tempCanvas.getContext('2d');
     
-    // 设置背景色
     const bgColor = poiStore.colorSettings.background || '#ffffff';
     tempCtx.fillStyle = bgColor;
     tempCtx.fillRect(0, 0, exportWidth, exportHeight);
     
-    // 计算绘制区域，保持宽高比并居中显示
     const imgWidth = img.width;
     const imgHeight = img.height;
     const targetAspect = exportWidth / exportHeight;
@@ -2021,36 +2147,28 @@ const exportAsRaster = async (format = 'png', exportWidth = 800, exportHeight = 
     let drawWidth, drawHeight, drawX, drawY;
     
     if (imgAspect > targetAspect) {
-      // 图片更宽，以高度为准
       drawHeight = exportHeight;
       drawWidth = exportHeight * imgAspect;
       drawX = (exportWidth - drawWidth) / 2;
       drawY = 0;
     } else {
-      // 图片更高，以宽度为准
       drawWidth = exportWidth;
       drawHeight = exportWidth / imgAspect;
       drawX = 0;
       drawY = (exportHeight - drawHeight) / 2;
     }
     
-    // 绘制图片
     tempCtx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
     
-    // 如果用户选择包含图例，绘制图例
     if (includeLegend.value) {
-      // 计算图例的缩放比例（基于实际绘制的图片尺寸）
       const actualScaleX = drawWidth / currentWidth;
       const actualScaleY = drawHeight / currentHeight;
-      // 图例应该绘制在图片的右上角，所以需要考虑图片的偏移
       drawLegendOnCanvas(tempCtx, drawWidth, drawHeight, actualScaleX, actualScaleY, drawX, drawY);
     }
     
-    // 转换为目标格式
     const type = format === 'jpeg' ? 'image/jpeg' : 'image/png';
     const finalDataURL = tempCanvas.toDataURL(type, format === 'jpeg' ? 0.92 : 1);
     
-    // 下载
     const link = document.createElement('a');
     link.href = finalDataURL;
     link.download = `tag-cloud.${format}`;
@@ -2125,6 +2243,20 @@ watch(
   { deep: true },
 );
 
+// 监听字体分级数量变化（需要重新绘制，因为分级数量影响字号分配）
+watch(
+  () => poiStore.fontSettings.levelCount,
+  () => {
+    // 如果正在清除，不触发重新渲染
+    if (isClearing.value) return;
+    
+    if (allowRenderCloud.value) {
+      // 分级数量变化需要重新绘制（影响字号分配和布局）
+      renderCloud(false);
+    }
+  },
+);
+
 // 监听颜色设置变化（直接更新，不重新绘制）
 watch(
   () => poiStore.colorSettings,
@@ -2166,6 +2298,20 @@ watch(
   },
 );
 
+// 监听中心标签模式变化（需要重新绘制，因为中心标签文本变化）
+watch(
+  () => poiStore.fontSettings.centerLabelMode,
+  () => {
+    // 如果正在清除，不触发重新渲染
+    if (isClearing.value) return;
+    
+    if (allowRenderCloud.value) {
+      // 中心标签模式变化需要重新绘制（中心标签文本变化）
+      renderCloud(false);
+    }
+  },
+);
+
 watch([showRank, showTime], () => {
   // 如果正在清除，不触发重新渲染
   if (isClearing.value) return;
@@ -2173,11 +2319,21 @@ watch([showRank, showTime], () => {
   if (allowRenderCloud.value) renderCloud();
 });
 
+// 监听算法设置变化（需要重新绘制，因为布局算法变化）
+watch(
+  () => poiStore.algorithmSettings.algorithm,
+  () => {
+    // 如果正在清除，不触发重新渲染
+    if (isClearing.value) return;
+    
+    if (allowRenderCloud.value) {
+      // 算法变化需要重新绘制（布局变化）
+      renderCloud(false);
+    }
+  },
+);
+
 onBeforeUnmount(() => {
-  if (resizeObserver && wrapperRef.value) {
-    resizeObserver.unobserve(wrapperRef.value);
-    resizeObserver = null;
-  }
   if (canvasInstance) canvasInstance.dispose();
 });
 </script>
@@ -2206,12 +2362,6 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: hidden;
   position: relative;
-}
-
-.subtext {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 12px;
 }
 
 canvas {
@@ -2326,6 +2476,30 @@ canvas {
   padding: 0 8px;
 }
 
+.label-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 200px;
+  flex-shrink: 0;
+}
+
+.label-count-number {
+  font-weight: 600;
+  display: inline-block;
+  min-width: 80px;
+  text-align: center;
+}
+
+.label-progress-bar {
+  width: 140px;
+}
+
+.label-progress-bar :deep(.el-progress__text) {
+  color: #fff;
+  font-size: 12px;
+}
+
 .tagcloud-toolbar {
   display: flex;
   align-items: center;
@@ -2355,10 +2529,15 @@ canvas {
   font-weight: 500;
 }
 
+.legend-colors-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .legend-colors {
   display: flex;
   gap: 2px;
-  margin-bottom: 8px;
   height: 24px;
 }
 
@@ -2369,6 +2548,7 @@ canvas {
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
   min-width: 20px;
+  height: 24px;
 }
 
 .legend-color-item:hover {
@@ -2378,11 +2558,45 @@ canvas {
   position: relative;
 }
 
-.legend-max-distance {
-  margin: 0;
-  text-align: right;
-  font-size: 12px;
+.legend-boundaries {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  position: relative;
+  height: 16px;
+  padding: 0 2px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.legend-boundary-label {
+  font-size: 10px;
   color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  line-height: 16px;
+  position: absolute;
+  min-width: 0;
+}
+
+.legend-boundary-label.legend-start {
+  left: 2px;
+  text-align: left;
+}
+
+.legend-boundary-label.legend-middle {
+  text-align: center;
+  transform: translateX(-50%);
+  /* 确保标签不会超出边界 */
+  max-width: calc(100% / var(--color-count, 5) - 4px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.legend-boundary-label.legend-max-distance {
+  right: 0;
+  text-align: center;
+  transform: translateX(50%);
 }
 
 /* Canvas工具栏 */
