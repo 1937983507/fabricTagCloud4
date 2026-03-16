@@ -261,6 +261,8 @@ const POI_THRESHOLD = 100;
 
 let canvasInstance;
 let isRendering = false;
+let hasPendingRender = false;
+let pendingRebuildPyramid = false;
 let isPanning = ref(true);
 let vpt = [1, 0, 0, 1, 0, 0];
 const maxDistance = ref(0);
@@ -1147,7 +1149,13 @@ const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisp
  */
 const renderCloud = async (rebuildPyramid = false) => {
   if (isRendering) {
-    console.warn('正在渲染中，跳过本次请求');
+    // 如果当前正在渲染，则记录一次待执行的渲染请求
+    // 如果有任意一次请求需要重建金字塔，则以需要重建为准
+    hasPendingRender = true;
+    if (rebuildPyramid) {
+      pendingRebuildPyramid = true;
+    }
+    console.warn('正在渲染中，已记录待执行的渲染请求');
     return;
   }
   
@@ -1156,6 +1164,8 @@ const renderCloud = async (rebuildPyramid = false) => {
   }
   
   isRendering = true;
+  // 当前这次调用是否需要重建金字塔
+  let needRebuildPyramid = rebuildPyramid;
   
   try {
     // 1. 获取筛选后的POI数据
@@ -1434,6 +1444,17 @@ const renderCloud = async (rebuildPyramid = false) => {
     console.error('渲染标签云失败:', error);
   } finally {
     isRendering = false;
+    // 如果在渲染期间有累积的待执行请求，则在当前渲染结束后再执行一次
+    if (hasPendingRender && allowRenderCloud.value && canvasInstance) {
+      const nextRebuild = pendingRebuildPyramid;
+      // 重置标记，避免死循环
+      hasPendingRender = false;
+      pendingRebuildPyramid = false;
+      // 异步触发下一次渲染，确保当前调用栈已完成
+      setTimeout(() => {
+        renderCloud(nextRebuild);
+      }, 0);
+    }
   }
 };
 
