@@ -460,6 +460,24 @@ watch(
   { immediate: false }
 );
 
+// 监听中心标签颜色变化，立即更新中心标签
+watch(
+  () => poiStore.colorSettings.centerLabelColor,
+  (newColor) => {
+    if (!canvasInstance || !allowRenderCloud.value || !newColor) return;
+    const objects = canvasInstance.getObjects();
+    const centerObject = objects.length > 0 ? objects[0] : null;
+    if (centerObject) {
+      centerObject.set({
+        fill: newColor,
+        stroke: toRgbaWithAlpha(newColor, 0.7),
+      });
+      canvasInstance.renderAll();
+    }
+  },
+  { immediate: false }
+);
+
 // 初始化canvas尺寸（只执行一次，固定大小）
 const initCanvasSize = () => {
   if (!wrapperRef.value) return;
@@ -719,6 +737,37 @@ const measureText = (text, fontSize, fontFamily, fontWeight) => {
     width: metrics.width,
     height: fontSize * 1.2,
   };
+};
+
+const toRgbaWithAlpha = (color, alpha = 0.7) => {
+  if (!color || typeof color !== 'string') return `rgba(255,255,255,${alpha})`;
+  const c = color.trim();
+
+  const rgbaMatch = c.match(
+    /^rgba\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([0-9.]+)\s*\)\s*$/i,
+  );
+  if (rgbaMatch) {
+    const [, r, g, b] = rgbaMatch;
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  const rgbMatch = c.match(/^rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)\s*$/i);
+  if (rgbMatch) {
+    const [, r, g, b] = rgbMatch;
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  const hexMatch = c.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hexMatch) {
+    const hex = hexMatch[1].toLowerCase();
+    const full = hex.length === 3 ? hex.split('').map((ch) => ch + ch).join('') : hex;
+    const r = parseInt(full.slice(0, 2), 16);
+    const g = parseInt(full.slice(2, 4), 16);
+    const b = parseInt(full.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  return c;
 };
 
 /**
@@ -1329,18 +1378,20 @@ const renderCloud = async (rebuildPyramid = false) => {
       height: centerHeight,
     };
     
-    // 创建中心标签文本对象（使用Textbox，白色加粗，白色半透明描边）
+    // 创建中心标签文本对象（使用Textbox，颜色可配置，描边为白色半透明）
     // 设置足够大的width来防止多单词换行，确保单行显示
     // 使用一个非常大的宽度值（比如画布宽度的80%），确保任何长度的地名都能单行显示
     const maxWidth = canvasWidth.value * 0.8;
+    const centerFillColor = poiStore.colorSettings.centerLabelColor || 'rgb(255, 255, 255)';
+    const centerStrokeColor = toRgbaWithAlpha(centerFillColor, 0.7);
     const centerTextObj = new Textbox(centerLabelText, {
       left: centerX,
       top: centerY,
-      fill: 'rgb(255, 255, 255)', // 白色
+      fill: centerFillColor,
       fontSize: centerFontSize,
       fontWeight: 1000, // 字重1000
       strokeWidth: 5, // 描边宽度5
-      stroke: 'rgba(255,255,255,0.7)', // 白色半透明描边
+      stroke: centerStrokeColor,
       fontFamily: 'Comic Sans', // 使用Comic Sans字体
       textAlign: 'center',
       originX: 'center',

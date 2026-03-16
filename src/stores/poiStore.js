@@ -27,6 +27,8 @@ export const usePoiStore = defineStore('poiStore', {
     },
     colorSettings: {
       background: '#0c1024',
+      // 中心标签颜色（默认白色）
+      centerLabelColor: '#ffffff',
       // 默认使用第四个配色方案（5类的第四个方案，索引3）
       palette: ['rgb(240,249,232)', 'rgb(186,228,188)', 'rgb(123,204,196)', 'rgb(67,162,202)', 'rgb(8,104,172)'],
       inverted: false,

@@ -20,6 +20,26 @@
       </div>
     </div>
 
+    <!-- 中心标签配色 -->
+    <div class="config-section">
+      <div class="section-header">
+        <span class="section-title">中心标签配色</span>
+        <span class="section-desc">设置中心标签的文字颜色</span>
+      </div>
+      <div class="section-content">
+        <div class="color-item">
+          <span class="label">当前中心标签颜色：</span>
+          <el-color-picker
+            v-model="localSettings.centerLabelColor"
+            @change="handleCenterLabelColorChange"
+            @active-change="handleCenterLabelColorChange"
+            show-alpha
+          />
+          <span class="color-preview" :style="{ background: localSettings.centerLabelColor }"></span>
+        </div>
+      </div>
+    </div>
+
     <!-- 文字配色 -->
     <div class="config-section">
       <div class="section-header">
@@ -220,6 +240,15 @@ const handleBackgroundChange = (color) => {
   // 立即更新store和canvas
   poiStore.updateColorSettings({
     background: color,
+  });
+};
+
+// 中心标签颜色变化 - 立即更新
+const handleCenterLabelColorChange = (color) => {
+  if (!color) return;
+  localSettings.value.centerLabelColor = color;
+  poiStore.updateColorSettings({
+    centerLabelColor: color,
   });
 };
 
