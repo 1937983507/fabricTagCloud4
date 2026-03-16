@@ -17,6 +17,7 @@
           >
             <el-option label="多角度径向移位算法" value="multi-angle" />
             <el-option label="单角度径向移位算法" value="single-angle" />
+            <el-option label="阿基米德螺线算法" value="archimedean" />
           </el-select>
         </div>
         <div class="algorithm-desc">
@@ -25,6 +26,9 @@
           </p>
           <p v-if="algorithmType === 'single-angle'" class="desc-text">
             单角度径向移位算法：对于每个非中心地点标签，直接沿着标签与中心位置的真实角方向向外径向移动，直到找到可以放置的空余位置。
+          </p>
+          <p v-if="algorithmType === 'archimedean'" class="desc-text">
+            阿基米德螺线算法：从中心出发沿着连续的螺旋曲线向外布局标签，使整体形状更接近传统词云的紧凑“云团”效果。
           </p>
         </div>
       </div>

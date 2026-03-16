@@ -261,6 +261,8 @@ const POI_THRESHOLD = 100;
 
 let canvasInstance;
 let isRendering = false;
+let hasPendingRender = false;
+let pendingRebuildPyramid = false;
 let isPanning = ref(true);
 let vpt = [1, 0, 0, 1, 0, 0];
 const maxDistance = ref(0);
@@ -720,6 +722,46 @@ const measureText = (text, fontSize, fontFamily, fontWeight) => {
 };
 
 /**
+ * 阿基米德螺线算法：从中心出发沿着连续的螺旋曲线向外布局标签
+ * 该算法与距离/方位无关，只根据标签顺序在螺线上依次寻找不重叠的位置
+ */
+const findPositionWithArchimedeanSpiral = (centerX, centerY, width, height, placedLabels) => {
+  // 螺线参数：r = a + b * theta
+  const a = 2;   // 初始半径
+  const b = 4;   // 每转一圈的间距控制
+  const angleStep = 0.15; // 弧度步长，控制密度
+
+  let theta = 0;
+
+  while (true) {
+    const radius = a + b * theta;
+    const x = centerX + radius * Math.cos(theta);
+    const y = centerY + radius * Math.sin(theta);
+
+    const candidateRect = {
+      x: x - width / 2,
+      y: y - height / 2,
+      width,
+      height,
+    };
+
+    let hasCollision = false;
+    for (const placed of placedLabels) {
+      if (isOverlapping(candidateRect, placed, 2)) {
+        hasCollision = true;
+        break;
+      }
+    }
+
+    if (!hasCollision) {
+      return { x, y };
+    }
+
+    theta += angleStep;
+  }
+};
+
+/**
  * 多角度径向移位算法：在标签与中心位置的真实角方向附近（±15度扇形区域）内，通过螺旋搜索找到可放置的空余位置
  */
 const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placedLabels) => {
@@ -1103,6 +1145,15 @@ const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisp
         height,
         placedLabels
       );
+    } else if (algorithm === 'archimedean') {
+      // 使用阿基米德螺线算法（忽略真实方位角，只按顺序沿螺线布局）
+      position = findPositionWithArchimedeanSpiral(
+        centerX,
+        centerY,
+        width,
+        height,
+        placedLabels
+      );
     } else {
       // 使用多角度径向移位算法（默认）
       position = findPositionWithSpiral(
@@ -1147,7 +1198,13 @@ const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisp
  */
 const renderCloud = async (rebuildPyramid = false) => {
   if (isRendering) {
-    console.warn('正在渲染中，跳过本次请求');
+    // 如果当前正在渲染，则记录一次待执行的渲染请求
+    // 如果有任意一次请求需要重建金字塔，则以需要重建为准
+    hasPendingRender = true;
+    if (rebuildPyramid) {
+      pendingRebuildPyramid = true;
+    }
+    console.warn('正在渲染中，已记录待执行的渲染请求');
     return;
   }
   
@@ -1156,6 +1213,8 @@ const renderCloud = async (rebuildPyramid = false) => {
   }
   
   isRendering = true;
+  // 当前这次调用是否需要重建金字塔
+  let needRebuildPyramid = rebuildPyramid;
   
   try {
     // 1. 获取筛选后的POI数据
@@ -1434,6 +1493,17 @@ const renderCloud = async (rebuildPyramid = false) => {
     console.error('渲染标签云失败:', error);
   } finally {
     isRendering = false;
+    // 如果在渲染期间有累积的待执行请求，则在当前渲染结束后再执行一次
+    if (hasPendingRender && allowRenderCloud.value && canvasInstance) {
+      const nextRebuild = pendingRebuildPyramid;
+      // 重置标记，避免死循环
+      hasPendingRender = false;
+      pendingRebuildPyramid = false;
+      // 异步触发下一次渲染，确保当前调用栈已完成
+      setTimeout(() => {
+        renderCloud(nextRebuild);
+      }, 0);
+    }
   }
 };
 
