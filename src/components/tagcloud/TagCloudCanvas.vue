@@ -722,6 +722,46 @@ const measureText = (text, fontSize, fontFamily, fontWeight) => {
 };
 
 /**
+ * 阿基米德螺线算法：从中心出发沿着连续的螺旋曲线向外布局标签
+ * 该算法与距离/方位无关，只根据标签顺序在螺线上依次寻找不重叠的位置
+ */
+const findPositionWithArchimedeanSpiral = (centerX, centerY, width, height, placedLabels) => {
+  // 螺线参数：r = a + b * theta
+  const a = 2;   // 初始半径
+  const b = 4;   // 每转一圈的间距控制
+  const angleStep = 0.15; // 弧度步长，控制密度
+
+  let theta = 0;
+
+  while (true) {
+    const radius = a + b * theta;
+    const x = centerX + radius * Math.cos(theta);
+    const y = centerY + radius * Math.sin(theta);
+
+    const candidateRect = {
+      x: x - width / 2,
+      y: y - height / 2,
+      width,
+      height,
+    };
+
+    let hasCollision = false;
+    for (const placed of placedLabels) {
+      if (isOverlapping(candidateRect, placed, 2)) {
+        hasCollision = true;
+        break;
+      }
+    }
+
+    if (!hasCollision) {
+      return { x, y };
+    }
+
+    theta += angleStep;
+  }
+};
+
+/**
  * 多角度径向移位算法：在标签与中心位置的真实角方向附近（±15度扇形区域）内，通过螺旋搜索找到可放置的空余位置
  */
 const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placedLabels) => {
@@ -1101,6 +1141,15 @@ const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisp
         centerX,
         centerY,
         bearing,
+        width,
+        height,
+        placedLabels
+      );
+    } else if (algorithm === 'archimedean') {
+      // 使用阿基米德螺线算法（忽略真实方位角，只按顺序沿螺线布局）
+      position = findPositionWithArchimedeanSpiral(
+        centerX,
+        centerY,
         width,
         height,
         placedLabels
