@@ -47,8 +47,29 @@
         <span class="section-desc">设置标签文字的颜色方案</span>
       </div>
       <div class="section-content">
-        <!-- 当前色带展示 -->
-        <div class="ribbon-preview-section">
+        <!-- 配色模式切换 -->
+        <div class="color-item" style="margin-bottom: 16px;">
+          <span class="label">配色模式：</span>
+          <el-radio-group v-model="localSettings.colorMode" @change="handleColorModeChange" size="small">
+            <el-radio-button label="single">单色</el-radio-button>
+            <el-radio-button label="multi">复色</el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <!-- 单色模式 -->
+        <div v-if="localSettings.colorMode === 'single'" class="color-item" style="margin-bottom: 8px;">
+          <span class="label">单色：</span>
+          <el-color-picker
+            v-model="localSettings.singleColor"
+            @change="handleSingleColorChange"
+            @active-change="handleSingleColorChange"
+            show-alpha
+          />
+          <span class="color-preview" :style="{ background: localSettings.singleColor }"></span>
+        </div>
+
+        <!-- 复色模式：当前色带展示 -->
+        <div v-if="localSettings.colorMode === 'multi'" class="ribbon-preview-section">
           <div class="ribbon-header">
             <span class="label">当前色带：</span>
             <el-button 
@@ -69,8 +90,8 @@
           </div>
         </div>
 
-        <!-- 颜色离散设置 -->
-        <div class="discrete-settings">
+        <!-- 复色模式：颜色离散设置 -->
+        <div v-if="localSettings.colorMode === 'multi'" class="discrete-settings">
           <div class="color-item spaced">
             <div class="label">颜色离散数量：</div>
             <el-input-number 
@@ -98,8 +119,8 @@
           </div>
         </div>
 
-        <!-- 配色方案选择 -->
-        <div class="scheme-selection">
+        <!-- 复色模式：配色方案选择 -->
+        <div v-if="localSettings.colorMode === 'multi'" class="scheme-selection">
           <div class="scheme-header">
             <span class="label">配色方案：</span>
             <span class="scheme-count">共 {{ availableRibbons.length }} 种方案</span>
@@ -249,6 +270,23 @@ const handleCenterLabelColorChange = (color) => {
   localSettings.value.centerLabelColor = color;
   poiStore.updateColorSettings({
     centerLabelColor: color,
+  });
+};
+
+// 配色模式切换
+const handleColorModeChange = (mode) => {
+  localSettings.value.colorMode = mode;
+  poiStore.updateColorSettings({
+    colorMode: mode,
+  });
+};
+
+// 单色模式颜色变化
+const handleSingleColorChange = (color) => {
+  if (!color) return;
+  localSettings.value.singleColor = color;
+  poiStore.updateColorSettings({
+    singleColor: color,
   });
 };
 

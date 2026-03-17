@@ -67,8 +67,11 @@
         </div>
       </div>
       
-      <!-- 距离图例 -->
-      <div class="distance-legend">
+      <!-- 距离图例（仅在复色模式下显示） -->
+      <div
+        v-if="poiStore.colorSettings.colorMode !== 'single'"
+        class="distance-legend"
+      >
         <p class="legend-title">{{ poiStore.fontSettings.language === 'en' ? 'Distance from Center (km)' : '与中心的距离(km)' }}</p>
         <div class="legend-colors-wrapper">
           <div class="legend-colors">
@@ -309,8 +312,11 @@ const calculateColorBoundaries = () => {
   if (!selectionCenter) return [];
   
   const colorSettings = poiStore.colorSettings;
-  const colorNum = colorSettings.discreteCount || colorSettings.palette.length;
   const discreteMethod = colorSettings.discreteMethod || 'quantile';
+  const isSingleMode = colorSettings.colorMode === 'single';
+  const colorNum = isSingleMode
+    ? 1
+    : colorSettings.discreteCount || (colorSettings.palette?.length || 1);
   
   // 计算所有POI的距离
   const entriesWithDistance = currentData.map((poi) => {
@@ -1429,9 +1435,14 @@ const renderCloud = async (rebuildPyramid = false) => {
     
     // 13. 计算颜色分类
     const colorSettings = poiStore.colorSettings;
-    const colorNum = colorSettings.discreteCount || colorSettings.palette.length;
+    const isSingleMode = colorSettings.colorMode === 'single';
+    const palette = isSingleMode
+      ? [colorSettings.singleColor || '#ffffff']
+      : colorSettings.palette;
+    const colorNum = isSingleMode
+      ? 1
+      : colorSettings.discreteCount || (palette?.length || 1);
     const discreteMethod = colorSettings.discreteMethod || 'quantile';
-    const palette = colorSettings.palette;
     
     // 预先计算颜色分类所需的公共值
     let colorCache = {};
@@ -1792,9 +1803,14 @@ const updateLabelColors = () => {
   }
   
   const colorSettings = poiStore.colorSettings;
-  const colorNum = colorSettings.discreteCount || colorSettings.palette.length;
+  const isSingleMode = colorSettings.colorMode === 'single';
+  const palette = isSingleMode
+    ? [colorSettings.singleColor || '#ffffff']
+    : colorSettings.palette;
+  const colorNum = isSingleMode
+    ? 1
+    : colorSettings.discreteCount || (palette?.length || 1);
   const discreteMethod = colorSettings.discreteMethod || 'quantile';
-  const palette = colorSettings.palette;
   
   // 收集canvas上所有标签对象（跳过中心标签）
   const labelObjects = [];
@@ -2383,11 +2399,14 @@ watch(
   () => poiStore.colorSettings,
   (newVal, oldVal) => {
     if (allowRenderCloud.value && canvasInstance) {
-      // 只有palette、discreteCount、discreteMethod变化才更新颜色
-      // background变化已经在单独的watch中处理
-      if (newVal.palette !== oldVal?.palette || 
-          newVal.discreteCount !== oldVal?.discreteCount ||
-          newVal.discreteMethod !== oldVal?.discreteMethod) {
+      // background、centerLabelColor 已在单独 watch 中处理
+      // 以下任一变化时更新标签颜色：配色模式、单色、色带、离散数量/方式
+      const paletteChanged = newVal.palette !== oldVal?.palette;
+      const countChanged = newVal.discreteCount !== oldVal?.discreteCount;
+      const methodChanged = newVal.discreteMethod !== oldVal?.discreteMethod;
+      const modeChanged = newVal.colorMode !== oldVal?.colorMode;
+      const singleColorChanged = newVal.singleColor !== oldVal?.singleColor;
+      if (paletteChanged || countChanged || methodChanged || modeChanged || singleColorChanged) {
         updateLabelColors();
       }
     }
