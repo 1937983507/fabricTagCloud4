@@ -21,21 +21,21 @@
             显示所选
           </el-button>
         </el-button-group>
+        <el-button size="small" type="success" plain @click="importDialogVisible = true">
+          导入数据
+        </el-button>
       </div>
     </div>
     <el-table
       :data="pagedList"
       border
       :row-key="row => row.id"
-      :default-selection="defaultSelection"
-      @selection-change="handleSelection"
       :row-class-name="({ row }) => row.selected ? 'selected-row' : ''"
       style="flex: 1 1 auto; min-height: 0;"
     >
-      <el-table-column type="selection" width="48" reserve-selection />
-      <el-table-column prop="name" label="地名" min-width="120" />
-      <el-table-column prop="city" label="城市" width="120" />
-      <el-table-column prop="rank" label="排名" width="100" />
+      <el-table-column :prop="placeNameProp" :label="placeNameLabel" min-width="120" />
+      <el-table-column v-if="showCityColumn" prop="city" label="城市" width="120" />
+      <el-table-column prop="rank" :label="valueColumnLabel" width="100" />
     </el-table>
     <div class="table-pagination">
       <el-pagination
@@ -50,14 +50,17 @@
         @current-change="handlePageChange"
       />
     </div>
+    <ImportDataDialog v-model="importDialogVisible" />
   </div>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { usePoiStore } from '@/stores/poiStore';
+import ImportDataDialog from './ImportDataDialog.vue';
 
 const poiStore = usePoiStore();
+const importDialogVisible = ref(false);
 const currentPage = ref(1);
 const pageSize = ref(20);
 
@@ -67,13 +70,33 @@ const pagedList = computed(() => {
   return poiStore.visibleList.slice(start, end);
 });
 
-const defaultSelection = computed(() =>
-  pagedList.value.filter((row) => row.selected),
+/** 默认数据始终显示城市列；CSV 导入且未映射城市列时隐藏 */
+const showCityColumn = computed(() => {
+  const m = poiStore.importMeta;
+  if (m == null) return true;
+  return m.hasCityColumn === true;
+});
+
+/** 导入后第三列为「数值」，默认数据仍为「排名」 */
+const valueColumnLabel = computed(() =>
+  poiStore.importMeta ? '数值' : '排名',
 );
 
-const handleSelection = (rows) => {
-  poiStore.applySelection(rows.map((r) => r.id));
-};
+/** CSV 导入后地名列：仅中文 / 仅英文 / 双语默认中文；网站默认数据仍为「地名」+ name */
+const placeNameProp = computed(() => {
+  const m = poiStore.importMeta;
+  if (!m) return 'name';
+  return m.nameLanguageAvailability === 'enOnly' ? 'name_en' : 'name';
+});
+
+const placeNameLabel = computed(() => {
+  const m = poiStore.importMeta;
+  if (!m) return '地名';
+  const a = m.nameLanguageAvailability;
+  if (a === 'enOnly') return '英文地名';
+  if (a === 'zhOnly') return '中文地名';
+  return '中文地名';
+});
 
 const handleSizeChange = (size) => {
   pageSize.value = size;

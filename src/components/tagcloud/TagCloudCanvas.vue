@@ -1031,8 +1031,16 @@ const calculateClassIndexOptimized = (entry, index, total, colorNum, discreteMet
   return classIndex;
 };
 
-// 按排名升序排列
-const upRank = (a, b) => a.rank - b.rank;
+// 按数值分级：默认 rank 升序（小→大字）；导入为「热度」时降序（大→大字）
+const compareByRankOrScore = (a, b) => {
+  const ar = Number.isFinite(Number(a.rank)) ? Number(a.rank) : 0;
+  const br = Number.isFinite(Number(b.rank)) ? Number(b.rank) : 0;
+  if (poiStore.importMeta?.valueSemantics === 'score') {
+    return br - ar;
+  }
+  return ar - br;
+};
+const upRank = compareByRankOrScore;
 
 // 按距离升序排列
 const upDis = (a, b) => a.distance - b.distance;
@@ -1130,9 +1138,10 @@ const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisp
     return { poi, distance, rank };
   });
   
-  // 2. 按照rankInChina（rank字段）排序，用于字号分级
-  // rank字段对应全国排名（rankInChina），排名数字越小表示排名越靠前
-  const sortedByRank = [...poisWithInfo].sort((a, b) => a.rank - b.rank);
+  // 2. 按 rank 数值排序分级（导入「热度」时为大值优先）
+  const sortedByRank = [...poisWithInfo].sort((a, b) =>
+    compareByRankOrScore({ rank: a.rank }, { rank: b.rank }),
+  );
   
   // 3. 根据当前层级的POI数量和levelCount重新分级，分配字号
   // 每个金字塔层级都要重新分级，例如100个标签分成5级，50个标签也分成5级

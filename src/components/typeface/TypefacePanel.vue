@@ -7,14 +7,21 @@
         <span class="section-desc">选择标签显示的语言</span>
       </div>
       <div class="section-content">
-        <el-select
-          v-model="localSettings.language"
-          style="width: 200px"
-          @change="handleLanguageChange"
+        <el-tooltip
+          :disabled="!poiStore.languageSwitchDisabled"
+          content="当前数据仅含中文或仅含英文地名，无法切换显示语言"
+          placement="top"
         >
-          <el-option label="中文" value="zh" />
-          <el-option label="English" value="en" />
-        </el-select>
+          <el-select
+            v-model="localSettings.language"
+            style="width: 200px"
+            :disabled="poiStore.languageSwitchDisabled"
+            @change="handleLanguageChange"
+          >
+            <el-option label="中文" value="zh" />
+            <el-option label="English" value="en" />
+          </el-select>
+        </el-tooltip>
       </div>
     </div>
 
@@ -191,6 +198,13 @@ if (!availableFonts.includes(poiStore.fontSettings.fontFamily)) {
   poiStore.updateFontLevel({ fontFamily: defaultFont });
 }
 
+watch(
+  () => poiStore.fontSettings.language,
+  (lang) => {
+    if (localSettings.language !== lang) localSettings.language = lang;
+  },
+);
+
 // 监听语言变化，自动设置默认字体
 watch(
   () => localSettings.language,
@@ -257,6 +271,18 @@ const handleLanguageChange = () => {
   poiStore.updateFontLevel(updatePayload);
   // 语言变化需要重新编译数据并重绘（TagCloudCanvas.vue 中的 watch 会自动处理）
 };
+
+watch(
+  () => poiStore.importMeta,
+  () => {
+    if (!poiStore.languageSwitchDisabled) return;
+    const forced = poiStore.importMeta?.nameLanguageAvailability === 'enOnly' ? 'en' : 'zh';
+    if (localSettings.language === forced) return;
+    localSettings.language = forced;
+    handleLanguageChange();
+  },
+  { deep: true },
+);
 
 const handleCenterLabelModeChange = () => {
   poiStore.updateFontLevel({

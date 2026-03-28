@@ -7,6 +7,38 @@ const DATA_SOURCE = 'json'; // 可以改为 'csv' 切换回CSV模式
 const CSV_DATA_URL = `${import.meta.env.BASE_URL}data/chinapoi.csv`;
 const JSON_DATA_URL = `${import.meta.env.BASE_URL}data/chinapoi.json`;
 
+/**
+ * CSV 导入：替换会话内 POI（供对话框直接调用，避免仅依赖 store action 挂载）
+ */
+export function applyImportedPoiData(store, pois, meta) {
+  const palette = store.colorSettings.palette;
+  const sizes = store.fontSettings.fontSizes;
+  const mapped = pois.map((poi, index) => ({
+    ...poi,
+    selected: false,
+    fontColor: palette[index % palette.length],
+    fontSize: sizes[index % sizes.length],
+    typeface: store.fontSettings.fontFamily,
+  }));
+  const nextFont = { ...store.fontSettings };
+  if (meta.nameLanguageAvailability === 'zhOnly') {
+    nextFont.language = 'zh';
+  } else if (meta.nameLanguageAvailability === 'enOnly') {
+    nextFont.language = 'en';
+  }
+  store.$patch({
+    poiList: mapped,
+    selectedIds: [],
+    visibleMode: 'all',
+    importMeta: {
+      valueSemantics: meta.valueSemantics,
+      nameLanguageAvailability: meta.nameLanguageAvailability,
+      hasCityColumn: meta.hasCityColumn === true,
+    },
+    fontSettings: nextFont,
+  });
+}
+
 export const usePoiStore = defineStore('poiStore', {
   state: () => ({
     poiList: [],
@@ -41,6 +73,13 @@ export const usePoiStore = defineStore('poiStore', {
     algorithmSettings: {
       algorithm: 'multi-angle', // 'multi-angle' 多角度径向移位算法, 'single-angle' 单角度径向移位算法
     },
+    /**
+     * CSV 导入元信息（null 表示当前为网站默认数据）
+     * valueSemantics: rank=数值小字号大；score=数值大字号大
+     * nameLanguageAvailability: 导入数据中可用的地名字段，用于禁用语言切换
+     * hasCityColumn: 是否映射了城市列（表格是否显示城市）
+     */
+    importMeta: null,
   }),
   getters: {
     totalCount: (state) => state.poiList.length,
@@ -55,6 +94,11 @@ export const usePoiStore = defineStore('poiStore', {
     },
     selectedPOIs: (state) =>
       state.poiList.filter((poi) => state.selectedIds.includes(poi.id)),
+    /** 仅中文或仅英文地名时禁用「字体」里的语言切换 */
+    languageSwitchDisabled: (state) => {
+      const a = state.importMeta?.nameLanguageAvailability;
+      return a === 'zhOnly' || a === 'enOnly';
+    },
   },
   actions: {
     /**
@@ -327,6 +371,14 @@ export const usePoiStore = defineStore('poiStore', {
     clearTagCloud() {
       // 清除标签云状态，触发TagCloudCanvas清除
       this.hasDrawing = false;
+    },
+    /**
+     * 用 CSV 导入结果替换当前会话内的 POI（刷新页面后恢复默认数据）
+     * @param {Array<Object>} pois - 已含 lng/lat/name/name_en/rank 等
+     * @param {{ valueSemantics: 'rank'|'score', nameLanguageAvailability: 'both'|'zhOnly'|'enOnly' }} meta
+     */
+    applyImportedPoiList(pois, meta) {
+      applyImportedPoiData(this, pois, meta);
     },
   },
 });
