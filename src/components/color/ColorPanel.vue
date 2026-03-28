@@ -304,19 +304,15 @@ const handleColorFlip = () => {
   }, 50);
 };
 
-// 颜色数量改变 - 使用防抖
+// 颜色数量改变 - 使用防抖（保持当前选中的第 x 种色带，仅在新数量下列表更短时钳制索引）
 let countChangeTimer = null;
 const handleColorCountChange = () => {
   if (countChangeTimer) clearTimeout(countChangeTimer);
   countChangeTimer = setTimeout(() => {
     if (availableRibbons.value.length > 0) {
-      // 使用第三个方案（索引2，如果存在）
-      const defaultIndex = Math.min(2, availableRibbons.value.length - 1);
-      currentRibbonIndex.value = defaultIndex;
-      handleRibbonSchemeSelect(defaultIndex);
-      poiStore.updateColorSettings({
-        discreteCount: colorDiscreteCount.value,
-      });
+      const maxIndex = availableRibbons.value.length - 1;
+      const preservedIndex = Math.min(Math.max(0, currentRibbonIndex.value), maxIndex);
+      handleRibbonSchemeSelect(preservedIndex);
     }
   }, 100);
 };
