@@ -12,7 +12,6 @@ export const usePoiStore = defineStore('poiStore', {
     poiList: [],
     dataLoading: false, // 数据加载状态
     visibleMode: 'all',
-    isEditable: false,
     selectedIds: [],
     selectionCenter: null,
     selectionGeometry: null,
@@ -266,9 +265,6 @@ export const usePoiStore = defineStore('poiStore', {
         throw error;
       }
     },
-    toggleEditMode() {
-      this.isEditable = !this.isEditable;
-    },
     toggleSelect(id) {
       if (this.selectedIds.includes(id)) {
         this.selectedIds = this.selectedIds.filter((item) => item !== id);
@@ -292,26 +288,6 @@ export const usePoiStore = defineStore('poiStore', {
     },
     showSelected() {
       this.visibleMode = 'selected';
-    },
-    toggleBulkSelect() {
-      if (!this.poiList.length) return;
-      if (this.selectedIds.length === this.poiList.length) {
-        this.applySelection([]);
-      } else {
-        this.applySelection(this.poiList.map((poi) => poi.id));
-      }
-    },
-    removeSelected() {
-      if (!this.selectedIds.length) return;
-      this.poiList = this.poiList.filter(
-        (poi) => !this.selectedIds.includes(poi.id),
-      );
-      this.selectedIds = [];
-    },
-    updatePoi(updated) {
-      this.poiList = this.poiList.map((poi) =>
-        poi.id === updated.id ? { ...poi, ...updated } : poi,
-      );
     },
     updateFontLevel(payload) {
       this.fontSettings = {

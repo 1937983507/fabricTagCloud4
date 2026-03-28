@@ -2,32 +2,25 @@
   <div class="table-card">
     <div class="table-toolbar">
       <div class="table-actions">
-        <el-button @click="poiStore.toggleEditMode">
-          {{ poiStore.isEditable ? '锁定数据' : '编辑数据' }}
-        </el-button>
         <el-tag effect="dark" type="info">
           ({{ poiStore.selectedCount }}/{{ poiStore.totalCount }} 已选择)
         </el-tag>
-        <el-button-group>
-          <el-button size="small" @click="poiStore.showAll()">显示全部</el-button>
-          <el-button size="small" @click="poiStore.showSelected()">显示所选</el-button>
-        </el-button-group>
-        <el-tooltip content="切换全选 / 清空">
-          <el-button size="small" @click="poiStore.toggleBulkSelect">
-            <el-icon><RefreshRight /></el-icon>
-          </el-button>
-        </el-tooltip>
-        <el-tooltip content="删除所选行">
+        <el-button-group class="visible-mode-group">
           <el-button
             size="small"
-            type="danger"
-            plain
-            :disabled="!poiStore.selectedCount"
-            @click="poiStore.removeSelected"
+            :type="poiStore.visibleMode === 'all' ? 'primary' : 'default'"
+            @click="poiStore.showAll()"
           >
-            <el-icon><Delete /></el-icon>
+            显示全部
           </el-button>
-        </el-tooltip>
+          <el-button
+            size="small"
+            :type="poiStore.visibleMode === 'selected' ? 'primary' : 'default'"
+            @click="poiStore.showSelected()"
+          >
+            显示所选
+          </el-button>
+        </el-button-group>
       </div>
     </div>
     <el-table
@@ -40,38 +33,9 @@
       style="flex: 1 1 auto; min-height: 0;"
     >
       <el-table-column type="selection" width="48" reserve-selection />
-      <el-table-column prop="name" label="地名" min-width="120">
-        <template #default="{ row }">
-          <el-input
-            v-if="poiStore.isEditable"
-            v-model="row.name"
-            @change="poiStore.updatePoi(row)"
-          />
-          <span v-else>{{ row.name }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="city" label="城市" width="120">
-        <template #default="{ row }">
-          <el-input
-            v-if="poiStore.isEditable"
-            v-model="row.city"
-            @change="poiStore.updatePoi(row)"
-          />
-          <span v-else>{{ row.city }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="rank" label="排名" width="100">
-        <template #default="{ row }">
-          <el-input-number
-            v-if="poiStore.isEditable"
-            v-model="row.rank"
-            :min="1"
-            :max="999"
-            @change="poiStore.updatePoi(row)"
-          />
-          <span v-else>{{ row.rank }}</span>
-        </template>
-      </el-table-column>
+      <el-table-column prop="name" label="地名" min-width="120" />
+      <el-table-column prop="city" label="城市" width="120" />
+      <el-table-column prop="rank" label="排名" width="100" />
     </el-table>
     <div class="table-pagination">
       <el-pagination
@@ -90,10 +54,6 @@
 </template>
 
 <script setup>
-import {
-  Delete,
-  RefreshRight,
-} from '@element-plus/icons-vue';
 import { computed, ref, watch } from 'vue';
 import { usePoiStore } from '@/stores/poiStore';
 
@@ -160,6 +120,10 @@ watch(
 .table-actions > * {
   flex-shrink: 1;
   min-width: 0;
+}
+
+.visible-mode-group :deep(.el-button--primary) {
+  font-weight: 600;
 }
 
 .table-pagination {
