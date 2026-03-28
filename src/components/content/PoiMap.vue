@@ -168,6 +168,145 @@ let massLayer = null;
 let MASS_STYLES = [];
 let geolocation = null; // 高德定位实例
 let geocoder = null; // 地理编码实例
+/** 海量点悬浮地名提示（仅 MassMarks 显示时） */
+let hoverTipEl = null;
+/** 地图容器内最近一次鼠标位置（相对容器），用于 MassMarks 事件无坐标时的补位 */
+let lastMapPointer = { x: 0, y: 0, valid: false };
+let mapPointerMoveHandler = null;
+let mapPointerLeaveHandler = null;
+
+/** 与标签云一致的显示名：英文模式优先英文名，否则中文 */
+const getPoiLabelForMap = (poi) => {
+  if (!poi) return '';
+  const lang = poiStore.fontSettings?.language || 'zh';
+  const zh = poi.name && String(poi.name).trim();
+  const en = poi.name_en && String(poi.name_en).trim();
+  if (lang === 'en') {
+    if (en) return en;
+    return zh || '';
+  }
+  if (zh) return zh;
+  return en || '';
+};
+
+const hideMassHoverTip = () => {
+  if (hoverTipEl) hoverTipEl.style.display = 'none';
+};
+
+const readEventPixel = (e) => {
+  const p = e?.pixel;
+  if (!p) return null;
+  const x = p.x !== undefined ? p.x : p.getX?.();
+  const y = p.y !== undefined ? p.y : p.getY?.();
+  if (typeof x !== 'number' || typeof y !== 'number') return null;
+  /* MassMarks 的 pixel 常固定为 (0,0)，不能再用来定位 */
+  if (x === 0 && y === 0) return null;
+  return { x, y };
+};
+
+const pixelToXY = (px) => {
+  if (!px) return null;
+  if (typeof px.getX === 'function' && typeof px.getY === 'function') {
+    return { x: px.getX(), y: px.getY() };
+  }
+  if (typeof px.x === 'number' && typeof px.y === 'number') {
+    return { x: px.x, y: px.y };
+  }
+  return null;
+};
+
+const clampTipPosition = (baseX, baseY, padX, padY) => {
+  if (!hoverTipEl || !mapRef.value) return;
+  let x = baseX + padX;
+  let y = baseY + padY;
+  const cw = mapRef.value.clientWidth;
+  const ch = mapRef.value.clientHeight;
+  const tw = hoverTipEl.offsetWidth || 160;
+  const th = hoverTipEl.offsetHeight || 32;
+  x = Math.min(Math.max(4, x), Math.max(4, cw - tw - 4));
+  y = Math.min(Math.max(4, y), Math.max(4, ch - th - 4));
+  hoverTipEl.style.left = `${x}px`;
+  hoverTipEl.style.top = `${y}px`;
+};
+
+/**
+ * 悬浮提示定位：优先用数据点经纬度转容器像素（MassMarks 的 e.pixel 常为 0）；
+ * 其次用地图容器 mousemove 缓存的指针；再尝试原生事件 / e.pixel。
+ */
+const positionMassHoverTip = (e) => {
+  if (!hoverTipEl || !mapRef.value) return;
+
+  const data = e?.data;
+  if (mapInstance && data?.lnglat && Array.isArray(data.lnglat) && data.lnglat.length >= 2) {
+    try {
+      const px = mapInstance.lngLatToContainer(data.lnglat);
+      const xy = pixelToXY(px);
+      if (xy) {
+        clampTipPosition(xy.x, xy.y, 10, 12);
+        return;
+      }
+    } catch {
+      /* 继续其它方式 */
+    }
+  }
+
+  if (lastMapPointer.valid) {
+    clampTipPosition(lastMapPointer.x, lastMapPointer.y, 14, 18);
+    return;
+  }
+
+  const domEv =
+    e?.originEvent ||
+    e?.originalEvent ||
+    e?.domEvent ||
+    (typeof e?.event === 'object' ? e.event : null);
+  if (domEv && typeof domEv.clientX === 'number' && typeof domEv.clientY === 'number') {
+    const r = mapRef.value.getBoundingClientRect();
+    clampTipPosition(domEv.clientX - r.left, domEv.clientY - r.top, 14, 18);
+    return;
+  }
+
+  const pt = readEventPixel(e);
+  if (pt) {
+    clampTipPosition(pt.x, pt.y, 12, 12);
+    return;
+  }
+
+  if (mapInstance && e?.lnglat) {
+    try {
+      const px = mapInstance.lngLatToContainer(e.lnglat);
+      const xy = pixelToXY(px);
+      if (xy) clampTipPosition(xy.x, xy.y, 10, 12);
+    } catch {
+      /* ignore */
+    }
+  }
+};
+
+const ensureMassHoverTip = () => {
+  if (hoverTipEl || !mapRef.value) return;
+  hoverTipEl = document.createElement('div');
+  hoverTipEl.className = 'map-poi-mass-hover-tip';
+  hoverTipEl.setAttribute('role', 'tooltip');
+  Object.assign(hoverTipEl.style, {
+    position: 'absolute',
+    left: '0',
+    top: '0',
+    zIndex: '1000',
+    pointerEvents: 'none',
+    display: 'none',
+    padding: '6px 10px',
+    background: 'rgba(30, 30, 30, 0.9)',
+    color: '#fff',
+    fontSize: '12px',
+    lineHeight: '1.4',
+    borderRadius: '4px',
+    maxWidth: '280px',
+    wordBreak: 'break-word',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+  });
+  mapRef.value.appendChild(hoverTipEl);
+};
 
 const loadMap = async () => {
   amapGlobal = await AMapLoader.load({
@@ -196,6 +335,21 @@ const loadMap = async () => {
     zoom: 7,
     viewMode: '2D',
   });
+
+  lastMapPointer = { x: 0, y: 0, valid: false };
+  mapPointerMoveHandler = (ev) => {
+    const el = mapRef.value;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    lastMapPointer.x = ev.clientX - r.left;
+    lastMapPointer.y = ev.clientY - r.top;
+    lastMapPointer.valid = true;
+  };
+  mapPointerLeaveHandler = () => {
+    lastMapPointer.valid = false;
+  };
+  mapRef.value.addEventListener('mousemove', mapPointerMoveHandler, { passive: true });
+  mapRef.value.addEventListener('mouseleave', mapPointerLeaveHandler);
 
   mapLayers = {
     satellite: new amapGlobal.TileLayer.Satellite(),
@@ -245,13 +399,32 @@ const loadMap = async () => {
     style: MASS_STYLES,
   });
   massLayer.setMap(mapInstance);
-  massLayer.on('click', (e) => {
-    const poi = e.data;
-    if (poi?.id) {
-      poiStore.toggleSelect(poi.id);
-      updateLayerByView();
+
+  massLayer.on('mouseover', (e) => {
+    const raw = e.data;
+    if (raw?.id == null) return;
+    const poi = poiStore.poiList.find((p) => p.id === raw.id);
+    const text = getPoiLabelForMap(poi);
+    if (!text) {
+      hideMassHoverTip();
+      return;
     }
+    ensureMassHoverTip();
+    if (!hoverTipEl) return;
+    hoverTipEl.textContent = text;
+    hoverTipEl.style.display = 'block';
+    positionMassHoverTip(e);
   });
+
+  massLayer.on('mousemove', (e) => {
+    if (!hoverTipEl || hoverTipEl.style.display === 'none') return;
+    positionMassHoverTip(e);
+  });
+
+  massLayer.on('mouseout', hideMassHoverTip);
+
+  mapInstance.on('movestart', hideMassHoverTip);
+  mapInstance.on('zoomstart', hideMassHoverTip);
 
   mapInstance.on('moveend', updateLayerByView);
   mapInstance.on('zoomend', updateLayerByView);
@@ -1170,6 +1343,22 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  const container = mapRef.value;
+  if (container && mapPointerMoveHandler) {
+    container.removeEventListener('mousemove', mapPointerMoveHandler);
+  }
+  if (container && mapPointerLeaveHandler) {
+    container.removeEventListener('mouseleave', mapPointerLeaveHandler);
+  }
+  mapPointerMoveHandler = null;
+  mapPointerLeaveHandler = null;
+  lastMapPointer = { x: 0, y: 0, valid: false };
+
+  hideMassHoverTip();
+  if (hoverTipEl?.parentNode) {
+    hoverTipEl.parentNode.removeChild(hoverTipEl);
+  }
+  hoverTipEl = null;
   resetDrawing();
   if (mapInstance) {
     mapInstance.destroy();
