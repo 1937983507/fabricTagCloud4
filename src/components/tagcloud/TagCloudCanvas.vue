@@ -1,9 +1,9 @@
 <template>
   <aside class="tagcloud-panel">
-    <header class="panel-head">
+    <header v-if="!isMobile" class="panel-head">
+      <!-- PC：工具栏平铺 -->
       <div class="toolbar-left">
         <el-button-group>
-          <el-button id="runTagCloudBtn" type="primary" data-intro-target="runTagCloudBtn" @click="handleRenderCloud">运行生成标签云</el-button>
           <el-button @click="switchResolution('coarse')">粗略显示</el-button>
           <el-button @click="switchResolution('fine')">精细显示</el-button>
         </el-button-group>
@@ -42,7 +42,11 @@
         </div>
       </div>
     </header>
-    <div class="canvas-wrapper" ref="wrapperRef">
+    <div
+      class="canvas-wrapper"
+      ref="wrapperRef"
+      data-intro-target="tagcloud-canvas-area"
+    >
       <canvas
         :key="canvasKey"
         ref="canvasRef"
@@ -61,7 +65,11 @@
           <div class="hint-text">
             <p class="hint-title">{{ allowRenderCloud ? '数据筛选中' : '准备生成标签云' }}</p>
             <p class="hint-desc">
-              {{ allowRenderCloud ? '请在地图上绘制筛选区域' : '请先在地图上绘制筛选区域，然后点击"运行生成标签云"按钮' }}
+              {{
+                allowRenderCloud
+                  ? '请在地图上绘制筛选区域'
+                  : '请先完成数据筛选，筛选完成后将自动生成标签云'
+              }}
             </p>
           </div>
         </div>
@@ -71,6 +79,7 @@
       <div
         v-if="poiStore.colorSettings.colorMode !== 'single'"
         class="distance-legend"
+        :class="{ 'distance-legend--compact': isMobile }"
       >
         <p class="legend-title">{{ poiStore.fontSettings.language === 'en' ? 'Distance from Center (km)' : '与中心的距离(km)' }}</p>
         <div class="legend-colors-wrapper">
@@ -106,7 +115,57 @@
       </div>
       
       <!-- 交互工具栏 -->
-      <div class="canvas-toolbar">
+      <!-- 移动端：悬浮入口，无 panel-head -->
+      <template v-if="isMobile">
+        <el-button
+          type="primary"
+          circle
+          class="mobile-tagcloud-fab"
+          data-intro-target="tagcloud-mobile-fab"
+          aria-label="标签云显示与导出选项"
+          @click="mobileToolsDrawerOpen = true"
+        >
+          <el-icon><Operation /></el-icon>
+        </el-button>
+        <el-drawer
+          v-model="mobileToolsDrawerOpen"
+          direction="ltr"
+          size="min(86vw, 300px)"
+          title="标签云选项"
+          :with-header="true"
+          class="tagcloud-mobile-drawer"
+        >
+          <div class="mobile-drawer-tools">
+            <div class="mobile-drawer-row">
+              <span class="mobile-drawer-label">显示精度</span>
+              <el-button-group>
+                <el-button size="small" @click="switchResolution('coarse'); mobileToolsDrawerOpen = false">粗略显示</el-button>
+                <el-button size="small" @click="switchResolution('fine'); mobileToolsDrawerOpen = false">精细显示</el-button>
+              </el-button-group>
+            </div>
+            <el-checkbox v-model="showRank">显示排名信息</el-checkbox>
+            <el-checkbox v-model="showTime">显示通行时间(min)</el-checkbox>
+            <el-dropdown class="mobile-drawer-export" @command="handleMobileExportCommand">
+              <el-button type="primary" plain style="width: 100%">
+                导出图片<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="svg">导出SVG</el-dropdown-item>
+                  <el-dropdown-item command="png">导出PNG</el-dropdown-item>
+                  <el-dropdown-item command="jpeg">导出JPEG</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            <div class="mobile-drawer-count">
+              标签数量:
+              <strong>{{ currentRenderedCount }}</strong>
+              <span v-if="totalLabelCount > 0"> / {{ totalLabelCount }}</span>
+            </div>
+          </div>
+        </el-drawer>
+      </template>
+      <div class="canvas-toolbar" :class="{ 'canvas-toolbar--hidden-mobile': isMobile }">
         <el-tooltip content="返回中心点" placement="left" :show-after="0" :hide-after="100" effect="dark" popper-class="canvas-toolbar-tooltip" :offset="8">
           <el-button
             circle
@@ -235,8 +294,6 @@ import {
 import { usePoiStore } from '@/stores/poiStore';
 import { cityNameToPinyin } from '@/utils/cityNameToPinyin';
 import AMapLoader from '@amap/amap-jsapi-loader';
-import introJs from 'intro.js';
-import 'intro.js/minified/introjs.min.css';
 import {
   RefreshLeft,
   FullScreen,
@@ -245,14 +302,18 @@ import {
   ZoomOut,
   Close,
   ArrowDown,
+  Operation,
 } from '@element-plus/icons-vue';
 import { recordTagCloudGeneration } from '@/utils/statistics';
+import { useMobileLayout } from '@/composables/useMobileLayout';
 
 const canvasRef = ref(null);
 const wrapperRef = ref(null);
 const showRank = ref(false);
 const showTime = ref(false);
 const poiStore = usePoiStore();
+const { isMobile } = useMobileLayout();
+const mobileToolsDrawerOpen = ref(false);
 
 // 导出相关变量
 const exportDialogVisible = ref(false);
@@ -296,8 +357,6 @@ const renderProgress = computed(() => {
   const ratio = currentRenderedCount.value / totalLabelCount.value;
   return Math.min(100, Math.max(0, Math.round(ratio * 100)));
 });
-
-let secondIntroStarted = false;
 
 // 计算各个色块之间的分界点距离值
 const calculateColorBoundaries = () => {
@@ -496,101 +555,6 @@ const initCanvasSize = () => {
   canvasWidth.value = Math.floor(rect.width);
   canvasHeight.value = Math.floor(rect.height);
 };
-
-const getDataFilterButtonElement = () => {
-  return (
-    document.querySelector('[data-intro-target="dataFilterBtn"]') ||
-    document.querySelector('.map-head .dropdown-btn') ||
-    document.querySelector('.map-head .el-dropdown-link')
-  );
-};
-
-const getRunTagCloudButtonElement = () => {
-  return (
-    document.querySelector('[data-intro-target="runTagCloudBtn"]') ||
-    document.querySelector('#runTagCloudBtn') ||
-    document.querySelector('.tagcloud-panel .panel-head .el-button--primary')
-  );
-};
-
-const startDrawGuideIntro = () => {
-  if (secondIntroStarted) return;
-  secondIntroStarted = true;
-
-  const attemptStart = (retries = 8) => {
-    const dataFilterBtn = getDataFilterButtonElement();
-    const runBtn = getRunTagCloudButtonElement();
-
-    if (dataFilterBtn && runBtn) {
-      try {
-        const intro = introJs.tour();
-        intro.addSteps([
-          {
-            element: dataFilterBtn,
-            intro:
-              '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">数据筛选</strong><br/><span style="color:#64748b;">您需要在此对点数据进行筛选操作。点击下拉菜单选择圆形、矩形或多边形筛选方式。</span></div>',
-          },
-          {
-            element: runBtn,
-            intro:
-              '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">运行生成标签云</strong><br/><span style="color:#64748b;">完成数据筛选之后，点击此按钮生成标签云。</span></div>',
-          },
-        ]);
-        intro.setOptions({
-          nextLabel: '下一步 →',
-          prevLabel: '← 上一步',
-          skipLabel: '跳过',
-          doneLabel: '完成',
-          showStepNumbers: true,
-          showProgress: true,
-          disableInteraction: false,
-          tooltipClass: 'customTooltipClass',
-          highlightClass: 'customHighlightClass',
-          exitOnOverlayClick: true,
-          exitOnEsc: true,
-          keyboardNavigation: true,
-          tooltipRenderAsHtml: true,
-        });
-        intro.onComplete(() => {
-          secondIntroStarted = false;
-        });
-        intro.onExit(() => {
-          secondIntroStarted = false;
-        });
-        intro.start();
-      } catch (error) {
-        console.error('[TagCloudCanvas] 二次引导启动失败', error);
-        secondIntroStarted = false;
-      }
-      return;
-    }
-
-    if (retries > 0) {
-      setTimeout(() => attemptStart(retries - 1), 200);
-    } else {
-      console.warn('[TagCloudCanvas] 未找到绘制引导元素');
-      secondIntroStarted = false;
-    }
-  };
-
-  nextTick(() => {
-    setTimeout(() => attemptStart(), 120);
-  });
-};
-
-async function handleRenderCloud() {
-  if (!poiStore.hasDrawing) {
-    startDrawGuideIntro();
-    return;
-  }
-  
-  allowRenderCloud.value = true;
-  try {
-    await renderCloud(true);
-  } catch (error) {
-    console.error('生成标签云失败:', error);
-  }
-}
 
 // 清除标签云
 const clearTagCloud = () => {
@@ -1613,6 +1577,31 @@ const switchResolution = async (mode) => {
   await renderCloud(false);
 };
 
+/** TouchEvent 常无 clientX/clientY，需从 touches 读取，否则 vpt 出现 NaN 导致画布空白 */
+function getPointerClientXY(e) {
+  if (!e) return null;
+  if (typeof e.clientX === 'number' && !Number.isNaN(e.clientX)) {
+    return { x: e.clientX, y: e.clientY };
+  }
+  const t = e.touches?.[0] ?? e.changedTouches?.[0];
+  if (t && typeof t.clientX === 'number' && !Number.isNaN(t.clientX)) {
+    return { x: t.clientX, y: t.clientY };
+  }
+  return null;
+}
+
+/** 双指中点对应的画布视口坐标（用于 zoomToPoint） */
+function viewportPointFromClient(canvas, clientX, clientY) {
+  return canvas.getPointer(
+    {
+      clientX,
+      clientY,
+      target: canvas.upperCanvasEl,
+    },
+    true,
+  );
+}
+
 // Canvas交互设置
 const setupCanvasInteractions = () => {
   if (!canvasInstance) return;
@@ -1635,10 +1624,12 @@ const setupCanvasInteractions = () => {
     opt.e.stopPropagation();
   });
   
-  // 鼠标拖拽（漫游）
+  // 鼠标拖拽（漫游） + 触控双指缩放
   let isDragging = false;
   let lastPosX = 0;
   let lastPosY = 0;
+  let isPinching = false;
+  let lastPinchDistance = 0;
   
   let clickStartTime = 0;
   let clickStartPos = { x: 0, y: 0 };
@@ -1646,24 +1637,74 @@ const setupCanvasInteractions = () => {
   
   canvasInstance.on('mouse:down', (opt) => {
     const evt = opt.e;
+    if (evt.touches?.length >= 2) {
+      isDragging = false;
+      isPinching = true;
+      const t0 = evt.touches[0];
+      const t1 = evt.touches[1];
+      lastPinchDistance = Math.max(
+        Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY),
+        1,
+      );
+      hasMoved = true;
+      clickStartTime = 0;
+      return;
+    }
+    const xy = getPointerClientXY(evt);
+    if (!xy) return;
     // 记录点击开始时间和位置，用于区分拖拽和点击
     clickStartTime = Date.now();
-    clickStartPos = { x: evt.clientX, y: evt.clientY };
+    clickStartPos = { x: xy.x, y: xy.y };
     hasMoved = false;
     
     if (isPanning.value) {
       isDragging = true;
-      lastPosX = evt.clientX;
-      lastPosY = evt.clientY;
+      lastPosX = xy.x;
+      lastPosY = xy.y;
     }
   });
   
   canvasInstance.on('mouse:move', (opt) => {
+    const e = opt.e;
+    const touches = e.touches;
+
+    if (touches && touches.length >= 2) {
+      if (isDragging) isDragging = false;
+      const t0 = touches[0];
+      const t1 = touches[1];
+      const dist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+      const midX = (t0.clientX + t1.clientX) / 2;
+      const midY = (t0.clientY + t1.clientY) / 2;
+      const vp = viewportPointFromClient(canvasInstance, midX, midY);
+      if (!isPinching) {
+        isPinching = true;
+        lastPinchDistance = Math.max(dist, 1);
+        hasMoved = true;
+      } else {
+        const ratio = dist / lastPinchDistance;
+        let newZoom = canvasInstance.getZoom() * ratio;
+        if (newZoom > 20) newZoom = 20;
+        if (newZoom < 0.01) newZoom = 0.01;
+        canvasInstance.zoomToPoint(vp, newZoom);
+        vpt = canvasInstance.viewportTransform;
+        lastPinchDistance = Math.max(dist, 1);
+      }
+      e.preventDefault?.();
+      return;
+    }
+
+    if (isPinching && (!touches || touches.length < 2)) {
+      isPinching = false;
+      lastPinchDistance = 0;
+      vpt = canvasInstance.viewportTransform;
+    }
+
     if (isDragging && isPanning.value) {
-      const e = opt.e;
+      const xy = getPointerClientXY(e);
+      if (!xy) return;
       const moveDistance = Math.sqrt(
-        Math.pow(e.clientX - clickStartPos.x, 2) + 
-        Math.pow(e.clientY - clickStartPos.y, 2)
+        Math.pow(xy.x - clickStartPos.x, 2) + 
+        Math.pow(xy.y - clickStartPos.y, 2)
       );
       // 如果移动距离超过5像素，认为是拖拽
       if (moveDistance > 5) {
@@ -1671,27 +1712,34 @@ const setupCanvasInteractions = () => {
       }
       
       vpt = canvasInstance.viewportTransform;
-      vpt[4] += e.clientX - lastPosX;
-      vpt[5] += e.clientY - lastPosY;
+      vpt[4] += xy.x - lastPosX;
+      vpt[5] += xy.y - lastPosY;
       canvasInstance.setViewportTransform(vpt);
-      lastPosX = e.clientX;
-      lastPosY = e.clientY;
+      lastPosX = xy.x;
+      lastPosY = xy.y;
     }
   });
   
   canvasInstance.on('mouse:up', (opt) => {
+    const evt = opt.e;
+    if (!evt.touches || evt.touches.length < 2) {
+      isPinching = false;
+      lastPinchDistance = 0;
+    }
     if (isDragging) {
       isDragging = false;
       vpt = canvasInstance.viewportTransform;
     }
     
     // 处理点击事件：只有在没有拖拽或拖拽距离很小的情况下才处理
-    const clickDuration = Date.now() - clickStartTime;
-    const evt = opt.e;
-    const moveDistance = Math.sqrt(
-      Math.pow(evt.clientX - clickStartPos.x, 2) + 
-      Math.pow(evt.clientY - clickStartPos.y, 2)
-    );
+    const clickDuration = clickStartTime ? Date.now() - clickStartTime : 999;
+    const xy = getPointerClientXY(evt);
+    const moveDistance = xy
+      ? Math.sqrt(
+          Math.pow(xy.x - clickStartPos.x, 2) + 
+          Math.pow(xy.y - clickStartPos.y, 2)
+        )
+      : 999;
     
     // 如果是短时间点击且移动距离小，认为是点击事件而不是拖拽
     if (clickDuration < 300 && moveDistance < 5 && !hasMoved) {
@@ -1990,6 +2038,11 @@ const handleExportCommand = (command) => {
   } else if (command === 'png' || command === 'jpeg') {
     prepareExportDialog(command);
   }
+};
+
+const handleMobileExportCommand = (command) => {
+  mobileToolsDrawerOpen.value = false;
+  handleExportCommand(command);
 };
 
 // 准备导出对话框
@@ -2356,24 +2409,26 @@ watch(
   },
 );
 
-// 监听数据列表变化（需要重新渲染）
+// 监听数据列表：筛选完成后自动允许渲染并生成（替代「运行生成标签云」）
 watch(
   () => poiStore.visibleList,
   (newList, oldList) => {
-    // 如果正在清除，不触发重新渲染
     if (isClearing.value) return;
-    
-    if (allowRenderCloud.value) {
-      // 只有当数据真正变化时才重新初始化金字塔
-      // 通过比较长度和第一个元素的id来判断是否真的变化了
-      const isDataChanged = !oldList || 
-        newList.length !== oldList.length ||
-        (newList.length > 0 && oldList.length > 0 && newList[0].id !== oldList[0].id);
-      
-      if (isDataChanged) {
-        // 数据变化时需要重新初始化金字塔
-        renderCloud(true);
-      }
+    if (!poiStore.hasDrawing || newList.length === 0) return;
+
+    if (!allowRenderCloud.value) {
+      allowRenderCloud.value = true;
+    }
+
+    const isDataChanged =
+      !oldList ||
+      newList.length !== oldList.length ||
+      (newList.length > 0 &&
+        oldList.length > 0 &&
+        newList[0].id !== oldList[0].id);
+
+    if (allowRenderCloud.value && isDataChanged) {
+      renderCloud(true);
     }
   },
   { deep: false },
@@ -2492,7 +2547,8 @@ onBeforeUnmount(() => {
 });
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@use '@/assets/styles/mobile-layout-mixin.scss' as *;
 .tagcloud-panel {
   background: #01030c;
   color: #fff;
@@ -2868,6 +2924,97 @@ canvas {
   color: #fff;
   font-weight: 500;
   word-break: break-word;
+}
+
+@include mobile-layout {
+  .tagcloud-panel {
+    min-width: 0;
+    padding: 12px;
+    gap: 0;
+  }
+
+  .canvas-wrapper {
+    touch-action: none;
+  }
+
+  .mobile-tagcloud-fab {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 16;
+    flex-shrink: 0;
+    box-shadow: 0 4px 14px rgba(57, 156, 235, 0.45);
+  }
+
+  .canvas-toolbar--hidden-mobile {
+    display: none !important;
+  }
+
+  /* 移动端略缩小图例以避让画布，但保持可读（勿过小） */
+  .distance-legend--compact {
+    transform: scale(0.92);
+    transform-origin: top right;
+    top: 10px;
+    right: 10px;
+    padding: 10px 12px;
+    min-width: 160px;
+    max-width: min(260px, 58vw);
+  }
+
+  .distance-legend--compact .legend-title {
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  .distance-legend--compact .legend-boundary-label {
+    font-size: 11px;
+  }
+
+  .distance-legend--compact .legend-colors {
+    height: 20px;
+  }
+
+  .distance-legend--compact .legend-color-item {
+    min-width: 16px;
+    height: 20px;
+  }
+
+  .hint-content {
+    padding: 24px 16px;
+  }
+}
+
+.mobile-drawer-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 16px;
+}
+
+.mobile-drawer-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mobile-drawer-label {
+  font-size: 13px;
+  color: #606266;
+  font-weight: 500;
+}
+
+.mobile-drawer-export {
+  width: 100%;
+}
+
+.mobile-drawer-count {
+  font-size: 13px;
+  color: #606266;
+}
+
+.mobile-drawer-count strong {
+  color: #399ceb;
+  margin-left: 4px;
 }
 </style>
 

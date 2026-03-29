@@ -1,11 +1,13 @@
 <template>
   <aside class="side-menu">
-    <div class="menu-group">
+    <div class="menu-group menu-group--main">
       <button
         v-for="item in mainMenu"
         :key="item.key"
+        type="button"
         class="menu-item"
         :class="{ active: activePanel === item.key }"
+        :data-intro-panel="item.key"
         @click="$emit('change-panel', item.key)"
       >
         <el-icon><component :is="item.icon" /></el-icon>
@@ -59,7 +61,8 @@ const handleHideClick = () => {
 };
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@use '@/assets/styles/mobile-layout-mixin.scss' as *;
 .side-menu {
   width: 108px;
   min-width: 108px;
@@ -160,6 +163,60 @@ const handleHideClick = () => {
   margin-top: auto;
   flex-direction: column;
   gap: 12px;
+}
+
+@include mobile-layout {
+  .side-menu {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 300;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: center;
+    overflow: hidden;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+    gap: 0;
+    border-right: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.18);
+  }
+
+  .footer-group {
+    display: none !important;
+  }
+
+  .menu-group--main {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+    max-width: 100%;
+    gap: 4px;
+    align-items: stretch;
+  }
+
+  .menu-item {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    max-width: none;
+    min-width: 0;
+    padding: 8px 4px;
+    font-size: 11px;
+  }
+
+  .menu-item :deep(.el-icon) {
+    font-size: 20px;
+  }
+
+  .menu-item.active {
+    transform: none;
+  }
 }
 </style>
 

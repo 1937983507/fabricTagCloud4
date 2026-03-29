@@ -364,7 +364,8 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@use '@/assets/styles/mobile-layout-mixin.scss' as *;
 .color-panel {
   min-height: calc(100vh - 160px);
   display: flex;
@@ -530,5 +531,92 @@ onMounted(() => {
   border-radius: 3px;
   border: 1px solid rgba(0, 0, 0, 0.1);
   min-width: 8px;
+}
+
+@include mobile-layout {
+  .color-panel {
+    min-height: 0;
+    height: auto;
+    gap: 18px;
+    padding: 12px 14px;
+  }
+
+  .config-section {
+    border-radius: 10px;
+    flex-shrink: 0;
+    overflow: visible;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 14px 16px;
+  }
+
+  .section-title {
+    font-size: 15px;
+    line-height: 1.3;
+  }
+
+  .section-desc {
+    margin-left: 0;
+    line-height: 1.45;
+    font-size: 13px;
+  }
+
+  .section-content {
+    padding: 18px 16px;
+  }
+
+  .color-item {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .color-item .label {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .section-content :deep(.el-select),
+  .section-content :deep(.el-input-number) {
+    width: 100% !important;
+    max-width: 100%;
+  }
+
+  .ribbon-preview-section {
+    margin-bottom: 12px;
+  }
+
+  .ribbon-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .current-ribbon {
+    padding: 8px;
+  }
+
+  .ribbon-color-item {
+    min-width: 0;
+    height: 28px;
+  }
+
+  .discrete-settings {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .ribbon-gallery {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    max-height: 280px;
+  }
+
+  .ribbon-scheme-item {
+    padding: 10px;
+  }
 }
 </style>

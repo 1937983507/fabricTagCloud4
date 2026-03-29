@@ -1,45 +1,365 @@
 <template>
   <div class="map-wrapper">
     <header
+      v-if="!isMobile"
       class="map-head"
       :class="{ 'map-head--draw-active': poiStore.hasDrawing }"
     >
-      <el-dropdown 
-        trigger="click" 
-        class="map-head-ctl map-toolbar-pair"
-        :disabled="poiStore.hasDrawing"
-        @command="handleDrawCommand"
-      >
-        <span class="map-toolbar-trigger" data-intro-target="dataFilterBtn">
-          <span class="map-toolbar-trigger__text">地图框选</span>
-          <el-icon class="map-toolbar-trigger__icon"><ArrowDown /></el-icon>
-        </span>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item command="drawCircle" :disabled="poiStore.hasDrawing">圆形</el-dropdown-item>
-            <el-dropdown-item command="drawRectangle" :disabled="poiStore.hasDrawing">矩形</el-dropdown-item>
-            <el-dropdown-item command="drawPolygon" :disabled="poiStore.hasDrawing">多边形</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
-      <el-button
-        class="map-toolbar-btn map-head-ctl map-toolbar-pair"
-        @click="openNearbyDialog"
-        :disabled="poiStore.hasDrawing"
-      >
-        周边筛选
-      </el-button>
-      <el-button
-        class="map-toolbar-btn map-head-ctl"
-        @click="clearDrawing"
-        :disabled="!poiStore.hasDrawing"
-      >
-        清除绘制
-      </el-button>
-      <el-button class="map-toolbar-btn map-head-ctl" @click="openSearch = true">
-        检索定位
-      </el-button>
+        <el-dropdown
+          trigger="click"
+          class="map-head-ctl map-toolbar-pair"
+          :disabled="poiStore.hasDrawing"
+          @command="handleDrawCommand"
+        >
+          <span class="map-toolbar-trigger" data-intro-target="dataFilterBtn">
+            <span class="map-toolbar-trigger__text">地图框选</span>
+            <el-icon class="map-toolbar-trigger__icon"><ArrowDown /></el-icon>
+          </span>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="drawCircle" :disabled="poiStore.hasDrawing">圆形</el-dropdown-item>
+              <el-dropdown-item command="drawRectangle" :disabled="poiStore.hasDrawing">矩形</el-dropdown-item>
+              <el-dropdown-item command="drawPolygon" :disabled="poiStore.hasDrawing">多边形</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <el-button
+          class="map-toolbar-btn map-head-ctl map-toolbar-pair"
+          @click="openNearbyDialog"
+          :disabled="poiStore.hasDrawing"
+        >
+          周边筛选
+        </el-button>
+        <el-button
+          class="map-toolbar-btn map-head-ctl"
+          @click="clearDrawing"
+          :disabled="!poiStore.hasDrawing"
+        >
+          清除绘制
+        </el-button>
+        <el-button class="map-toolbar-btn map-head-ctl" @click="openSearch = true">
+          检索定位
+        </el-button>
     </header>
+    <!-- PC：弹窗；移动端：见下方内联块，避免覆盖 workspace 顶栏 -->
+    <el-dialog
+      v-if="!isMobile"
+      v-model="openSearch"
+      title="搜索位置、公交站、地铁站"
+      width="360px"
+      class="poi-map-dialog poi-map-dialog--search"
+    >
+      <el-input v-model="searchKeyword" placeholder="请输入关键词" @keyup.enter="searchPlace">
+        <template #append>
+          <el-button @click="searchPlace">搜索</el-button>
+        </template>
+      </el-input>
+    </el-dialog>
+    <el-dialog
+      v-if="!isMobile"
+      v-model="openLocationFilter"
+      title="周边筛选"
+      width="480px"
+      :close-on-click-modal="false"
+      class="poi-map-dialog poi-map-dialog--nearby"
+      @close="handleLocationDialogClose"
+    >
+      <div class="location-filter-content">
+        <el-alert
+          v-if="locationError"
+          :title="locationError"
+          type="error"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 16px;"
+        />
+        <el-radio-group v-model="nearbyTier" class="nearby-tier-switch">
+          <el-radio-button label="basic">基础版</el-radio-button>
+          <el-radio-button label="advanced">高级版</el-radio-button>
+        </el-radio-group>
+
+        <template v-if="nearbyTier === 'basic'">
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            style="margin: 16px 0;"
+            title="中心点由自动定位确定（浏览器 / 高德 / IP），您只需指定半径。"
+          />
+          <div class="filter-form-item">
+            <label class="filter-label">半径（km）</label>
+            <el-input-number
+              v-model="filterRadius"
+              :min="0.1"
+              :max="1000"
+              :step="0.1"
+              :precision="1"
+              style="width: 100%;"
+            />
+          </div>
+        </template>
+
+        <template v-else>
+          <section class="nearby-section nearby-section--center" aria-label="中心点">
+            <div class="nearby-section__header">
+              <span class="nearby-section__badge">1</span>
+              <div class="nearby-section__titles">
+                <h4 class="nearby-section__title">中心点</h4>
+                <p class="nearby-section__hint">如何确定地图上的筛选中心</p>
+              </div>
+            </div>
+            <div class="nearby-section__body">
+              <label class="nearby-field-label" for="nearby-center-mode-m">来源</label>
+              <el-select
+                id="nearby-center-mode-m"
+                v-model="advancedCenterMode"
+                class="nearby-select-full"
+                placeholder="选择中心点来源"
+              >
+                <el-option label="自动定位" value="auto" />
+                <el-option label="文本输入" value="place" />
+                <el-option label="经纬度输入" value="coord" />
+              </el-select>
+              <div
+                v-if="advancedCenterMode === 'place'"
+                class="nearby-follow-field"
+              >
+                <el-input
+                  v-model="advancedPlaceQuery"
+                  class="nearby-select-full"
+                  placeholder="输入地点关键词，确定后将进行地理编码"
+                  clearable
+                />
+              </div>
+              <div
+                v-if="advancedCenterMode === 'coord'"
+                class="nearby-follow-field"
+              >
+                <el-input
+                  v-model="advancedCoordStr"
+                  class="nearby-select-full"
+                  placeholder="经度,纬度，例如 114.3342,30.5768"
+                  @keyup.enter="applyNearbyFilter"
+                />
+              </div>
+            </div>
+          </section>
+          <section class="nearby-section nearby-section--filter" aria-label="筛选方式">
+            <div class="nearby-section__header">
+              <span class="nearby-section__badge">2</span>
+              <div class="nearby-section__titles">
+                <h4 class="nearby-section__title">筛选方式</h4>
+                <p class="nearby-section__hint">按圆形半径或按距中心直线距离最近的 N 个点</p>
+              </div>
+            </div>
+            <div class="nearby-section__body">
+              <label class="nearby-field-label" for="nearby-filter-mode-m">方式</label>
+              <el-select
+                id="nearby-filter-mode-m"
+                v-model="advancedFilterMode"
+                class="nearby-select-full"
+                placeholder="选择筛选方式"
+              >
+                <el-option label="按半径" value="radius" />
+                <el-option label="按 POI 数量（最近 N 个）" value="count" />
+              </el-select>
+              <template v-if="advancedFilterMode === 'radius'">
+                <label class="nearby-field-label nearby-block-gap" for="nearby-radius-km-m">半径（km）</label>
+                <el-input-number
+                  id="nearby-radius-km-m"
+                  v-model="filterRadius"
+                  class="nearby-select-full"
+                  :min="0.1"
+                  :max="1000"
+                  :step="0.1"
+                  :precision="1"
+                />
+              </template>
+              <template v-else>
+                <label class="nearby-field-label nearby-block-gap" for="nearby-poi-n-m">POI 数量 N</label>
+                <el-input-number
+                  id="nearby-poi-n-m"
+                  v-model="filterPoiCount"
+                  class="nearby-select-full"
+                  :min="1"
+                  :max="100000"
+                  :step="1"
+                  :precision="0"
+                />
+              </template>
+            </div>
+          </section>
+        </template>
+
+        <div v-if="locationLoading" class="location-loading">
+          <el-icon class="loading-icon"><Loading /></el-icon>
+          <span class="loading-text">{{ currentLocationMethod || '处理中，请稍等…' }}</span>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="openLocationFilter = false">取消</el-button>
+        <el-button
+          type="primary"
+          @click="applyNearbyFilter"
+          :loading="locationLoading"
+        >
+          确定
+        </el-button>
+      </template>
+    </el-dialog>
+    <!-- 移动端：周边筛选常显；顶行含标题、基础/高级、清除筛选 -->
+    <div v-if="isMobile" class="map-flow-panel map-flow-panel--nearby">
+      <div class="map-flow-panel__head map-flow-panel__head--nearby-mobile">
+        <span class="map-flow-panel__title map-flow-panel__title--inline">周边筛选</span>
+        <el-radio-group v-model="nearbyTier" class="nearby-tier-switch nearby-tier-switch--head">
+          <el-radio-button label="basic">基础版</el-radio-button>
+          <el-radio-button label="advanced">高级版</el-radio-button>
+        </el-radio-group>
+        <el-button
+          class="map-flow-panel__clear-draw"
+          plain
+          size="small"
+          @click="clearDrawing"
+          :disabled="!poiStore.hasDrawing"
+        >
+          清除筛选
+        </el-button>
+      </div>
+      <div class="location-filter-content">
+        <el-alert
+          v-if="locationError"
+          :title="locationError"
+          type="error"
+          :closable="false"
+          show-icon
+          class="map-flow-panel__alert-error"
+        />
+
+        <template v-if="nearbyTier === 'basic'">
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            class="map-flow-panel__alert-info"
+            title="中心点由自动定位确定（浏览器 / 高德 / IP），您只需指定半径。"
+          />
+          <div class="map-flow-panel__radius-row">
+            <label class="map-flow-panel__radius-label" for="nearby-radius-mobile">半径（km）</label>
+            <el-input-number
+              id="nearby-radius-mobile"
+              v-model="filterRadius"
+              class="map-flow-panel__radius-input"
+              :min="0.1"
+              :max="1000"
+              :step="0.1"
+              :precision="1"
+              controls-position="right"
+            />
+          </div>
+        </template>
+
+        <template v-else>
+          <section class="nearby-section nearby-section--center" aria-label="中心点">
+            <div class="nearby-section__header">
+              <span class="nearby-section__badge">1</span>
+              <div class="nearby-section__titles">
+                <h4 class="nearby-section__title">中心点</h4>
+                <p class="nearby-section__hint">如何确定地图上的筛选中心</p>
+              </div>
+            </div>
+            <div class="nearby-section__body">
+              <label class="nearby-field-label" for="nearby-center-mode-inline">来源</label>
+              <el-select
+                id="nearby-center-mode-inline"
+                v-model="advancedCenterMode"
+                class="nearby-select-full"
+                placeholder="选择中心点来源"
+              >
+                <el-option label="自动定位" value="auto" />
+                <el-option label="文本输入" value="place" />
+                <el-option label="经纬度输入" value="coord" />
+              </el-select>
+              <div
+                v-if="advancedCenterMode === 'place'"
+                class="nearby-follow-field"
+              >
+                <el-input
+                  v-model="advancedPlaceQuery"
+                  class="nearby-select-full"
+                  placeholder="输入地点关键词，确定后将进行地理编码"
+                  clearable
+                />
+              </div>
+              <div
+                v-if="advancedCenterMode === 'coord'"
+                class="nearby-follow-field"
+              >
+                <el-input
+                  v-model="advancedCoordStr"
+                  class="nearby-select-full"
+                  placeholder="经度,纬度，例如 114.3342,30.5768"
+                  @keyup.enter="applyNearbyFilter"
+                />
+              </div>
+            </div>
+          </section>
+          <section class="nearby-section nearby-section--filter" aria-label="筛选方式">
+            <div class="nearby-section__header">
+              <span class="nearby-section__badge">2</span>
+              <div class="nearby-section__titles">
+                <h4 class="nearby-section__title">筛选方式</h4>
+                <p class="nearby-section__hint">按圆形半径或按距中心直线距离最近的 N 个点</p>
+              </div>
+            </div>
+            <div class="nearby-section__body">
+              <label class="nearby-field-label" for="nearby-filter-mode-inline">方式</label>
+              <el-select
+                id="nearby-filter-mode-inline"
+                v-model="advancedFilterMode"
+                class="nearby-select-full"
+                placeholder="选择筛选方式"
+              >
+                <el-option label="按半径" value="radius" />
+                <el-option label="按 POI 数量（最近 N 个）" value="count" />
+              </el-select>
+              <template v-if="advancedFilterMode === 'radius'">
+                <label class="nearby-field-label nearby-block-gap" for="nearby-radius-km-inline">半径（km）</label>
+                <el-input-number
+                  id="nearby-radius-km-inline"
+                  v-model="filterRadius"
+                  class="nearby-select-full"
+                  :min="0.1"
+                  :max="1000"
+                  :step="0.1"
+                  :precision="1"
+                />
+              </template>
+              <template v-else>
+                <label class="nearby-field-label nearby-block-gap" for="nearby-poi-n-inline">POI 数量 N</label>
+                <el-input-number
+                  id="nearby-poi-n-inline"
+                  v-model="filterPoiCount"
+                  class="nearby-select-full"
+                  :min="1"
+                  :max="100000"
+                  :step="1"
+                  :precision="0"
+                />
+              </template>
+            </div>
+          </section>
+        </template>
+
+        <div v-if="locationLoading" class="location-loading">
+          <el-icon class="loading-icon"><Loading /></el-icon>
+          <span class="loading-text">{{ currentLocationMethod || '处理中，请稍等…' }}</span>
+        </div>
+      </div>
+      <div class="map-flow-panel__footer">
+        <el-button v-if="!isMobile" @click="openLocationFilter = false">取消</el-button>
+        <el-button type="primary" @click="applyNearbyFilter" :loading="locationLoading">确定</el-button>
+      </div>
+    </div>
     <div ref="mapRef" class="map-canvas">
       <div
         class="map-layer-dock"
@@ -110,167 +430,6 @@
         </div>
       </div>
     </div>
-    <el-dialog v-model="openSearch" title="搜索位置、公交站、地铁站" width="360px">
-      <el-input v-model="searchKeyword" placeholder="请输入关键词" @keyup.enter="searchPlace">
-        <template #append>
-          <el-button @click="searchPlace">搜索</el-button>
-        </template>
-      </el-input>
-    </el-dialog>
-    <!-- 周边筛选 -->
-    <el-dialog 
-      v-model="openLocationFilter" 
-      title="周边筛选" 
-      width="480px"
-      :close-on-click-modal="false"
-      @close="handleLocationDialogClose"
-    >
-      <div class="location-filter-content">
-        <el-alert
-          v-if="locationError"
-          :title="locationError"
-          type="error"
-          :closable="false"
-          show-icon
-          style="margin-bottom: 16px;"
-        />
-        <el-radio-group v-model="nearbyTier" class="nearby-tier-switch">
-          <el-radio-button label="basic">基础版</el-radio-button>
-          <el-radio-button label="advanced">高级版</el-radio-button>
-        </el-radio-group>
-
-        <template v-if="nearbyTier === 'basic'">
-          <el-alert
-            type="info"
-            :closable="false"
-            show-icon
-            style="margin: 16px 0;"
-            title="中心点由自动定位确定（浏览器 / 高德 / IP），您只需指定半径。"
-          />
-          <div class="filter-form-item">
-            <label class="filter-label">半径（km）</label>
-            <el-input-number
-              v-model="filterRadius"
-              :min="0.1"
-              :max="1000"
-              :step="0.1"
-              :precision="1"
-              style="width: 100%;"
-            />
-          </div>
-        </template>
-
-        <template v-else>
-          <section class="nearby-section nearby-section--center" aria-label="中心点">
-            <div class="nearby-section__header">
-              <span class="nearby-section__badge">1</span>
-              <div class="nearby-section__titles">
-                <h4 class="nearby-section__title">中心点</h4>
-                <p class="nearby-section__hint">如何确定地图上的筛选中心</p>
-              </div>
-            </div>
-            <div class="nearby-section__body">
-              <label class="nearby-field-label" for="nearby-center-mode">来源</label>
-              <el-select
-                id="nearby-center-mode"
-                v-model="advancedCenterMode"
-                class="nearby-select-full"
-                placeholder="选择中心点来源"
-              >
-                <el-option label="自动定位" value="auto" />
-                <el-option label="文本输入（下拉联想）" value="place" />
-                <el-option label="经纬度输入" value="coord" />
-              </el-select>
-              <div
-                v-if="advancedCenterMode === 'place'"
-                class="nearby-follow-field"
-              >
-                <el-autocomplete
-                  v-model="advancedPlaceQuery"
-                  class="nearby-select-full"
-                  :fetch-suggestions="fetchPlaceSuggestions"
-                  placeholder="输入地点关键词，选择联想结果；未选择时确定将尝试地理编码"
-                  clearable
-                  @select="onPlaceTipSelect"
-                  @input="onPlaceQueryInput"
-                />
-              </div>
-              <div
-                v-if="advancedCenterMode === 'coord'"
-                class="nearby-follow-field"
-              >
-                <el-input
-                  v-model="advancedCoordStr"
-                  class="nearby-select-full"
-                  placeholder="经度,纬度，例如 114.3342,30.5768"
-                  @keyup.enter="applyNearbyFilter"
-                />
-              </div>
-            </div>
-          </section>
-          <section class="nearby-section nearby-section--filter" aria-label="筛选方式">
-            <div class="nearby-section__header">
-              <span class="nearby-section__badge">2</span>
-              <div class="nearby-section__titles">
-                <h4 class="nearby-section__title">筛选方式</h4>
-                <p class="nearby-section__hint">按圆形半径或按距中心直线距离最近的 N 个点</p>
-              </div>
-            </div>
-            <div class="nearby-section__body">
-              <label class="nearby-field-label" for="nearby-filter-mode">方式</label>
-              <el-select
-                id="nearby-filter-mode"
-                v-model="advancedFilterMode"
-                class="nearby-select-full"
-                placeholder="选择筛选方式"
-              >
-                <el-option label="按半径" value="radius" />
-                <el-option label="按 POI 数量（最近 N 个）" value="count" />
-              </el-select>
-              <template v-if="advancedFilterMode === 'radius'">
-                <label class="nearby-field-label nearby-block-gap" for="nearby-radius-km">半径（km）</label>
-                <el-input-number
-                  id="nearby-radius-km"
-                  v-model="filterRadius"
-                  class="nearby-select-full"
-                  :min="0.1"
-                  :max="1000"
-                  :step="0.1"
-                  :precision="1"
-                />
-              </template>
-              <template v-else>
-                <label class="nearby-field-label nearby-block-gap" for="nearby-poi-n">POI 数量 N</label>
-                <el-input-number
-                  id="nearby-poi-n"
-                  v-model="filterPoiCount"
-                  class="nearby-select-full"
-                  :min="1"
-                  :max="100000"
-                  :step="1"
-                  :precision="0"
-                />
-              </template>
-            </div>
-          </section>
-        </template>
-
-        <div v-if="locationLoading" class="location-loading">
-          <el-icon class="loading-icon"><Loading /></el-icon>
-          <span class="loading-text">{{ currentLocationMethod || '处理中，请稍等…' }}</span>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="openLocationFilter = false">取消</el-button>
-        <el-button 
-          type="primary" 
-          @click="applyNearbyFilter"
-          :loading="locationLoading"
-        >
-          确定
-        </el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -279,12 +438,14 @@ import { ArrowDown, Loading } from '@element-plus/icons-vue';
 import { usePoiStore } from '@/stores/poiStore';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { onMounted, onBeforeUnmount, ref, watch, nextTick, computed } from 'vue';
+import { useMobileLayout } from '@/composables/useMobileLayout';
 import mapLayerNormalUrl from '@/assets/map-layers/normal.svg?url';
 import mapLayerSatelliteUrl from '@/assets/map-layers/satellite.svg?url';
 import mapLayerRoadnetUrl from '@/assets/map-layers/roadnet.svg?url';
 import mapLayerTrafficUrl from '@/assets/map-layers/traffic.svg?url';
 
 const poiStore = usePoiStore();
+const { isMobile } = useMobileLayout();
 const mapRef = ref(null);
 const openSearch = ref(false);
 const searchKeyword = ref('');
@@ -300,10 +461,6 @@ const advancedFilterMode = ref('radius');
 const filterPoiCount = ref(30);
 const advancedPlaceQuery = ref('');
 const advancedCoordStr = ref('');
-/** @type {import('vue').Ref<Record<string, unknown> | null>} 联想选中项的原始 tip */
-const advancedPlaceTip = ref(null);
-/** 从联想列表选择后短窗期内不因 input 清空 tip */
-const skipPlaceTipClear = ref(false);
 
 /** 图层缩略图：走 Vite ?url，构建后路径带 hash，不依赖 public 与 BASE_URL 手写拼接 */
 const MAP_LAYER_OPTIONS = [
@@ -346,8 +503,8 @@ const onMapLayerDockLeave = () => {
 };
 
 let mapInstance = null;
+
 let mapLayers = {};
-let autoComplete = null;
 let placeSearch = null;
 let amapGlobal = null;
 let mouseTool = null;
@@ -506,7 +663,6 @@ const loadMap = async () => {
     plugins: [
       'AMap.ToolBar',
       'AMap.Scale',
-      'AMap.AutoComplete',
       'AMap.PlaceSearch',
       'AMap.TileLayer.Satellite',
       'AMap.TileLayer.RoadNet',
@@ -555,14 +711,8 @@ const loadMap = async () => {
   mapInstance.addControl(new amapGlobal.ToolBar());
   mapInstance.addControl(new amapGlobal.Scale());
 
-  autoComplete = new amapGlobal.AutoComplete();
   placeSearch = new amapGlobal.PlaceSearch({
     map: mapInstance,
-  });
-  autoComplete.on('select', (event) => {
-    placeSearch.setCity(event.poi.adcode);
-    placeSearch.search(event.poi.name);
-    openSearch.value = false;
   });
 
   heatmapLayer = new amapGlobal.HeatMap(mapInstance, {
@@ -973,69 +1123,12 @@ const handleLocationDialogClose = () => {
   advancedFilterMode.value = 'radius';
   advancedPlaceQuery.value = '';
   advancedCoordStr.value = '';
-  advancedPlaceTip.value = null;
 };
 
 const openNearbyDialog = () => {
   if (poiStore.hasDrawing) return;
   locationError.value = '';
   openLocationFilter.value = true;
-};
-
-const onPlaceTipSelect = (item) => {
-  skipPlaceTipClear.value = true;
-  advancedPlaceTip.value = item?.raw ?? null;
-  nextTick(() => {
-    skipPlaceTipClear.value = false;
-  });
-};
-
-const onPlaceQueryInput = () => {
-  if (skipPlaceTipClear.value) return;
-  advancedPlaceTip.value = null;
-};
-
-const fetchPlaceSuggestions = (queryString, cb) => {
-  const q = queryString?.trim();
-  if (!q || !autoComplete) {
-    cb([]);
-    return;
-  }
-  autoComplete.search(q, (status, result) => {
-    if (status === 'complete' && result?.tips?.length) {
-      cb(
-        result.tips.map((tip) => ({
-          value: [tip.name, tip.district, tip.address].filter(Boolean).join(' · '),
-          raw: tip,
-        })),
-      );
-    } else {
-      cb([]);
-    }
-  });
-};
-
-const tipToLngLat = (tip) => {
-  if (!tip || !amapGlobal) return null;
-  const loc = tip.location;
-  if (!loc) return null;
-  if (typeof loc.getLng === 'function' && typeof loc.getLat === 'function') {
-    return new amapGlobal.LngLat(loc.getLng(), loc.getLat());
-  }
-  if (typeof loc === 'string') {
-    const parts = loc.split(',');
-    if (parts.length >= 2) {
-      const lng = parseFloat(parts[0]);
-      const lat = parseFloat(parts[1]);
-      if (!Number.isNaN(lng) && !Number.isNaN(lat)) {
-        return new amapGlobal.LngLat(lng, lat);
-      }
-    }
-  }
-  if (typeof loc.lng === 'number' && typeof loc.lat === 'number') {
-    return new amapGlobal.LngLat(loc.lng, loc.lat);
-  }
-  return null;
 };
 
 /** 地点关键词 → LngLat（Geocoder 优先，失败则 PlaceSearch） */
@@ -1186,11 +1279,7 @@ const resolveAdvancedCenter = async () => {
     return new amapGlobal.LngLat(lng, lat);
   }
   const q = advancedPlaceQuery.value.trim();
-  if (!q) throw new Error('请输入地点关键词或从联想列表中选择');
-  if (advancedPlaceTip.value) {
-    const fromTip = tipToLngLat(advancedPlaceTip.value);
-    if (fromTip) return fromTip;
-  }
+  if (!q) throw new Error('请输入地点关键词');
   return geocodeKeyword(q);
 };
 
@@ -1535,7 +1624,8 @@ onBeforeUnmount(() => {
 });
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@use '@/assets/styles/mobile-layout-mixin.scss' as *;
 .map-wrapper {
   display: flex;
   flex-direction: column;
@@ -1731,7 +1821,7 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-.location-filter-content :deep(.nearby-select-full.el-autocomplete) {
+.location-filter-content :deep(.nearby-select-full.el-input) {
   width: 100%;
 }
 
@@ -1969,6 +2059,271 @@ onBeforeUnmount(() => {
 
 .input-tips p {
   margin: 2px 0;
+}
+
+.map-flow-panel {
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 10px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.map-flow-panel__title {
+  font-weight: 600;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #303133;
+}
+
+.map-flow-panel__title--solo {
+  margin-bottom: 12px;
+}
+
+.map-flow-panel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.map-flow-panel__head .map-flow-panel__title {
+  margin-bottom: 0;
+}
+
+/* 移动端周边筛选：顶行 标题 | 基础/高级 | 清除筛选（与按钮同高） */
+.map-flow-panel__head--nearby-mobile {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  min-width: 0;
+  --nearby-head-ctl-height: 28px;
+}
+
+.map-flow-panel__title--inline {
+  flex-shrink: 0;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  white-space: nowrap;
+}
+
+.nearby-tier-switch--head {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 与 small 按钮同高，避免 segmented 被压扁 */
+.nearby-tier-switch--head :deep(.el-radio-button__inner) {
+  box-sizing: border-box;
+  min-height: var(--nearby-head-ctl-height, 28px);
+  height: var(--nearby-head-ctl-height, 28px);
+  padding: 0 10px;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-flow-panel__clear-draw {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  height: var(--nearby-head-ctl-height, 28px);
+  min-height: var(--nearby-head-ctl-height, 28px);
+  padding: 0 10px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.map-flow-panel__alert-error {
+  margin-bottom: 8px;
+}
+
+.map-flow-panel__alert-info {
+  margin: 0 0 8px;
+}
+
+.map-flow-panel__radius-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.map-flow-panel__radius-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #606266;
+  font-weight: 500;
+}
+
+.map-flow-panel__radius-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.map-flow-panel__close {
+  margin-top: 8px;
+}
+
+.map-flow-panel--search .map-flow-panel__title {
+  margin-bottom: 8px;
+}
+
+.map-flow-panel--nearby .location-filter-content {
+  max-height: min(52vh, 460px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.map-flow-panel__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #ebeef5;
+}
+
+@include mobile-layout {
+  /*
+   * 避免 height:100% + flex 子项争占父级全高，导致地图与下方表格重叠。
+   * 地图区用固定高度，由整块纵向流式排布。
+   */
+  .map-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    flex-shrink: 0;
+    width: 100%;
+  }
+
+  .map-flow-panel {
+    flex-shrink: 0;
+  }
+
+  .map-canvas {
+    flex: 0 0 auto;
+    width: 100%;
+    height: min(42vh, 320px);
+    min-height: 200px;
+    max-height: 55vh;
+  }
+
+  .map-head {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .map-flow-panel--nearby .location-filter-content {
+    max-height: min(58vh, 520px);
+  }
+
+  /* 周边筛选：移动端更紧凑 */
+  .map-flow-panel--nearby {
+    margin: 0 0 6px;
+    padding: 8px 10px;
+  }
+
+  .map-flow-panel--nearby .map-flow-panel__head--nearby-mobile {
+    margin-bottom: 6px;
+    gap: 4px;
+  }
+
+  .map-flow-panel--nearby .map-flow-panel__title--inline {
+    font-size: 13px;
+  }
+
+  .map-flow-panel--nearby .nearby-tier-switch--head :deep(.el-radio-button__inner) {
+    min-height: 28px;
+    height: 28px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
+  .map-flow-panel--nearby .map-flow-panel__clear-draw {
+    height: 28px;
+    min-height: 28px;
+  }
+
+  .map-flow-panel--nearby .nearby-tier-switch {
+    margin-bottom: 0;
+  }
+
+  .map-flow-panel--nearby .nearby-section {
+    margin-top: 8px;
+    padding: 10px 12px;
+  }
+
+  .map-flow-panel--nearby .nearby-section:first-of-type {
+    margin-top: 6px;
+  }
+
+  .map-flow-panel--nearby .nearby-section__header {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    gap: 8px;
+  }
+
+  .map-flow-panel--nearby .nearby-section__badge {
+    width: 22px;
+    height: 22px;
+    font-size: 12px;
+  }
+
+  .map-flow-panel--nearby .nearby-section__title {
+    font-size: 14px;
+  }
+
+  .map-flow-panel--nearby .nearby-section__hint {
+    margin-top: 2px;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .map-flow-panel--nearby .nearby-field-label {
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+
+  .map-flow-panel--nearby .nearby-follow-field {
+    margin-top: 8px;
+  }
+
+  .map-flow-panel--nearby .nearby-block-gap {
+    margin-top: 8px;
+  }
+
+  .map-flow-panel--nearby .location-filter-content {
+    padding: 4px 0 0;
+  }
+
+  .map-flow-panel--nearby :deep(.el-alert) {
+    margin-bottom: 6px;
+    padding: 6px 10px;
+  }
+
+  .map-flow-panel--nearby .map-flow-panel__alert-info {
+    margin-bottom: 6px;
+  }
+
+  .map-flow-panel--nearby .map-flow-panel__radius-row :deep(.el-input-number) {
+    width: 100%;
+  }
 }
 </style>
 

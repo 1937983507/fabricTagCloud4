@@ -21,7 +21,13 @@
             显示所选
           </el-button>
         </el-button-group>
-        <el-button size="small" type="success" plain @click="importDialogVisible = true">
+        <el-button
+          v-if="!isMobile"
+          size="small"
+          type="success"
+          plain
+          @click="importDialogVisible = true"
+        >
           导入数据
         </el-button>
       </div>
@@ -57,9 +63,11 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { usePoiStore } from '@/stores/poiStore';
+import { useMobileLayout } from '@/composables/useMobileLayout';
 import ImportDataDialog from './ImportDataDialog.vue';
 
 const poiStore = usePoiStore();
+const { isMobile } = useMobileLayout();
 const importDialogVisible = ref(false);
 const currentPage = ref(1);
 const pageSize = ref(20);
@@ -116,7 +124,8 @@ watch(
 );
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@use '@/assets/styles/mobile-layout-mixin.scss' as *;
 .table-card {
   display: flex;
   flex-direction: column;
@@ -209,6 +218,15 @@ watch(
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+}
+
+@include mobile-layout {
+  .table-card {
+    height: auto;
+    max-height: min(52vh, 480px);
+    min-height: 200px;
+    flex: 1 1 auto;
+  }
 }
 </style>
 
