@@ -84,8 +84,21 @@ export const usePoiStore = defineStore('poiStore', {
   getters: {
     totalCount: (state) => state.poiList.length,
     selectedCount: (state) => state.selectedIds.length,
+    /** 仅给数据表用：随「显示全部 / 显示所选」切换 */
     visibleList: (state) => {
       if (state.visibleMode === 'selected') {
+        return state.poiList.filter((poi) =>
+          state.selectedIds.includes(poi.id),
+        );
+      }
+      return state.poiList;
+    },
+    /**
+     * 标签云专用数据源：不受 visibleMode 影响。
+     * 有地图/周边筛选（hasDrawing）时固定为当前筛选结果；否则为全量 poiList。
+     */
+    tagCloudList: (state) => {
+      if (state.hasDrawing && state.selectedIds.length > 0) {
         return state.poiList.filter((poi) =>
           state.selectedIds.includes(poi.id),
         );

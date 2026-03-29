@@ -53,7 +53,7 @@
         :width="canvasWidth"
         :height="canvasHeight"
       ></canvas>
-      <div v-if="!allowRenderCloud || poiStore.visibleList.length === 0" class="empty-cloud-hint">
+      <div v-if="!allowRenderCloud || poiStore.tagCloudList.length === 0" class="empty-cloud-hint">
         <div class="hint-content">
           <div class="hint-icon">
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -362,11 +362,11 @@ const renderProgress = computed(() => {
 const calculateColorBoundaries = () => {
   pyramidUpdateTrigger.value;
   
-  if (!allowRenderCloud.value || !poiStore.visibleList.length || poisPyramid.length === 0) {
+  if (!allowRenderCloud.value || !poiStore.tagCloudList.length || poisPyramid.length === 0) {
     return [];
   }
   
-  const sourceList = poiStore.visibleList;
+  const sourceList = poiStore.tagCloudList;
   const currentData = poisPyramid[tagCloudScale] || poisPyramid[0] || sourceList;
   if (!currentData || currentData.length === 0) {
     return [];
@@ -1251,7 +1251,7 @@ const renderCloud = async (rebuildPyramid = false) => {
   
   try {
     // 1. 获取筛选后的POI数据
-    const sourceList = poiStore.visibleList;
+    const sourceList = poiStore.tagCloudList;
     if (!sourceList || sourceList.length === 0) {
       console.warn('没有可用的POI数据');
       isRendering = false;
@@ -1881,7 +1881,7 @@ const updateLabelColors = () => {
     if (!obj.poiId) return; // 跳过没有poiId的对象
     
     // 获取POI数据（从poiStore中查找）
-    const poi = poiStore.visibleList.find(p => p.id === obj.poiId);
+    const poi = poiStore.tagCloudList.find(p => p.id === obj.poiId);
     if (!poi) return;
     
     // 计算与中心的距离
@@ -2411,7 +2411,7 @@ watch(
 
 // 监听数据列表：筛选完成后自动允许渲染并生成（替代「运行生成标签云」）
 watch(
-  () => poiStore.visibleList,
+  () => poiStore.tagCloudList,
   (newList, oldList) => {
     if (isClearing.value) return;
     if (!poiStore.hasDrawing || newList.length === 0) return;
