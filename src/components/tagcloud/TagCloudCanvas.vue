@@ -107,42 +107,47 @@
       
       <!-- 交互工具栏 -->
       <div class="canvas-toolbar">
-        <el-button
-          circle
-          size="small"
-          :icon="RefreshLeft"
-          @click="returnToCenter"
-          title="返回中心点"
-        />
-        <el-button
-          circle
-          size="small"
-          :icon="FullScreen"
-          @click="returnToScale"
-          title="返回原始缩放"
-        />
-        <el-button
-          circle
-          size="small"
-          :icon="Rank"
-          :type="isPanning ? 'primary' : 'default'"
-          @click="togglePanning"
-          title="漫游"
-        />
-        <el-button
-          circle
-          size="small"
-          :icon="ZoomIn"
-          @click="zoomIn"
-          title="放大"
-        />
-        <el-button
-          circle
-          size="small"
-          :icon="ZoomOut"
-          @click="zoomOut"
-          title="缩小"
-        />
+        <el-tooltip content="返回中心点" placement="left" :show-after="0" :hide-after="100" effect="dark" popper-class="canvas-toolbar-tooltip" :offset="8">
+          <el-button
+            circle
+            size="small"
+            :icon="RefreshLeft"
+            @click="returnToCenter"
+          />
+        </el-tooltip>
+        <el-tooltip content="返回原始缩放" placement="left" :show-after="0" :hide-after="100" effect="dark" popper-class="canvas-toolbar-tooltip" :offset="8">
+          <el-button
+            circle
+            size="small"
+            :icon="FullScreen"
+            @click="returnToScale"
+          />
+        </el-tooltip>
+        <el-tooltip content="漫游" placement="left" :show-after="0" :hide-after="100" effect="dark" popper-class="canvas-toolbar-tooltip" :offset="8">
+          <el-button
+            circle
+            size="small"
+            :icon="Rank"
+            :type="isPanning ? 'primary' : 'default'"
+            @click="togglePanning"
+          />
+        </el-tooltip>
+        <el-tooltip content="放大" placement="left" :show-after="0" :hide-after="100" effect="dark" popper-class="canvas-toolbar-tooltip" :offset="8">
+          <el-button
+            circle
+            size="small"
+            :icon="ZoomIn"
+            @click="zoomIn"
+          />
+        </el-tooltip>
+        <el-tooltip content="缩小" placement="left" :show-after="0" :hide-after="100" effect="dark" popper-class="canvas-toolbar-tooltip" :offset="8">
+          <el-button
+            circle
+            size="small"
+            :icon="ZoomOut"
+            @click="zoomOut"
+          />
+        </el-tooltip>
       </div>
       
       <!-- POI信息窗口 -->
@@ -2863,6 +2868,13 @@ canvas {
   color: #fff;
   font-weight: 500;
   word-break: break-word;
+}
+</style>
+
+<style>
+/* Teleport 到 body，需非 scoped；保证浮在标签云画布之上 */
+.canvas-toolbar-tooltip.el-popper {
+  z-index: 5000 !important;
 }
 </style>
 
