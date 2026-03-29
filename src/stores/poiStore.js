@@ -7,12 +7,43 @@ const DATA_SOURCE = 'json'; // 可以改为 'csv' 切换回CSV模式
 const CSV_DATA_URL = `${import.meta.env.BASE_URL}data/chinapoi.csv`;
 const JSON_DATA_URL = `${import.meta.env.BASE_URL}data/chinapoi.json`;
 
+/**
+ * CSV 导入：替换会话内 POI（供对话框直接调用，避免仅依赖 store action 挂载）
+ */
+export function applyImportedPoiData(store, pois, meta) {
+  const palette = store.colorSettings.palette;
+  const sizes = store.fontSettings.fontSizes;
+  const mapped = pois.map((poi, index) => ({
+    ...poi,
+    selected: false,
+    fontColor: palette[index % palette.length],
+    fontSize: sizes[index % sizes.length],
+    typeface: store.fontSettings.fontFamily,
+  }));
+  const nextFont = { ...store.fontSettings };
+  if (meta.nameLanguageAvailability === 'zhOnly') {
+    nextFont.language = 'zh';
+  } else if (meta.nameLanguageAvailability === 'enOnly') {
+    nextFont.language = 'en';
+  }
+  store.$patch({
+    poiList: mapped,
+    selectedIds: [],
+    visibleMode: 'all',
+    importMeta: {
+      valueSemantics: meta.valueSemantics,
+      nameLanguageAvailability: meta.nameLanguageAvailability,
+      hasCityColumn: meta.hasCityColumn === true,
+    },
+    fontSettings: nextFont,
+  });
+}
+
 export const usePoiStore = defineStore('poiStore', {
   state: () => ({
     poiList: [],
     dataLoading: false, // 数据加载状态
     visibleMode: 'all',
-    isEditable: false,
     selectedIds: [],
     selectionCenter: null,
     selectionGeometry: null,
@@ -27,6 +58,12 @@ export const usePoiStore = defineStore('poiStore', {
     },
     colorSettings: {
       background: '#0c1024',
+      // 中心标签颜色（默认白色）
+      centerLabelColor: '#ffffff',
+      // 文字配色模式：'multi' 为复色（色带），'single' 为单色
+      colorMode: 'multi',
+      // 单色模式下使用的颜色（默认与调色带首色一致）
+      singleColor: 'rgb(240,249,232)',
       // 默认使用第四个配色方案（5类的第四个方案，索引3）
       palette: ['rgb(240,249,232)', 'rgb(186,228,188)', 'rgb(123,204,196)', 'rgb(67,162,202)', 'rgb(8,104,172)'],
       inverted: false,
@@ -36,10 +73,18 @@ export const usePoiStore = defineStore('poiStore', {
     algorithmSettings: {
       algorithm: 'multi-angle', // 'multi-angle' 多角度径向移位算法, 'single-angle' 单角度径向移位算法
     },
+    /**
+     * CSV 导入元信息（null 表示当前为网站默认数据）
+     * valueSemantics: rank=数值小字号大；score=数值大字号大
+     * nameLanguageAvailability: 导入数据中可用的地名字段，用于禁用语言切换
+     * hasCityColumn: 是否映射了城市列（表格是否显示城市）
+     */
+    importMeta: null,
   }),
   getters: {
     totalCount: (state) => state.poiList.length,
     selectedCount: (state) => state.selectedIds.length,
+    /** 仅给数据表用：随「显示全部 / 显示所选」切换 */
     visibleList: (state) => {
       if (state.visibleMode === 'selected') {
         return state.poiList.filter((poi) =>
@@ -48,8 +93,25 @@ export const usePoiStore = defineStore('poiStore', {
       }
       return state.poiList;
     },
+    /**
+     * 标签云专用数据源：不受 visibleMode 影响。
+     * 有地图/周边筛选（hasDrawing）时固定为当前筛选结果；否则为全量 poiList。
+     */
+    tagCloudList: (state) => {
+      if (state.hasDrawing && state.selectedIds.length > 0) {
+        return state.poiList.filter((poi) =>
+          state.selectedIds.includes(poi.id),
+        );
+      }
+      return state.poiList;
+    },
     selectedPOIs: (state) =>
       state.poiList.filter((poi) => state.selectedIds.includes(poi.id)),
+    /** 仅中文或仅英文地名时禁用「字体」里的语言切换 */
+    languageSwitchDisabled: (state) => {
+      const a = state.importMeta?.nameLanguageAvailability;
+      return a === 'zhOnly' || a === 'enOnly';
+    },
   },
   actions: {
     /**
@@ -260,9 +322,6 @@ export const usePoiStore = defineStore('poiStore', {
         throw error;
       }
     },
-    toggleEditMode() {
-      this.isEditable = !this.isEditable;
-    },
     toggleSelect(id) {
       if (this.selectedIds.includes(id)) {
         this.selectedIds = this.selectedIds.filter((item) => item !== id);
@@ -286,26 +345,6 @@ export const usePoiStore = defineStore('poiStore', {
     },
     showSelected() {
       this.visibleMode = 'selected';
-    },
-    toggleBulkSelect() {
-      if (!this.poiList.length) return;
-      if (this.selectedIds.length === this.poiList.length) {
-        this.applySelection([]);
-      } else {
-        this.applySelection(this.poiList.map((poi) => poi.id));
-      }
-    },
-    removeSelected() {
-      if (!this.selectedIds.length) return;
-      this.poiList = this.poiList.filter(
-        (poi) => !this.selectedIds.includes(poi.id),
-      );
-      this.selectedIds = [];
-    },
-    updatePoi(updated) {
-      this.poiList = this.poiList.map((poi) =>
-        poi.id === updated.id ? { ...poi, ...updated } : poi,
-      );
     },
     updateFontLevel(payload) {
       this.fontSettings = {
@@ -345,6 +384,14 @@ export const usePoiStore = defineStore('poiStore', {
     clearTagCloud() {
       // 清除标签云状态，触发TagCloudCanvas清除
       this.hasDrawing = false;
+    },
+    /**
+     * 用 CSV 导入结果替换当前会话内的 POI（刷新页面后恢复默认数据）
+     * @param {Array<Object>} pois - 已含 lng/lat/name/name_en/rank 等
+     * @param {{ valueSemantics: 'rank'|'score', nameLanguageAvailability: 'both'|'zhOnly'|'enOnly' }} meta
+     */
+    applyImportedPoiList(pois, meta) {
+      applyImportedPoiData(this, pois, meta);
     },
   },
 });

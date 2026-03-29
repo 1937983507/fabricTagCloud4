@@ -4,6 +4,14 @@ import vue from '@vitejs/plugin-vue';
 import viteCompression from 'vite-plugin-compression';
 
 export default defineConfig({
+  css: {
+    preprocessorOptions: {
+      scss: {
+        // 避免 Dart Sass legacy-js-api 弃用告警（终端刷屏）
+        api: 'modern-compiler',
+      },
+    },
+  },
   plugins: [
     vue(),
     // Gzip压缩配置

@@ -135,6 +135,8 @@ body,
 .introjs-helperLayer .table-card,
 .introjs-helperLayer .tagcloud-panel,
 .introjs-helperLayer [data-intro-tutorial='tutorial-btn'],
+.introjs-helperLayer [data-intro-target='header-nav-pc'],
+.introjs-helperLayer [data-intro-panel],
 .introjs-helperLayer .panel-head,
 .introjs-helperLayer .canvas-wrapper {
   filter: none !important;
@@ -148,6 +150,8 @@ body,
 .introjs-helperLayer .table-card *,
 .introjs-helperLayer .panel-head *,
 .introjs-helperLayer .canvas-wrapper *,
+.introjs-helperLayer [data-intro-panel] *,
+.introjs-helperLayer [data-intro-target='header-nav-pc'] *,
 [data-intro-tutorial='tutorial-btn'].introjs-showElement * {
   filter: none !important;
   backdrop-filter: none !important;
@@ -169,5 +173,53 @@ body,
 
 body.introjs-fixParent {
   overflow: hidden !important;
+}
+
+/* —— 移动端布局（≤900px 或 body.layout-mobile）：仅在此覆盖桌面规则 —— */
+@media (max-width: 900px) {
+  body,
+  #app {
+    height: auto;
+    min-height: 100dvh;
+    max-height: none;
+  }
+
+  .app-shell {
+    min-height: 100dvh;
+  }
+
+  .tagcloud-panel {
+    min-width: 0 !important;
+  }
+
+  .workspace {
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
+
+body.layout-mobile {
+  height: auto;
+  min-height: 100dvh;
+  max-height: none;
+}
+
+body.layout-mobile #app {
+  height: auto;
+  min-height: 100dvh;
+  max-height: none;
+}
+
+body.layout-mobile .app-shell {
+  min-height: 100dvh;
+}
+
+body.layout-mobile .tagcloud-panel {
+  min-width: 0 !important;
+}
+
+body.layout-mobile .workspace {
+  min-width: 0 !important;
+  max-width: none !important;
 }
 

@@ -1,0 +1,8 @@
+// 仅使用媒体查询。注意：在 scoped + Sass 里写 `:global(父) { .子 { } }` 会被编译成错误选择器，
+// 样式会落到父元素上（曾导致 body / .app-shell 被设成 40～56px 高，整页空白）。
+// OEM 浏览器兜底由 useMobileLayout 打 body.layout-mobile，仅配合 global.scss 等未 scoped 规则使用。
+@mixin mobile-layout {
+  @media (max-width: 900px) {
+    @content;
+  }
+}

@@ -124,7 +124,8 @@ onBeforeUnmount(() => {
 });
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@use '@/assets/styles/mobile-layout-mixin.scss' as *;
 .footer {
   background: #ffffff;
   color: #1f2333;
@@ -377,6 +378,12 @@ onBeforeUnmount(() => {
   
   .footer-social {
     align-items: center;
+  }
+}
+
+@include mobile-layout {
+  .footer {
+    display: none;
   }
 }
 

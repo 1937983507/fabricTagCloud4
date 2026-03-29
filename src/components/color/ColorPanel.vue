@@ -20,6 +20,26 @@
       </div>
     </div>
 
+    <!-- 中心标签配色 -->
+    <div class="config-section">
+      <div class="section-header">
+        <span class="section-title">中心标签配色</span>
+        <span class="section-desc">设置中心标签的文字颜色</span>
+      </div>
+      <div class="section-content">
+        <div class="color-item">
+          <span class="label">当前中心标签颜色：</span>
+          <el-color-picker
+            v-model="localSettings.centerLabelColor"
+            @change="handleCenterLabelColorChange"
+            @active-change="handleCenterLabelColorChange"
+            show-alpha
+          />
+          <span class="color-preview" :style="{ background: localSettings.centerLabelColor }"></span>
+        </div>
+      </div>
+    </div>
+
     <!-- 文字配色 -->
     <div class="config-section">
       <div class="section-header">
@@ -27,8 +47,29 @@
         <span class="section-desc">设置标签文字的颜色方案</span>
       </div>
       <div class="section-content">
-        <!-- 当前色带展示 -->
-        <div class="ribbon-preview-section">
+        <!-- 配色模式切换 -->
+        <div class="color-item" style="margin-bottom: 16px;">
+          <span class="label">配色模式：</span>
+          <el-radio-group v-model="localSettings.colorMode" @change="handleColorModeChange" size="small">
+            <el-radio-button label="single">单色</el-radio-button>
+            <el-radio-button label="multi">复色</el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <!-- 单色模式 -->
+        <div v-if="localSettings.colorMode === 'single'" class="color-item" style="margin-bottom: 8px;">
+          <span class="label">单色：</span>
+          <el-color-picker
+            v-model="localSettings.singleColor"
+            @change="handleSingleColorChange"
+            @active-change="handleSingleColorChange"
+            show-alpha
+          />
+          <span class="color-preview" :style="{ background: localSettings.singleColor }"></span>
+        </div>
+
+        <!-- 复色模式：当前色带展示 -->
+        <div v-if="localSettings.colorMode === 'multi'" class="ribbon-preview-section">
           <div class="ribbon-header">
             <span class="label">当前色带：</span>
             <el-button 
@@ -49,8 +90,8 @@
           </div>
         </div>
 
-        <!-- 颜色离散设置 -->
-        <div class="discrete-settings">
+        <!-- 复色模式：颜色离散设置 -->
+        <div v-if="localSettings.colorMode === 'multi'" class="discrete-settings">
           <div class="color-item spaced">
             <div class="label">颜色离散数量：</div>
             <el-input-number 
@@ -78,8 +119,8 @@
           </div>
         </div>
 
-        <!-- 配色方案选择 -->
-        <div class="scheme-selection">
+        <!-- 复色模式：配色方案选择 -->
+        <div v-if="localSettings.colorMode === 'multi'" class="scheme-selection">
           <div class="scheme-header">
             <span class="label">配色方案：</span>
             <span class="scheme-count">共 {{ availableRibbons.length }} 种方案</span>
@@ -223,6 +264,32 @@ const handleBackgroundChange = (color) => {
   });
 };
 
+// 中心标签颜色变化 - 立即更新
+const handleCenterLabelColorChange = (color) => {
+  if (!color) return;
+  localSettings.value.centerLabelColor = color;
+  poiStore.updateColorSettings({
+    centerLabelColor: color,
+  });
+};
+
+// 配色模式切换
+const handleColorModeChange = (mode) => {
+  localSettings.value.colorMode = mode;
+  poiStore.updateColorSettings({
+    colorMode: mode,
+  });
+};
+
+// 单色模式颜色变化
+const handleSingleColorChange = (color) => {
+  if (!color) return;
+  localSettings.value.singleColor = color;
+  poiStore.updateColorSettings({
+    singleColor: color,
+  });
+};
+
 // 颜色翻转 - 使用防抖
 let flipTimer = null;
 const handleColorFlip = () => {
@@ -237,19 +304,15 @@ const handleColorFlip = () => {
   }, 50);
 };
 
-// 颜色数量改变 - 使用防抖
+// 颜色数量改变 - 使用防抖（保持当前选中的第 x 种色带，仅在新数量下列表更短时钳制索引）
 let countChangeTimer = null;
 const handleColorCountChange = () => {
   if (countChangeTimer) clearTimeout(countChangeTimer);
   countChangeTimer = setTimeout(() => {
     if (availableRibbons.value.length > 0) {
-      // 使用第三个方案（索引2，如果存在）
-      const defaultIndex = Math.min(2, availableRibbons.value.length - 1);
-      currentRibbonIndex.value = defaultIndex;
-      handleRibbonSchemeSelect(defaultIndex);
-      poiStore.updateColorSettings({
-        discreteCount: colorDiscreteCount.value,
-      });
+      const maxIndex = availableRibbons.value.length - 1;
+      const preservedIndex = Math.min(Math.max(0, currentRibbonIndex.value), maxIndex);
+      handleRibbonSchemeSelect(preservedIndex);
     }
   }, 100);
 };
@@ -301,7 +364,8 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@use '@/assets/styles/mobile-layout-mixin.scss' as *;
 .color-panel {
   min-height: calc(100vh - 160px);
   display: flex;
@@ -467,5 +531,92 @@ onMounted(() => {
   border-radius: 3px;
   border: 1px solid rgba(0, 0, 0, 0.1);
   min-width: 8px;
+}
+
+@include mobile-layout {
+  .color-panel {
+    min-height: 0;
+    height: auto;
+    gap: 18px;
+    padding: 12px 14px;
+  }
+
+  .config-section {
+    border-radius: 10px;
+    flex-shrink: 0;
+    overflow: visible;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 14px 16px;
+  }
+
+  .section-title {
+    font-size: 15px;
+    line-height: 1.3;
+  }
+
+  .section-desc {
+    margin-left: 0;
+    line-height: 1.45;
+    font-size: 13px;
+  }
+
+  .section-content {
+    padding: 18px 16px;
+  }
+
+  .color-item {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .color-item .label {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .section-content :deep(.el-select),
+  .section-content :deep(.el-input-number) {
+    width: 100% !important;
+    max-width: 100%;
+  }
+
+  .ribbon-preview-section {
+    margin-bottom: 12px;
+  }
+
+  .ribbon-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .current-ribbon {
+    padding: 8px;
+  }
+
+  .ribbon-color-item {
+    min-width: 0;
+    height: 28px;
+  }
+
+  .discrete-settings {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .ribbon-gallery {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    max-height: 280px;
+  }
+
+  .ribbon-scheme-item {
+    padding: 10px;
+  }
 }
 </style>

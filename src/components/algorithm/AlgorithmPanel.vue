@@ -62,7 +62,8 @@ watch(
 );
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@use '@/assets/styles/mobile-layout-mixin.scss' as *;
 .algorithm-panel {
   min-height: calc(100vh - 160px);
   display: flex;
@@ -131,6 +132,18 @@ watch(
   font-size: 13px;
   color: #606266;
   line-height: 1.6;
+}
+
+@include mobile-layout {
+  .algorithm-panel {
+    min-height: 0;
+    height: auto;
+  }
+
+  .config-section {
+    flex-shrink: 0;
+    overflow: visible;
+  }
 }
 </style>
 
