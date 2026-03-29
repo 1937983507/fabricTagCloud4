@@ -36,25 +36,72 @@
       >
         清除绘制
       </el-button>
-      <el-dropdown class="map-head-ctl" @command="changeMapType">
-        <span class="map-toolbar-trigger">
-          <span class="map-toolbar-trigger__text">地图切换</span>
-          <el-icon class="map-toolbar-trigger__icon"><ArrowDown /></el-icon>
-        </span>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item command="normal">普通地图</el-dropdown-item>
-            <el-dropdown-item command="satellite">卫星地图</el-dropdown-item>
-            <el-dropdown-item command="roadnet">路网地图</el-dropdown-item>
-            <el-dropdown-item command="traffic">交通地图</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
       <el-button class="map-toolbar-btn map-head-ctl" @click="openSearch = true">
         检索定位
       </el-button>
     </header>
     <div ref="mapRef" class="map-canvas">
+      <div
+        class="map-layer-dock"
+        @mouseenter="onMapLayerDockEnter"
+        @mouseleave="onMapLayerDockLeave"
+      >
+        <div class="map-layer-hover-zone">
+          <button
+            type="button"
+            class="map-layer-fab"
+            :aria-expanded="mapLayerPanelOpen"
+            :aria-label="`地图图层，当前：${currentMapLayerLabel}`"
+          >
+            <img
+              :src="currentMapLayerThumb"
+              alt=""
+              class="map-layer-fab__img"
+              width="28"
+              height="28"
+              draggable="false"
+            />
+          </button>
+          <transition name="map-layer-panel-t">
+            <div
+              v-show="mapLayerPanelOpen"
+              class="map-layer-panel"
+              role="listbox"
+              aria-label="选择地图类型"
+            >
+              <el-tooltip
+                v-for="opt in MAP_LAYER_OPTIONS"
+                :key="opt.type"
+                :content="opt.label"
+                placement="left"
+                effect="dark"
+                :show-after="0"
+                :hide-after="100"
+                popper-class="map-layer-el-tooltip"
+              >
+                <button
+                  type="button"
+                  class="map-layer-option"
+                  :class="{ 'is-active': activeMapLayerType === opt.type }"
+                  role="option"
+                  :aria-label="opt.label"
+                  :aria-selected="activeMapLayerType === opt.type"
+                  @click="selectMapLayer(opt.type)"
+                >
+                  <img
+                    :src="opt.thumb"
+                    alt=""
+                    class="map-layer-option__thumb"
+                    width="28"
+                    height="28"
+                    draggable="false"
+                  />
+                </button>
+              </el-tooltip>
+            </div>
+          </transition>
+        </div>
+      </div>
       <!-- 数据加载遮罩 -->
       <div v-if="poiStore.dataLoading" class="loading-overlay">
         <div class="loading-content">
@@ -231,7 +278,11 @@
 import { ArrowDown, Loading } from '@element-plus/icons-vue';
 import { usePoiStore } from '@/stores/poiStore';
 import AMapLoader from '@amap/amap-jsapi-loader';
-import { onMounted, onBeforeUnmount, ref, watch, nextTick } from 'vue';
+import { onMounted, onBeforeUnmount, ref, watch, nextTick, computed } from 'vue';
+import mapLayerNormalUrl from '@/assets/map-layers/normal.svg?url';
+import mapLayerSatelliteUrl from '@/assets/map-layers/satellite.svg?url';
+import mapLayerRoadnetUrl from '@/assets/map-layers/roadnet.svg?url';
+import mapLayerTrafficUrl from '@/assets/map-layers/traffic.svg?url';
 
 const poiStore = usePoiStore();
 const mapRef = ref(null);
@@ -253,6 +304,46 @@ const advancedCoordStr = ref('');
 const advancedPlaceTip = ref(null);
 /** 从联想列表选择后短窗期内不因 input 清空 tip */
 const skipPlaceTipClear = ref(false);
+
+/** 图层缩略图：走 Vite ?url，构建后路径带 hash，不依赖 public 与 BASE_URL 手写拼接 */
+const MAP_LAYER_OPTIONS = [
+  { type: 'normal', label: '普通地图', thumb: mapLayerNormalUrl },
+  { type: 'satellite', label: '卫星地图', thumb: mapLayerSatelliteUrl },
+  { type: 'roadnet', label: '路网地图', thumb: mapLayerRoadnetUrl },
+  { type: 'traffic', label: '交通地图', thumb: mapLayerTrafficUrl },
+];
+
+const activeMapLayerType = ref('normal');
+const mapLayerPanelOpen = ref(false);
+let mapLayerDockLeaveTimer = null;
+
+const currentMapLayerThumb = computed(() => {
+  const hit = MAP_LAYER_OPTIONS.find((o) => o.type === activeMapLayerType.value);
+  return hit?.thumb ?? mapLayerNormalUrl;
+});
+
+const currentMapLayerLabel = computed(() => {
+  const hit = MAP_LAYER_OPTIONS.find((o) => o.type === activeMapLayerType.value);
+  return hit?.label ?? '普通地图';
+});
+
+const onMapLayerDockEnter = () => {
+  if (mapLayerDockLeaveTimer != null) {
+    clearTimeout(mapLayerDockLeaveTimer);
+    mapLayerDockLeaveTimer = null;
+  }
+  mapLayerPanelOpen.value = true;
+};
+
+const onMapLayerDockLeave = () => {
+  if (mapLayerDockLeaveTimer != null) {
+    clearTimeout(mapLayerDockLeaveTimer);
+  }
+  mapLayerDockLeaveTimer = window.setTimeout(() => {
+    mapLayerPanelOpen.value = false;
+    mapLayerDockLeaveTimer = null;
+  }, 280);
+};
 
 let mapInstance = null;
 let mapLayers = {};
@@ -859,6 +950,11 @@ const changeMapType = (type) => {
   if (type === 'normal') {
     Object.values(mapLayers).forEach((layer) => layer.hide());
   }
+  activeMapLayerType.value = type;
+};
+
+const selectMapLayer = (type) => {
+  changeMapType(type);
 };
 
 const searchPlace = () => {
@@ -1411,6 +1507,10 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  if (mapLayerDockLeaveTimer != null) {
+    clearTimeout(mapLayerDockLeaveTimer);
+    mapLayerDockLeaveTimer = null;
+  }
   const container = mapRef.value;
   if (container && mapPointerMoveHandler) {
     container.removeEventListener('mousemove', mapPointerMoveHandler);
@@ -1661,6 +1761,107 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
+/* 右上角地图图层：悬停展开 4×1，缩略图 + tooltip 文案 */
+.map-layer-dock {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 500;
+}
+
+.map-layer-hover-zone {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 2px;
+}
+
+.map-layer-fab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.map-layer-fab:hover {
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+}
+
+.map-layer-fab__img {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.map-layer-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  padding: 5px;
+  min-width: 0;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.map-layer-panel-t-enter-active,
+.map-layer-panel-t-leave-active {
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.map-layer-panel-t-enter-from,
+.map-layer-panel-t-leave-to {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
+.map-layer-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.12s, box-shadow 0.12s;
+}
+
+.map-layer-option:hover {
+  background: #f5f7fa;
+}
+
+.map-layer-option.is-active {
+  background: #ecf5ff;
+  box-shadow: 0 0 0 2px #409eff;
+}
+
+.map-layer-option__thumb {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
 .loading-overlay {
   position: absolute;
   top: 0;
@@ -1768,6 +1969,13 @@ onBeforeUnmount(() => {
 
 .input-tips p {
   margin: 2px 0;
+}
+</style>
+
+<style>
+/* 图层子项 tooltip：替代原生 title（浏览器常延迟 1s+），并保证浮在地图与 loading 之上 */
+.map-layer-el-tooltip.el-popper {
+  z-index: 1100 !important;
 }
 </style>
 

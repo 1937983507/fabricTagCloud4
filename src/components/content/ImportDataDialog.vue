@@ -185,7 +185,7 @@ const visible = computed({
   set: (v) => emit('update:modelValue', v),
 });
 
-const sampleImgUrl = `${import.meta.env.BASE_URL}示例数据.png`;
+const sampleImgUrl = `${import.meta.env.BASE_URL}img/示例数据.png`;
 
 const fileBuffer = ref(null);
 const rawText = ref('');
