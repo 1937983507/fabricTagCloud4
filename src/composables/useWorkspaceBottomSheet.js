@@ -10,6 +10,12 @@ function getAppBodyHeight() {
 const MIN_PEEK_PX = 52;
 
 /**
+ * 低于此高度的测量视为无效（例如父级 display:none 时 getBoundingClientRect 为 0）。
+ * 若仍计算 maxTranslate，会得到 0，进而把 translateY 钳到 0（抽屉被误判为完全展开）。
+ */
+const MIN_SHEET_HEIGHT_FOR_MEASURE = 48;
+
+/**
  * 移动端 workspace 底部抽屉：
  * - translateY：0 为完全展开，数值越大越向下收起；
  * - 默认收起后约露出主内容区高度的 1/5（不少于 MIN_PEEK_PX），不完全滑出视区；
@@ -46,6 +52,9 @@ export function useWorkspaceBottomSheet(isMobile) {
     const el = rootEl.value;
     if (!el) return;
     const h = el.getBoundingClientRect().height;
+    if (h < MIN_SHEET_HEIGHT_FOR_MEASURE) {
+      return;
+    }
     const peek = getPeekPx(h);
     maxTranslate = Math.max(0, h - peek);
     if (translateY.value > maxTranslate) {
@@ -129,16 +138,25 @@ export function useWorkspaceBottomSheet(isMobile) {
     { immediate: true, flush: 'post' },
   );
 
+  function onViewportResize() {
+    updateMainAreaHeight();
+    if (isMobile.value) {
+      nextTick(() => {
+        measure();
+      });
+    }
+  }
+
   onMounted(() => {
     updateMainAreaHeight();
-    window.addEventListener('resize', updateMainAreaHeight);
-    window.addEventListener('orientationchange', updateMainAreaHeight);
+    window.addEventListener('resize', onViewportResize);
+    window.addEventListener('orientationchange', onViewportResize);
   });
 
   onBeforeUnmount(() => {
     resizeObserver.disconnect();
-    window.removeEventListener('resize', updateMainAreaHeight);
-    window.removeEventListener('orientationchange', updateMainAreaHeight);
+    window.removeEventListener('resize', onViewportResize);
+    window.removeEventListener('orientationchange', onViewportResize);
   });
 
   const sheetStyle = computed(() => {

@@ -42,91 +42,161 @@
         </div>
       </div>
     </header>
-    <div
-      class="canvas-wrapper"
-      ref="wrapperRef"
-      data-intro-target="tagcloud-canvas-area"
-    >
-      <canvas
-        :key="canvasKey"
-        ref="canvasRef"
-        :width="canvasWidth"
-        :height="canvasHeight"
-      ></canvas>
-      <div v-if="!allowRenderCloud || poiStore.tagCloudList.length === 0" class="empty-cloud-hint">
-        <div class="hint-content">
-          <div class="hint-icon">
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+    <div class="canvas-wrapper" data-intro-target="tagcloud-canvas-area">
+      <div class="canvas-rotate-stage">
+        <div
+          ref="wrapperRef"
+          class="canvas-rotate-inner"
+          :class="{ 'canvas-rotate-inner--90': isMobile && mobileCanvasRotated90 }"
+        >
+          <!-- 勿绑定 :width/:height：会重置位图并破坏 Fabric 的 retina 缓冲，导致文字缩放发糊 -->
+          <canvas :key="canvasKey" ref="canvasRef"></canvas>
+          <div v-if="!allowRenderCloud || poiStore.tagCloudList.length === 0" class="empty-cloud-hint">
+            <div class="hint-content">
+              <div class="hint-icon">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="hint-text">
+                <p class="hint-title">{{ allowRenderCloud ? '数据筛选中' : '准备生成标签云' }}</p>
+                <p class="hint-desc">
+                  {{
+                    allowRenderCloud
+                      ? '请在地图上绘制筛选区域'
+                      : '请先完成数据筛选，筛选完成后将自动生成标签云'
+                  }}
+                </p>
+              </div>
+            </div>
           </div>
-          <div class="hint-text">
-            <p class="hint-title">{{ allowRenderCloud ? '数据筛选中' : '准备生成标签云' }}</p>
-            <p class="hint-desc">
-              {{
-                allowRenderCloud
-                  ? '请在地图上绘制筛选区域'
-                  : '请先完成数据筛选，筛选完成后将自动生成标签云'
-              }}
-            </p>
+
+          <!-- 距离图例（仅在复色模式下显示） -->
+          <div
+            v-if="poiStore.colorSettings.colorMode !== 'single'"
+            class="distance-legend"
+            :class="{ 'distance-legend--compact': isMobile }"
+          >
+            <p class="legend-title">{{ poiStore.fontSettings.language === 'en' ? 'Distance from Center (km)' : '与中心的距离(km)' }}</p>
+            <div class="legend-colors-wrapper">
+              <div class="legend-colors">
+                <div
+                  v-for="(color, index) in poiStore.colorSettings.palette"
+                  :key="`legend-${index}`"
+                  class="legend-color-item"
+                  :style="{ background: color }"
+                  @mouseenter="handleLegendHover(color)"
+                  @mouseleave="handleLegendLeave"
+                ></div>
+              </div>
+              <div v-if="allowRenderCloud && colorBoundaries.length > 0" class="legend-boundaries">
+                <span class="legend-boundary-label legend-start">0</span>
+                <span
+                  v-for="(boundary, index) in colorBoundaries"
+                  :key="`boundary-${index}`"
+                  class="legend-boundary-label legend-middle"
+                  :style="{ left: `${((index + 1) * 100) / paletteCount}%` }"
+                >
+                  {{ formatDistance(boundary) }}
+                </span>
+                <span
+                  v-if="maxDistance > 0"
+                  class="legend-boundary-label legend-max-distance"
+                >
+                  {{ formatDistance(maxDistance) }}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      
-      <!-- 距离图例（仅在复色模式下显示） -->
-      <div
-        v-if="poiStore.colorSettings.colorMode !== 'single'"
-        class="distance-legend"
-        :class="{ 'distance-legend--compact': isMobile }"
-      >
-        <p class="legend-title">{{ poiStore.fontSettings.language === 'en' ? 'Distance from Center (km)' : '与中心的距离(km)' }}</p>
-        <div class="legend-colors-wrapper">
-          <div class="legend-colors">
-            <div
-              v-for="(color, index) in poiStore.colorSettings.palette"
-              :key="`legend-${index}`"
-              class="legend-color-item"
-              :style="{ background: color }"
-              @mouseenter="handleLegendHover(color)"
-              @mouseleave="handleLegendLeave"
-            ></div>
-          </div>
-          <!-- 在色块下面一行显示距离标签 -->
-          <div v-if="allowRenderCloud && colorBoundaries.length > 0" class="legend-boundaries">
-            <span class="legend-boundary-label legend-start">0</span>
-            <span
-              v-for="(boundary, index) in colorBoundaries"
-              :key="`boundary-${index}`"
-              class="legend-boundary-label legend-middle"
-              :style="{ left: `${((index + 1) * 100) / paletteCount}%` }"
-            >
-              {{ formatDistance(boundary) }}
-            </span>
-            <span
-              v-if="maxDistance > 0"
-              class="legend-boundary-label legend-max-distance"
-            >
-              {{ formatDistance(maxDistance) }}
-            </span>
-          </div>
-        </div>
-      </div>
-      
+
       <!-- 交互工具栏 -->
       <!-- 移动端：悬浮入口，无 panel-head -->
       <template v-if="isMobile">
-        <el-button
-          type="primary"
-          circle
-          class="mobile-tagcloud-fab"
-          data-intro-target="tagcloud-mobile-fab"
-          aria-label="标签云显示与导出选项"
-          @click="mobileToolsDrawerOpen = true"
-        >
-          <el-icon><Operation /></el-icon>
-        </el-button>
+        <div class="mobile-tagcloud-fab-row">
+          <el-button
+            v-show="!mobileCanvasImmersive"
+            type="primary"
+            circle
+            class="mobile-tagcloud-fab"
+            data-intro-target="tagcloud-mobile-fab"
+            aria-label="标签云显示与导出选项"
+            @click="mobileToolsDrawerOpen = true"
+          >
+            <el-icon><Operation /></el-icon>
+          </el-button>
+          <el-button
+            circle
+            :type="mobileCanvasImmersive ? 'default' : 'primary'"
+            :class="[
+              'mobile-canvas-immersive-btn',
+              mobileCanvasImmersive
+                ? 'mobile-canvas-immersive-btn--exit'
+                : 'mobile-canvas-immersive-btn--enter',
+            ]"
+            data-intro-target="tagcloud-mobile-immersive"
+            :aria-label="mobileCanvasImmersive ? '退出全屏' : '全屏显示标签云'"
+            @click="toggleMobileCanvasImmersive"
+          >
+            <el-icon v-if="mobileCanvasImmersive" class="mobile-canvas-immersive-btn__icon">
+              <Close />
+            </el-icon>
+            <el-icon
+              v-else
+              class="mobile-canvas-immersive-btn__icon mobile-canvas-immersive-btn__icon--enter"
+            >
+              <FullScreen />
+            </el-icon>
+          </el-button>
+          <el-button
+            v-show="mobileCanvasImmersive"
+            type="default"
+            class="mobile-canvas-landscape-btn"
+            :class="{ 'mobile-canvas-landscape-btn--on': mobileCanvasRotated90 }"
+            data-intro-target="tagcloud-mobile-landscape"
+            :aria-label="mobileCanvasRotated90 ? '恢复竖屏视图' : '横屏视图（画布与图例旋转 90°）'"
+            @click="toggleMobileCanvasRotate90"
+          >
+            <span class="mobile-canvas-landscape-btn__body">
+              <svg class="mobile-canvas-landscape-btn__svg" viewBox="0 0 40 28" aria-hidden="true">
+                <!-- 竖屏示意 -->
+                <rect
+                  x="2"
+                  y="1"
+                  width="12"
+                  height="22"
+                  rx="2"
+                  class="mobile-canvas-landscape-btn__phone mobile-canvas-landscape-btn__phone--portrait"
+                />
+                <!-- 横屏示意 -->
+                <rect
+                  x="18"
+                  y="6"
+                  width="20"
+                  height="12"
+                  rx="2"
+                  class="mobile-canvas-landscape-btn__phone mobile-canvas-landscape-btn__phone--landscape"
+                />
+                <!-- 旋转箭头 -->
+                <path
+                  class="mobile-canvas-landscape-btn__arrow"
+                  d="M15 11c2.5-2.5 6-3 9-1.5M24 7l2.5 2.5L24 12"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span class="mobile-canvas-landscape-btn__text">{{
+                mobileCanvasRotated90 ? '竖屏' : '横屏'
+              }}</span>
+            </span>
+          </el-button>
+        </div>
         <el-drawer
           v-model="mobileToolsDrawerOpen"
           direction="ltr"
@@ -209,8 +279,8 @@
         </el-tooltip>
       </div>
       
-      <!-- POI信息窗口 -->
-      <div v-if="selectedPoi" class="poi-info-window">
+      <!-- POI信息窗口（移动端沉浸全屏时隐藏，仅保留画布+图例+全屏按钮） -->
+      <div v-if="selectedPoi && !(isMobile && mobileCanvasImmersive)" class="poi-info-window">
         <div class="info-window-header">
           <span class="info-window-title">地名信息</span>
           <el-button
@@ -314,6 +384,76 @@ const showTime = ref(false);
 const poiStore = usePoiStore();
 const { isMobile } = useMobileLayout();
 const mobileToolsDrawerOpen = ref(false);
+/** 移动端：仅保留画布 + 距离图例 + 全屏按钮，隐藏顶栏/侧栏/工作区抽屉等 */
+const mobileCanvasImmersive = ref(false);
+/** 全屏沉浸下：画布+图例整体 CSS 旋转 90°（非系统方向锁定） */
+const mobileCanvasRotated90 = ref(false);
+
+function resetMobileCanvasRotate90() {
+  mobileCanvasRotated90.value = false;
+}
+
+function toggleMobileCanvasRotate90() {
+  mobileCanvasRotated90.value = !mobileCanvasRotated90.value;
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('resize'));
+      resizeCanvasToWrapper();
+    });
+  });
+}
+
+function syncTagcloudImmersiveBodyClass() {
+  if (typeof document === 'undefined') return;
+  const on = isMobile.value && mobileCanvasImmersive.value;
+  document.body.classList.toggle('tagcloud-canvas-immersive', !!on);
+}
+
+function resizeCanvasToWrapper() {
+  if (!wrapperRef.value || !canvasInstance) return;
+  initCanvasSize();
+  const prevVpt = canvasInstance.viewportTransform;
+  canvasInstance.setDimensions({
+    width: canvasWidth.value,
+    height: canvasHeight.value,
+  });
+  if (prevVpt) {
+    canvasInstance.setViewportTransform(prevVpt);
+  }
+  if (allowRenderCloud.value) {
+    void renderCloud(false);
+  } else {
+    canvasInstance.renderAll();
+  }
+  if (typeof canvasInstance.calcOffset === 'function') {
+    canvasInstance.calcOffset();
+  }
+}
+
+function toggleMobileCanvasImmersive() {
+  if (!isMobile.value) return;
+  const wasImmersive = mobileCanvasImmersive.value;
+  mobileCanvasImmersive.value = !mobileCanvasImmersive.value;
+  if (mobileCanvasImmersive.value) {
+    mobileToolsDrawerOpen.value = false;
+  }
+  if (wasImmersive && !mobileCanvasImmersive.value) {
+    resetMobileCanvasRotate90();
+  }
+  syncTagcloudImmersiveBodyClass();
+  if (wasImmersive) {
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+    });
+  }
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      resizeCanvasToWrapper();
+    });
+  });
+}
 
 // 导出相关变量
 const exportDialogVisible = ref(false);
@@ -508,9 +648,11 @@ const initCanvas = () => {
   if (isPanning.value) {
     canvasInstance.defaultCursor = 'grab';
   }
-  canvasInstance.setWidth(canvasWidth.value);
-  canvasInstance.setHeight(canvasHeight.value);
-  
+  canvasInstance.setDimensions({
+    width: canvasWidth.value,
+    height: canvasHeight.value,
+  });
+
   if (vpt) {
     canvasInstance.setViewportTransform(vpt);
   }
@@ -548,12 +690,14 @@ watch(
   { immediate: false }
 );
 
-// 初始化canvas尺寸（只执行一次，固定大小）
+// 与容器对齐的整数逻辑像素；优先 clientWidth/Height，含 CSS 旋转层时比 getBoundingClientRect 更稳
 const initCanvasSize = () => {
   if (!wrapperRef.value) return;
-  const rect = wrapperRef.value.getBoundingClientRect();
-  canvasWidth.value = Math.floor(rect.width);
-  canvasHeight.value = Math.floor(rect.height);
+  const el = wrapperRef.value;
+  const w = el.clientWidth;
+  const h = el.clientHeight;
+  canvasWidth.value = Math.max(1, Math.round(w));
+  canvasHeight.value = Math.max(1, Math.round(h));
 };
 
 // 清除标签云
@@ -1590,9 +1734,25 @@ function getPointerClientXY(e) {
   return null;
 }
 
-/** 双指中点对应的画布视口坐标（用于 zoomToPoint） */
+/**
+ * 全屏横屏：外层 .canvas-rotate-inner 使用 CSS rotate(90deg)，
+ * 屏幕上的位移 (dsx, dsy) 与画布 viewport 平移 (dtx, dty) 差一次 -90° 旋转（相对画布逻辑坐标）。
+ */
+function screenDeltaToCanvasPanDelta(dsx, dsy) {
+  if (!isMobile.value || !mobileCanvasRotated90.value) {
+    return { dtx: dsx, dty: dsy };
+  }
+  return { dtx: dsy, dty: -dsx };
+}
+
+/**
+ * 双指中点 / 滚轮锚点对应的画布视口坐标。
+ * 注意：Fabric 的 zoomToPoint 传入的是视口坐标（viewport point），不是场景坐标。
+ * 横屏 CSS rotate(90deg) 时，getPointer 与视觉错位；对相对画布中心的向量做与手势方向一致的修正。
+ * 这里采用与当前漫游方向匹配的映射，避免出现上下左右颠倒。
+ */
 function viewportPointFromClient(canvas, clientX, clientY) {
-  return canvas.getPointer(
+  const base = canvas.getPointer(
     {
       clientX,
       clientY,
@@ -1600,6 +1760,14 @@ function viewportPointFromClient(canvas, clientX, clientY) {
     },
     true,
   );
+  if (!isMobile.value || !mobileCanvasRotated90.value) {
+    return base;
+  }
+  const cx = canvas.getWidth() / 2;
+  const cy = canvas.getHeight() / 2;
+  const x = base.x - cx;
+  const y = base.y - cy;
+  return { x: y + cx, y: -x + cy };
 }
 
 // Canvas交互设置
@@ -1613,11 +1781,16 @@ const setupCanvasInteractions = () => {
     zoom *= 0.999 ** delta;
     if (zoom > 20) zoom = 20;
     if (zoom < 0.01) zoom = 0.01;
-    
-    canvasInstance.zoomToPoint(
-      { x: opt.e.offsetX, y: opt.e.offsetY },
-      zoom,
-    );
+
+    const e = opt.e;
+    const anchor =
+      isMobile.value &&
+      mobileCanvasRotated90.value &&
+      typeof e.clientX === 'number' &&
+      !Number.isNaN(e.clientX)
+        ? viewportPointFromClient(canvasInstance, e.clientX, e.clientY)
+        : { x: e.offsetX, y: e.offsetY };
+    canvasInstance.zoomToPoint(anchor, zoom);
     
     vpt = canvasInstance.viewportTransform;
     opt.e.preventDefault();
@@ -1712,8 +1885,11 @@ const setupCanvasInteractions = () => {
       }
       
       vpt = canvasInstance.viewportTransform;
-      vpt[4] += xy.x - lastPosX;
-      vpt[5] += xy.y - lastPosY;
+      const dsx = xy.x - lastPosX;
+      const dsy = xy.y - lastPosY;
+      const { dtx, dty } = screenDeltaToCanvasPanDelta(dsx, dsy);
+      vpt[4] += dtx;
+      vpt[5] += dty;
       canvasInstance.setViewportTransform(vpt);
       lastPosX = xy.x;
       lastPosY = xy.y;
@@ -2542,8 +2718,20 @@ watch(
   },
 );
 
+watch(isMobile, (m) => {
+  if (!m) {
+    mobileCanvasImmersive.value = false;
+    resetMobileCanvasRotate90();
+  }
+  syncTagcloudImmersiveBodyClass();
+});
+
 onBeforeUnmount(() => {
+  resetMobileCanvasRotate90();
   if (canvasInstance) canvasInstance.dispose();
+  if (typeof document !== 'undefined') {
+    document.body.classList.remove('tagcloud-canvas-immersive');
+  }
 });
 </script>
 
@@ -2565,6 +2753,7 @@ onBeforeUnmount(() => {
 .canvas-wrapper {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: stretch;
   justify-content: stretch;
   width: 100%;
@@ -2574,12 +2763,34 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
+.canvas-rotate-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.canvas-rotate-inner {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * 勿使用 width/height: 100% !important：会覆盖 Fabric 内联像素尺寸，
+ * 使位图分辨率与元素实际显示尺寸不一致，全屏/窗口变化时文字易被浏览器缩放发糊。
+ * 尺寸由 initCanvasSize + Fabric setDimensions 与容器 getBoundingClientRect 对齐。
+ */
 canvas {
   border-radius: 12px;
   background: #050816;
-  width: 100% !important;
-  height: 100% !important;
   display: block;
+  max-width: none;
+  max-height: none;
 }
 
 .empty-cloud-hint {
@@ -2937,13 +3148,158 @@ canvas {
     touch-action: none;
   }
 
-  .mobile-tagcloud-fab {
+  .mobile-tagcloud-fab-row {
     position: absolute;
     top: 14px;
     left: 14px;
-    z-index: 16;
+    z-index: 18;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .mobile-tagcloud-fab-row > * {
+    pointer-events: auto;
+  }
+
+  .mobile-tagcloud-fab {
+    position: relative;
+    top: auto;
+    left: auto;
     flex-shrink: 0;
     box-shadow: 0 4px 14px rgba(57, 156, 235, 0.45);
+  }
+
+  .mobile-canvas-immersive-btn {
+    flex-shrink: 0;
+  }
+
+  /* 进入全屏：主色 + 全屏图标，语义清晰 */
+  .mobile-canvas-immersive-btn--enter {
+    box-shadow:
+      0 4px 18px rgba(57, 156, 235, 0.5),
+      0 0 0 1px rgba(255, 255, 255, 0.14) inset;
+  }
+
+  .mobile-canvas-immersive-btn--enter:hover {
+    box-shadow:
+      0 6px 22px rgba(57, 156, 235, 0.55),
+      0 0 0 1px rgba(255, 255, 255, 0.18) inset;
+  }
+
+  .mobile-canvas-immersive-btn__icon--enter {
+    font-size: 18px;
+  }
+
+  /* 退出全屏：深色圆形 +「×」，与「进入全屏」区分 */
+  .mobile-canvas-immersive-btn--exit {
+    background: rgba(15, 23, 42, 0.78) !important;
+    border-color: rgba(255, 255, 255, 0.22) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  .mobile-canvas-immersive-btn--exit:hover {
+    background: rgba(30, 41, 59, 0.92) !important;
+    border-color: rgba(255, 255, 255, 0.28) !important;
+    color: #fff !important;
+  }
+
+  .mobile-canvas-immersive-btn__icon {
+    font-size: 20px;
+  }
+
+  /* 全屏沉浸：横屏 = 画布+图例整体旋转 90°（非系统方向锁定） */
+  .canvas-rotate-inner--90 {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 100dvh;
+    height: 100dvw;
+    max-width: 100dvh;
+    max-height: 100dvw;
+    flex: none;
+    transform: translate(-50%, -50%) rotate(90deg);
+    transform-origin: center center;
+  }
+
+  .mobile-canvas-landscape-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 6px 12px 6px 8px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(30, 58, 95, 0.95) 0%, rgba(15, 35, 62, 0.92) 100%) !important;
+    border: 1px solid rgba(57, 156, 235, 0.55) !important;
+    color: #e0f2fe !important;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.45);
+  }
+
+  .mobile-canvas-landscape-btn:hover {
+    border-color: rgba(87, 198, 241, 0.75) !important;
+    color: #fff !important;
+  }
+
+  .mobile-canvas-landscape-btn--on {
+    border-color: #57c6f1 !important;
+    background: linear-gradient(180deg, rgba(37, 92, 140, 0.98) 0%, rgba(25, 70, 110, 0.95) 100%) !important;
+    box-shadow:
+      0 4px 18px rgba(57, 156, 235, 0.5),
+      0 0 0 1px rgba(87, 198, 241, 0.35) inset;
+  }
+
+  .mobile-canvas-landscape-btn__body {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .mobile-canvas-landscape-btn__svg {
+    width: 40px;
+    height: 28px;
+    flex-shrink: 0;
+    display: block;
+  }
+
+  .mobile-canvas-landscape-btn__phone {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  .mobile-canvas-landscape-btn__phone--portrait {
+    opacity: 0.45;
+  }
+
+  .mobile-canvas-landscape-btn__phone--landscape {
+    opacity: 0.85;
+  }
+
+  .mobile-canvas-landscape-btn--on .mobile-canvas-landscape-btn__phone--portrait {
+    opacity: 0.3;
+  }
+
+  .mobile-canvas-landscape-btn--on .mobile-canvas-landscape-btn__phone--landscape {
+    opacity: 1;
+    stroke: #7dd3fc;
+  }
+
+  .mobile-canvas-landscape-btn__arrow {
+    stroke: currentColor;
+    stroke-width: 1.5;
+    opacity: 0.9;
+  }
+
+  .mobile-canvas-landscape-btn__text {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
   }
 
   .canvas-toolbar--hidden-mobile {
