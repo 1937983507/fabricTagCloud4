@@ -16,21 +16,25 @@
 
 ## ✨ 特性总览
 
-- **一体化交互流程**：顶部导航、侧边样式面板、地图工作区与标签云画布组成协同布局，辅以 Intro.js 引导降低首次上手成本。
-- **高德地图深度整合**：支持地图缩放、拖拽、搜索定位、热力/点状图层切换、多底图切换；可在地图上绘制圆形/矩形/多边形区域进行数据筛选。
-- **数据管线自动化**：基于绘制区域自动筛选 POI 数据，支持数据编辑、筛选、批量操作，实时同步到标签云画布。
-- **多角度径向移位算法**：基于 Fabric.js 相关接口，创新性地构建文本标签的多角度径向移位算法，包括自适应范围扫描、最优步长偏移等步骤，实现全局无压盖的标签云绘制。
-- **多尺度标签云渲染**：构建多尺度模型，支持粗略显示和精细显示两种模式，实现全局与局部效应的兼顾观测。
-- **可视化可编排**：字体（含中文/英文切换、字体类别、字号、字重、字体类型）、配色（背景色、色带配置、配色数量、渲染方式）均以卡片式面板配置，实时写入 Pinia Store 并驱动画布更新。
-- **高级交互功能**：支持动态排名与时间显示、标签高亮、详情查看、画布操作（返回中心、缩放、漫游）等交互功能。
-- **导出与分享**：支持标签云画布的交互操作，适合在汇报、论文和 Demo 中展示（当前版本基于 Fabric.js Canvas，支持画布交互）。
+- **一体化交互流程**：顶部导航、左侧「内容 / 字体 / 配色 / 算法」面板、中间地图与数据表、右侧标签云画布协同布局；首次访问由 Intro.js 分步引导（可勾选「最近不再默认显示」）。
+- **高德地图深度整合**：缩放、拖拽、地点检索；点状 / 热力图层切换；**右上角独立控件**切换标准 / 卫星底图；支持圆形 / 矩形 / 多边形框选筛选 POI。
+- **周边筛选与检索定位**：将「周边筛选」「清除筛选」等与地图联动；周边筛选支持**基础版**（自动定位 + 半径 + 可选 POI 数量上限）与**高级版**（手动指定中心地名或经纬度）；多级兜底定位（浏览器 → 高德 → IP），失败时可手动输入。
+- **数据管线**：默认从 `public/data/chinapoi.json`（紧凑列格式）加载，失败时可回退 CSV；支持在数据表中 **导入 CSV** 替换当前会话数据（列映射、数值语义、中英地名字段检测）；表格「显示全部 / 显示所选」仅影响列表展示，**标签云数据源**在存在地图筛选结果时始终与筛选结果一致。
+- **布局算法可切换**（算法面板）：**多角度径向移位**、**单角度径向移位**、**阿基米德螺线**，切换后写入 Pinia，供重新生成标签云时使用。
+- **多角度径向移位核心能力**：自适应范围扫描、最优步长偏移等，目标为全局无压盖绘制。
+- **多尺度标签云**：粗略 / 精细显示，兼顾全局与局部。
+- **字体与配色**：字体面板（语言、类别数量、字号梯度、字重、单一字体库）；配色面板（背景色、**中心标签颜色**、**复色色带 / 单色**切换、配色数量、分位数等离散方式）；参数实时驱动 Fabric 画布。
+- **高级交互**：城市排名、驾车通行时间（高德路线能力）、图例悬浮高亮、标签详情、画布漫游与缩放。
+- **导出**：标签云支持导出 **PNG / JPEG / SVG**，位图可指定导出宽高；适合汇报与配图。
+- **响应式与移动端**：窄屏下标签云占主区域，地图与配置区以**底部抽屉**形式拖出；标签云工具在移动端以悬浮入口展开。
+- **访问与生成统计（可选）**：通过 `VITE_STATS_API_URL` 对接后端，记录访问量等（详见 `src/utils/statistics.js`）；未配置或后端不可用时站点仍正常使用。
 
 ---
 
 ## 🛠 技术栈
 
 - **构建工具**：Vite 5 + ESBuild（原生 ESM，秒级冷启动）
-- **框架**：Vue 3 `<script setup>` + Pinia（状态管理）
+- **框架**：Vue 3  + Pinia（状态管理）
 - **UI / 交互**：Element Plus、Intro.js、Sass
 - **数据 & 可视化**：Fabric.js Canvas、自研 **多角度径向移位算法**、多尺度渲染模型
 - **地图能力**：高德地图 JSAPI 2.0（AMapLoader，含 ToolBar/HeatMap/MassMarks/Driving 等插件）
@@ -48,23 +52,28 @@
 ```text
 fabricTagCloud4/
 ├── public/
-│   ├── data/               # 数据文件（china.json 等）
-│   └── img/                # 图片资源
+│   ├── data/               # 默认 POI：chinapoi.json（推荐）/ chinapoi.csv（备用）
+│   └── img/                # 静态图、帮助文档配图
+├── scripts/                # 例如 csv-to-json-optimized.py（数据转换）
 ├── src/
-│   ├── assets/styles/      # 全局样式 (SCSS)
+│   ├── assets/styles/      # 全局样式 (SCSS)、移动端混入
 │   ├── components/
-│   │   ├── color/         # ColorPanel：配色面板（背景色、色带配置）
-│   │   ├── common/         # SplitterBar：分割条组件
-│   │   ├── content/        # PoiMap、PoiTable、PoiContent：地图、数据表、内容容器
-│   │   ├── feedback/       # FeedbackPage：反馈页面
-│   │   ├── help/          # HelpPage：帮助页面（基于 Markdown 渲染）
-│   │   ├── layout/        # HeaderBar、FooterBar、SideMenu：布局组件
-│   │   ├── tagcloud/      # TagCloudCanvas：标签云画布（多角度径向移位算法、多尺度渲染）
-│   │   └── typeface/      # TypefacePanel：字体面板（语言、字号、字重、字体类型）
-│   ├── stores/poiStore.js  # Pinia 数据中心（POI 数据、字体/配色配置、标签云状态等）
-│   ├── App.vue / main.js   # 根组件与入口
+│   │   ├── algorithm/      # AlgorithmPanel：布局算法选择
+│   │   ├── color/          # ColorPanel：背景、中心标签色、复色/单色、色带与离散方式
+│   │   ├── common/         # SplitterBar 等
+│   │   ├── content/        # PoiMap / PoiTable / PoiContent、ImportDataDialog（CSV 导入）
+│   │   ├── feedback/       # FeedbackPage
+│   │   ├── help/           # HelpPage + HELP.md（?raw 内联）
+│   │   ├── layout/         # HeaderBar、FooterBar、SideMenu
+│   │   ├── tagcloud/       # TagCloudCanvas：生成、多尺度、导出
+│   │   └── typeface/       # TypefacePanel
+│   ├── composables/        # useMobileLayout、useWorkspaceBottomSheet 等
+│   ├── stores/poiStore.js  # POI、筛选、字体/配色/算法、导入元信息
+│   ├── utils/statistics.js # 可选访问/生成统计 API
+│   ├── App.vue / main.js
 │   └── ...
-├── doc/                    # 文档目录（PDF 文档、示例数据）
+├── doc/
+├── help.md                 # 指向站内手册 HELP.md 的说明
 ├── vite.config.js
 └── README.md
 ```
@@ -120,23 +129,31 @@ fabricTagCloud4/
 
 | 模块 | 功能摘要 |
 | --- | --- |
-| `src/App.vue` | 负责整体布局、侧边多面板切换、底部页脚导航，并在首次加载时触发 Intro.js 向导。 |
-| `src/components/content/PoiMap.vue` | 封装地图初始化、绘制模式（圆形/矩形/多边形）、热力/点图层切换、地点搜索以及 POI 数据筛选。 |
-| `src/stores/poiStore.js` | 统一加载/缓存 POI 数据、记录绘制结果、字体配色参数、标签云状态等信息，实现多组件共享。 |
-| `src/components/layout/SideMenu.vue` 等 | 将字体、配色等视觉参数封装为卡片式选择器，实时写入 `poiStore`。 |
-| `src/components/tagcloud/TagCloudCanvas.vue` | 调用 Fabric.js 实现多角度径向移位算法生成标签云，并提供多尺度渲染、画布交互、排名时间显示等高级功能。 |
+| `src/App.vue` | 整体布局、侧栏四面板切换、帮助/反馈页切换、Intro.js 引导（含「不再显示」持久化）、移动端工作区抽屉。 |
+| `src/components/content/PoiMap.vue` | 地图、框选筛选、热力/点图层、检索定位、周边筛选（基础/高级）、右上角底图切换、加载遮罩与悬浮地名等。 |
+| `src/components/content/PoiTable.vue` | 表格展示、`visibleMode`、导入入口、与地图筛选联动。 |
+| `src/components/content/ImportDataDialog.vue` | CSV 解析、列映射、导入后替换会话内 `poiList` 与 `importMeta`。 |
+| `src/stores/poiStore.js` | JSON/CSV 加载、`tagCloudList` 与 `visibleList` 分离、字体/配色/算法、`applyImportedPoiData`。 |
+| `src/components/algorithm/AlgorithmPanel.vue` | 多角度 / 单角度 / 阿基米德螺线算法选择与说明文案。 |
+| `src/components/layout/SideMenu.vue` 等 | 侧栏切换面板；快捷「帮助」跳转站内手册。 |
+| `src/components/tagcloud/TagCloudCanvas.vue` | Fabric 渲染、多尺度、排名/通行时间、PNG/JPEG/SVG 导出对话框。 |
+| `src/utils/statistics.js` | 可选 `recordPageVisit` / `getStatistics` 等与 `VITE_STATS_API_URL` 配合。 |
 
 ---
 
 ## 📊 数据与地图资源
 
-- `public/data/chinapoi.json`：地图数据源（GeoJSON 格式）。
-- `public/img/*.png`：示例缩略图、功能演示图、品牌标识。
-- **地图 Key**：默认使用演示 Key，请根据部署环境在 `PoiMap.vue` 中替换。
+- `public/data/chinapoi.json`：默认 POI 主数据源（推荐；支持 `columns + data` 紧凑格式，见 `poiStore` 解析逻辑）。
+- `public/data/chinapoi.csv`：备用数据源（将 `poiStore.js` 中 `DATA_SOURCE` 设为 `'csv'` 或 JSON 加载失败时回退）。
+- `public/img/*.png`：演示图、Logo、帮助文档引用图。
+- **地图 Key**：在 `PoiMap.vue` 中配置高德 Key，并在高德控制台配置 **JSAPI 安全密钥与 Referer 白名单**。
+- **CSV 导入**：字段需包含地名与经纬度等；导入仅影响当前浏览器会话，**刷新页面恢复默认数据**。
 
 ---
 
 ## 🖼 效果展示
+
+### PC 端页面
 
 - **首页**
   ![首页](./public/img/首页.png)
@@ -153,23 +170,35 @@ fabricTagCloud4/
 - **切换背景色与配色**：
   ![切换背景色与配色](./public/img/切换背景色与配色.png)
 
-- **多尺度渲染**：
+- **算法切换（阿基米德螺线算法）**：
+  ![阿基米德螺线算法](./public/img/阿基米德螺线算法.png)
+
+- **多尺度渲染（精细显示）**：
   ![精细显示](./public/img/精细显示.png)
 
 - **显示排名与通行时间**：
   ![显示排名与通行时间](./public/img/显示排名与通行时间.png)
 
+### 移动端页面
+
+- **移动端渲染效果**：
+  ![移动端渲染效果](./public/img/标签云渲染（移动端）.png)
+
+
 ---
 
 ## 🧭 系统工作流
 
-1. **地图展示与数据查看**：在地图上查看 POI 数据，支持热力图和点状图层切换，通过搜索定位到目标区域。
-2. **数据区域选择**：在地图上绘制圆形/矩形/多边形区域，系统自动筛选区域内的 POI 数据。
-3. **数据管理**：在数据管理模块中查看、编辑、筛选 POI 数据，支持批量操作和视图切换。
-4. **生成标签云**：点击"运行生成标签云"触发 Fabric.js 渲染，采用多角度径向移位算法生成无压盖的标签云。
-5. **样式定制**：在侧边面板依次调整字体（语言、类别、字号、字重、字体类型）、配色（背景色、色带、配色数量、渲染方式），与标签云画布实时联动。
-6. **多尺度展示**：通过"粗略显示"和"精细显示"切换标签数量，实现多尺度地名标签云渲染展示。
-7. **交互探索**：使用排名显示、通行时间显示、标签高亮、详情查看等功能深入探索数据。
+1. **地图与数据**：查看 POI（点/热力）、检索定位、必要时使用**周边筛选**（半径与中心）或**框选**筛选数据。
+2. **（可选）导入自有数据**：在数据表区域使用 **导入 CSV**，完成列映射后替换当前会话数据。
+3. **数据表**：编辑单元格、行选、显示全部或仅显示所选；注意标签云在存在地图筛选时以筛选结果为准。
+4. **生成标签云**：点击「运行生成标签云」；可在 **算法** 面板预先选择布局算法后再生成。
+5. **字体 / 配色**：调整语言、字号梯度、字重、字体；背景色、中心标签色、复色色带或单色模式、离散方式与档数。
+6. **多尺度与标注**：粗略/精细显示；可选显示排名、通行时间。
+7. **导出**：在标签云工具栏使用 **导出图片**（PNG/JPEG/SVG），按对话框设置尺寸。
+8. **帮助与反馈**：顶部导航进入站内帮助（`HELP.md`）或意见反馈页。
+
+更细的图文说明见 **`src/components/help/HELP.md`**（或根目录 **`help.md`** 中的入口说明）。
 
 ---
 
@@ -200,10 +229,10 @@ V4.0 保持了 V3.0 的所有核心功能，同时提供了更好的用户体验
 
 ### TODO
 
-- 进一步优化多角度径向移位算法，针对其小标签被摆放到空隙下的问题。
-- 颜色选择模块，是否可以更加的智能，推荐用户选择较好的色带？
-- 扩展AI相关的功能，例如通过识别语音，然后自动执行数据筛选与词云绘制流程。
-- 补充更新日志
+- 进一步优化多角度径向移位算法（小标签落入缝隙等问题）。
+- 色带智能推荐或预设场景模板。
+- 扩展 AI 相关能力（如语音驱动筛选与生成流程）。
+- 侧栏「快捷键」「隐藏」等入口仍为占位提示，可后续落地。
 
 ---
 
