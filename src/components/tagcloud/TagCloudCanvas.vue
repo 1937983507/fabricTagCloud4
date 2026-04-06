@@ -47,12 +47,8 @@
       ref="wrapperRef"
       data-intro-target="tagcloud-canvas-area"
     >
-      <canvas
-        :key="canvasKey"
-        ref="canvasRef"
-        :width="canvasWidth"
-        :height="canvasHeight"
-      ></canvas>
+      <!-- 勿绑定 :width/:height：会重置位图并破坏 Fabric 的 retina 缓冲，导致文字缩放发糊 -->
+      <canvas :key="canvasKey" ref="canvasRef"></canvas>
       <div v-if="!allowRenderCloud || poiStore.tagCloudList.length === 0" class="empty-cloud-hint">
         <div class="hint-content">
           <div class="hint-icon">
@@ -117,16 +113,42 @@
       <!-- 交互工具栏 -->
       <!-- 移动端：悬浮入口，无 panel-head -->
       <template v-if="isMobile">
-        <el-button
-          type="primary"
-          circle
-          class="mobile-tagcloud-fab"
-          data-intro-target="tagcloud-mobile-fab"
-          aria-label="标签云显示与导出选项"
-          @click="mobileToolsDrawerOpen = true"
-        >
-          <el-icon><Operation /></el-icon>
-        </el-button>
+        <div class="mobile-tagcloud-fab-row">
+          <el-button
+            v-show="!mobileCanvasImmersive"
+            type="primary"
+            circle
+            class="mobile-tagcloud-fab"
+            data-intro-target="tagcloud-mobile-fab"
+            aria-label="标签云显示与导出选项"
+            @click="mobileToolsDrawerOpen = true"
+          >
+            <el-icon><Operation /></el-icon>
+          </el-button>
+          <el-button
+            circle
+            :type="mobileCanvasImmersive ? 'default' : 'primary'"
+            :class="[
+              'mobile-canvas-immersive-btn',
+              mobileCanvasImmersive
+                ? 'mobile-canvas-immersive-btn--exit'
+                : 'mobile-canvas-immersive-btn--enter',
+            ]"
+            data-intro-target="tagcloud-mobile-immersive"
+            :aria-label="mobileCanvasImmersive ? '退出全屏' : '全屏显示标签云'"
+            @click="toggleMobileCanvasImmersive"
+          >
+            <el-icon v-if="mobileCanvasImmersive" class="mobile-canvas-immersive-btn__icon">
+              <Close />
+            </el-icon>
+            <el-icon
+              v-else
+              class="mobile-canvas-immersive-btn__icon mobile-canvas-immersive-btn__icon--enter"
+            >
+              <FullScreen />
+            </el-icon>
+          </el-button>
+        </div>
         <el-drawer
           v-model="mobileToolsDrawerOpen"
           direction="ltr"
@@ -209,8 +231,8 @@
         </el-tooltip>
       </div>
       
-      <!-- POI信息窗口 -->
-      <div v-if="selectedPoi" class="poi-info-window">
+      <!-- POI信息窗口（移动端沉浸全屏时隐藏，仅保留画布+图例+全屏按钮） -->
+      <div v-if="selectedPoi && !(isMobile && mobileCanvasImmersive)" class="poi-info-window">
         <div class="info-window-header">
           <span class="info-window-title">地名信息</span>
           <el-button
@@ -314,6 +336,54 @@ const showTime = ref(false);
 const poiStore = usePoiStore();
 const { isMobile } = useMobileLayout();
 const mobileToolsDrawerOpen = ref(false);
+/** 移动端：仅保留画布 + 距离图例 + 全屏按钮，隐藏顶栏/侧栏/工作区抽屉等 */
+const mobileCanvasImmersive = ref(false);
+
+function syncTagcloudImmersiveBodyClass() {
+  if (typeof document === 'undefined') return;
+  const on = isMobile.value && mobileCanvasImmersive.value;
+  document.body.classList.toggle('tagcloud-canvas-immersive', !!on);
+}
+
+function resizeCanvasToWrapper() {
+  if (!wrapperRef.value || !canvasInstance) return;
+  initCanvasSize();
+  const prevVpt = canvasInstance.viewportTransform;
+  canvasInstance.setDimensions({
+    width: canvasWidth.value,
+    height: canvasHeight.value,
+  });
+  if (prevVpt) {
+    canvasInstance.setViewportTransform(prevVpt);
+  }
+  if (allowRenderCloud.value) {
+    void renderCloud(false);
+  } else {
+    canvasInstance.renderAll();
+  }
+}
+
+function toggleMobileCanvasImmersive() {
+  if (!isMobile.value) return;
+  const wasImmersive = mobileCanvasImmersive.value;
+  mobileCanvasImmersive.value = !mobileCanvasImmersive.value;
+  if (mobileCanvasImmersive.value) {
+    mobileToolsDrawerOpen.value = false;
+  }
+  syncTagcloudImmersiveBodyClass();
+  if (wasImmersive) {
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+    });
+  }
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      resizeCanvasToWrapper();
+    });
+  });
+}
 
 // 导出相关变量
 const exportDialogVisible = ref(false);
@@ -508,9 +578,11 @@ const initCanvas = () => {
   if (isPanning.value) {
     canvasInstance.defaultCursor = 'grab';
   }
-  canvasInstance.setWidth(canvasWidth.value);
-  canvasInstance.setHeight(canvasHeight.value);
-  
+  canvasInstance.setDimensions({
+    width: canvasWidth.value,
+    height: canvasHeight.value,
+  });
+
   if (vpt) {
     canvasInstance.setViewportTransform(vpt);
   }
@@ -548,12 +620,12 @@ watch(
   { immediate: false }
 );
 
-// 初始化canvas尺寸（只执行一次，固定大小）
+// 与容器对齐的整数逻辑像素；用于 Fabric 与 CSS 内联尺寸一致，避免被缩放导致文字发糊
 const initCanvasSize = () => {
   if (!wrapperRef.value) return;
   const rect = wrapperRef.value.getBoundingClientRect();
-  canvasWidth.value = Math.floor(rect.width);
-  canvasHeight.value = Math.floor(rect.height);
+  canvasWidth.value = Math.max(1, Math.round(rect.width));
+  canvasHeight.value = Math.max(1, Math.round(rect.height));
 };
 
 // 清除标签云
@@ -2542,8 +2614,18 @@ watch(
   },
 );
 
+watch(isMobile, (m) => {
+  if (!m) {
+    mobileCanvasImmersive.value = false;
+  }
+  syncTagcloudImmersiveBodyClass();
+});
+
 onBeforeUnmount(() => {
   if (canvasInstance) canvasInstance.dispose();
+  if (typeof document !== 'undefined') {
+    document.body.classList.remove('tagcloud-canvas-immersive');
+  }
 });
 </script>
 
@@ -2574,12 +2656,17 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
+/*
+ * 勿使用 width/height: 100% !important：会覆盖 Fabric 内联像素尺寸，
+ * 使位图分辨率与元素实际显示尺寸不一致，全屏/窗口变化时文字易被浏览器缩放发糊。
+ * 尺寸由 initCanvasSize + Fabric setDimensions 与容器 getBoundingClientRect 对齐。
+ */
 canvas {
   border-radius: 12px;
   background: #050816;
-  width: 100% !important;
-  height: 100% !important;
   display: block;
+  max-width: none;
+  max-height: none;
 }
 
 .empty-cloud-hint {
@@ -2937,13 +3024,67 @@ canvas {
     touch-action: none;
   }
 
-  .mobile-tagcloud-fab {
+  .mobile-tagcloud-fab-row {
     position: absolute;
     top: 14px;
     left: 14px;
-    z-index: 16;
+    z-index: 18;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .mobile-tagcloud-fab-row > * {
+    pointer-events: auto;
+  }
+
+  .mobile-tagcloud-fab {
+    position: relative;
+    top: auto;
+    left: auto;
     flex-shrink: 0;
     box-shadow: 0 4px 14px rgba(57, 156, 235, 0.45);
+  }
+
+  .mobile-canvas-immersive-btn {
+    flex-shrink: 0;
+  }
+
+  /* 进入全屏：主色 + 全屏图标，语义清晰 */
+  .mobile-canvas-immersive-btn--enter {
+    box-shadow:
+      0 4px 18px rgba(57, 156, 235, 0.5),
+      0 0 0 1px rgba(255, 255, 255, 0.14) inset;
+  }
+
+  .mobile-canvas-immersive-btn--enter:hover {
+    box-shadow:
+      0 6px 22px rgba(57, 156, 235, 0.55),
+      0 0 0 1px rgba(255, 255, 255, 0.18) inset;
+  }
+
+  .mobile-canvas-immersive-btn__icon--enter {
+    font-size: 18px;
+  }
+
+  /* 退出全屏：深色圆形 +「×」，与「进入全屏」区分 */
+  .mobile-canvas-immersive-btn--exit {
+    background: rgba(15, 23, 42, 0.78) !important;
+    border-color: rgba(255, 255, 255, 0.22) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  .mobile-canvas-immersive-btn--exit:hover {
+    background: rgba(30, 41, 59, 0.92) !important;
+    border-color: rgba(255, 255, 255, 0.28) !important;
+    color: #fff !important;
+  }
+
+  .mobile-canvas-immersive-btn__icon {
+    font-size: 20px;
   }
 
   .canvas-toolbar--hidden-mobile {

@@ -223,3 +223,46 @@ body.layout-mobile .workspace {
   max-width: none !important;
 }
 
+/* 移动端标签云沉浸全屏：仅画布 + 距离图例 + 全屏按钮（由 TagCloudCanvas 切换 body 类名） */
+body.layout-mobile.tagcloud-canvas-immersive {
+  overflow: hidden;
+}
+
+body.layout-mobile.tagcloud-canvas-immersive .header,
+body.layout-mobile.tagcloud-canvas-immersive .side-menu,
+body.layout-mobile.tagcloud-canvas-immersive .app-body > .workspace {
+  display: none !important;
+}
+
+body.layout-mobile.tagcloud-canvas-immersive .app-shell {
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+body.layout-mobile.tagcloud-canvas-immersive #app {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+body.layout-mobile.tagcloud-canvas-immersive .app-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+body.layout-mobile.tagcloud-canvas-immersive .app-body > .tagcloud-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  padding-bottom: 0 !important;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
