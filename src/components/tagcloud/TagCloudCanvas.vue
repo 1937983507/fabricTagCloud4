@@ -10,6 +10,13 @@
         <div class="toolbar-options">
           <el-checkbox v-model="showRank" class="first-checkbox">显示排名信息</el-checkbox>
           <el-checkbox v-model="showTime">显示通行时间(min)</el-checkbox>
+          <el-button
+            :disabled="!canToggleTagCloudEdit"
+            :type="isTagCloudEditMode ? 'primary' : 'default'"
+            @click="toggleTagCloudEditMode"
+          >
+            {{ isTagCloudEditMode ? '结束编辑' : '编辑标签云' }}
+          </el-button>
           <el-dropdown @command="handleExportCommand">
             <el-button>
               导出图片<el-icon style="margin-left:4px"><ArrowDown /></el-icon>
@@ -215,6 +222,15 @@
             </div>
             <el-checkbox v-model="showRank">显示排名信息</el-checkbox>
             <el-checkbox v-model="showTime">显示通行时间(min)</el-checkbox>
+            <el-button
+              :disabled="!canToggleTagCloudEdit"
+              :type="isTagCloudEditMode ? 'primary' : 'default'"
+              plain
+              style="width: 100%; margin-top: 8px"
+              @click="toggleTagCloudEditMode"
+            >
+              {{ isTagCloudEditMode ? '结束编辑' : '编辑标签云' }}
+            </el-button>
             <el-dropdown class="mobile-drawer-export" @command="handleMobileExportCommand">
               <el-button type="primary" plain style="width: 100%">
                 导出图片<el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -473,6 +489,7 @@ let isRendering = false;
 let hasPendingRender = false;
 let pendingRebuildPyramid = false;
 let isPanning = ref(true);
+const isTagCloudEditMode = ref(false);
 let vpt = [1, 0, 0, 1, 0, 0];
 const maxDistance = ref(0);
 let poisPyramid = [];
@@ -491,6 +508,9 @@ const renderedLabelCount = ref(0);
 const totalLabelCount = ref(0);
 const currentRenderedCount = ref(0);
 const selectedPoi = ref(null);
+const canToggleTagCloudEdit = computed(
+  () => allowRenderCloud.value && totalLabelCount.value > 0,
+);
 
 const renderProgress = computed(() => {
   if (!totalLabelCount.value) return 0;
@@ -644,10 +664,8 @@ const initCanvas = () => {
     selection: false,
     defaultCursor: isPanning.value ? 'grab' : 'default',
   });
-  
-  if (isPanning.value) {
-    canvasInstance.defaultCursor = 'grab';
-  }
+
+  updateCanvasCursorState();
   canvasInstance.setDimensions({
     width: canvasWidth.value,
     height: canvasHeight.value,
@@ -658,6 +676,41 @@ const initCanvas = () => {
   }
   
   setupCanvasInteractions();
+};
+
+const updateCanvasCursorState = () => {
+  if (!canvasInstance) return;
+  canvasInstance.defaultCursor = isPanning.value ? 'grab' : 'default';
+};
+
+const applyTagCloudEditability = () => {
+  if (!canvasInstance) return;
+  canvasInstance.forEachObject((obj, i) => {
+    const isCenterLabel = i === 0;
+    const isPoiLabel = !!obj.poiId && !isCenterLabel;
+    if (!isPoiLabel) {
+      obj.set({
+        selectable: false,
+        evented: false,
+      });
+      return;
+    }
+    obj.set({
+      selectable: isTagCloudEditMode.value,
+      evented: true,
+      hasControls: false,
+      hasBorders: isTagCloudEditMode.value,
+      lockMovementX: !isTagCloudEditMode.value,
+      lockMovementY: !isTagCloudEditMode.value,
+      lockScalingX: true,
+      lockScalingY: true,
+      lockRotation: true,
+      hoverCursor: isTagCloudEditMode.value ? 'move' : 'pointer',
+      moveCursor: 'move',
+    });
+    obj.setCoords();
+  });
+  canvasInstance.renderAll();
 };
 
 // 监听背景色变化，立即更新canvas
@@ -671,6 +724,14 @@ watch(
   },
   { immediate: false }
 );
+
+watch(canToggleTagCloudEdit, (canEdit) => {
+  if (canEdit) return;
+  if (isTagCloudEditMode.value) {
+    isTagCloudEditMode.value = false;
+    applyTagCloudEditability();
+  }
+});
 
 // 监听中心标签颜色变化，立即更新中心标签
 watch(
@@ -703,6 +764,7 @@ const initCanvasSize = () => {
 // 清除标签云
 const clearTagCloud = () => {
   isClearing.value = true;
+  isTagCloudEditMode.value = false;
   allowRenderCloud.value = false;
   maxDistance.value = 0;
   poisPyramid = [];
@@ -1634,8 +1696,17 @@ const renderCloud = async (rebuildPyramid = false) => {
         fill: color,
         originX: 'center',
         originY: 'center',
-        selectable: false,
+        selectable: isTagCloudEditMode.value,
         evented: true,
+        hasControls: false,
+        hasBorders: isTagCloudEditMode.value,
+        lockMovementX: !isTagCloudEditMode.value,
+        lockMovementY: !isTagCloudEditMode.value,
+        lockScalingX: true,
+        lockScalingY: true,
+        lockRotation: true,
+        hoverCursor: isTagCloudEditMode.value ? 'move' : 'pointer',
+        moveCursor: 'move',
         poiId: result.poi.id,
         distance: distance,
       });
@@ -1657,6 +1728,7 @@ const renderCloud = async (rebuildPyramid = false) => {
     
     // 17. 渲染canvas
     canvasInstance.renderAll();
+    applyTagCloudEditability();
     
     console.log('标签云渲染完成:', {
       totalLabels: layoutResults.length,
@@ -1830,7 +1902,7 @@ const setupCanvasInteractions = () => {
     clickStartPos = { x: xy.x, y: xy.y };
     hasMoved = false;
     
-    if (isPanning.value) {
+    if (isPanning.value && !isTagCloudEditMode.value) {
       isDragging = true;
       lastPosX = xy.x;
       lastPosY = xy.y;
@@ -1872,7 +1944,7 @@ const setupCanvasInteractions = () => {
       vpt = canvasInstance.viewportTransform;
     }
 
-    if (isDragging && isPanning.value) {
+    if (isDragging && isPanning.value && !isTagCloudEditMode.value) {
       const xy = getPointerClientXY(e);
       if (!xy) return;
       const moveDistance = Math.sqrt(
@@ -1964,9 +2036,24 @@ const returnToScale = () => {
 // 切换漫游
 const togglePanning = () => {
   isPanning.value = !isPanning.value;
-  if (canvasInstance) {
-    canvasInstance.defaultCursor = isPanning.value ? 'grab' : 'default';
+  if (isPanning.value && isTagCloudEditMode.value) {
+    isTagCloudEditMode.value = false;
+    applyTagCloudEditability();
   }
+  updateCanvasCursorState();
+};
+
+const toggleTagCloudEditMode = () => {
+  if (!canToggleTagCloudEdit.value) return;
+  isTagCloudEditMode.value = !isTagCloudEditMode.value;
+  if (isTagCloudEditMode.value && isPanning.value) {
+    isPanning.value = false;
+  } else if (!isTagCloudEditMode.value && !isPanning.value) {
+    // 结束编辑后恢复漫游，避免无法拖拽画布
+    isPanning.value = true;
+  }
+  applyTagCloudEditability();
+  updateCanvasCursorState();
 };
 
 // 放大
