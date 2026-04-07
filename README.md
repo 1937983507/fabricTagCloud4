@@ -84,7 +84,7 @@ fabricTagCloud4/
 
 1. **准备环境**
    - Node.js ≥ 18（Vite 官方推荐版本）
-   - 配置高德 JSAPI 的 Referer 白名单，必要时替换 `PoiMap.vue` 中的 `key`
+   - 在高德开放平台申请 JSAPI Key，配置 Referer 白名单；将 Key 写入项目根目录 `.env` 中的 `VITE_AMAP_KEY`（见 `.env.example`）
 
 2. **安装依赖**
 
@@ -108,20 +108,19 @@ fabricTagCloud4/
    npm run preview
    ```
 
-5. **环境变量配置（可选）**
+5. **环境变量**
 
-   如果需要自定义统计服务后端地址，创建 `.env` 文件：
+   复制 `.env.example` 为 `.env` 并填写：
 
-   ```bash
-   # 开发环境：使用 localhost
-   VITE_STATS_API_URL=http://localhost:3001
-   
-   # 生产环境：留空使用相对路径（通过 Nginx 代理）
-   # 或者设置为完整的后端地址
-   VITE_STATS_API_URL=
-   ```
+   | 变量 | 说明 |
+   | --- | --- |
+   | `VITE_AMAP_KEY` | **必填**，高德地图 JSAPI Key（`PoiMap.vue`、`TagCloudCanvas.vue` 共用） |
+   | `VITE_AMAP_SECURITY_JS_CODE` | 可选，控制台启用安全密钥时填写 |
+   | `VITE_STATS_API_URL` | 可选，统计服务后端；开发可用 `http://localhost:3001`，生产可留空走 Nginx 代理 |
 
-   生产环境推荐使用相对路径 `/stats-api`，通过 Nginx 代理到后端服务。
+   说明：以 `VITE_` 开头的变量会打进前端产物，浏览器仍可看到 Key；`.env` 已列入 `.gitignore`，避免把密钥提交到仓库。部署时在构建环境注入同名变量即可。
+
+   生产环境统计接口推荐使用相对路径 `/stats-api`，通过 Nginx 代理到后端服务。
 
 ---
 
