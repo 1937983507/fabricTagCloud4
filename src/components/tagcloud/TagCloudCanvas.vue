@@ -1108,65 +1108,71 @@ const findNearestPoi = (pois, center) => {
 };
 
 const calculateJenks = (data, numClasses) => {
-  const n = data.length;
-  const mat1 = [];
-  const mat2 = [];
-  const classIndex = [];
+  if (!Array.isArray(data) || data.length === 0) return [];
+  const values = [...data].sort((a, b) => a - b);
+  const n = values.length;
+  const k = Math.max(1, Math.min(numClasses, n));
 
-  for (let i = 0; i <= n; i++) {
-    mat1[i] = [];
-    mat2[i] = [];
-    for (let j = 0; j <= numClasses; j++) {
-      mat1[i][j] = 0;
-      mat2[i][j] = 0;
-    }
+  const lower = Array.from({ length: n + 1 }, () => Array(k + 1).fill(0));
+  const variance = Array.from({ length: n + 1 }, () => Array(k + 1).fill(Infinity));
+
+  for (let i = 1; i <= k; i++) {
+    lower[1][i] = 1;
+    variance[1][i] = 0;
   }
-
-  for (let i = 1; i <= numClasses; i++) {
-    mat1[1][i] = 1;
-    mat2[1][i] = 0;
-    for (let j = 2; j <= n; j++) {
-      mat2[j][i] = Infinity;
-    }
-  }
-
-  let v = 0;
   for (let l = 2; l <= n; l++) {
-    let s1 = 0;
-    let s2 = 0;
+    lower[l][1] = 1;
+  }
+
+  for (let l = 2; l <= n; l++) {
+    let sum = 0;
+    let sumSquares = 0;
     let w = 0;
+    let varianceWithin = 0;
+
     for (let m = 1; m <= l; m++) {
-      const i3 = l - m + 1;
-      const val = data[i3 - 1];
-      s2 += val * val;
-      s1 += val;
-      w += 1;
-      const v1 = s2 - (s1 * s1) / w;
-      let i4 = i3 - 1;
-      if (i4 !== 0) {
-        for (let j = 2; j <= numClasses; j++) {
-          if (mat2[l][j] >= v1 + mat2[i4][j - 1]) {
-            mat1[l][j] = i3;
-            mat2[l][j] = v1 + mat2[i4][j - 1];
+      const lowerClassLimit = l - m + 1;
+      const val = values[lowerClassLimit - 1];
+
+      w++;
+      sum += val;
+      sumSquares += val * val;
+      varianceWithin = sumSquares - (sum * sum) / w;
+
+      const prev = lowerClassLimit - 1;
+      if (prev !== 0) {
+        for (let j = 2; j <= k; j++) {
+          const candidate = varianceWithin + variance[prev][j - 1];
+          if (candidate < variance[l][j]) {
+            lower[l][j] = lowerClassLimit;
+            variance[l][j] = candidate;
           }
         }
       }
     }
-    mat1[l][1] = 1;
-    mat2[l][1] = v;
+
+    variance[l][1] = varianceWithin;
   }
 
-  let k = n;
-  for (let j = numClasses; j >= 1; j--) {
-    classIndex[j - 1] = mat1[k][j] - 1;
-    k = mat1[k][j] - 1;
+  // 返回 k 个递增断点（每个类别的上界），兼容现有分类逻辑。
+  const breaks = new Array(k);
+  breaks[k - 1] = values[n - 1];
+
+  let count = n;
+  for (let j = k; j >= 2; j--) {
+    const idx = lower[count][j] - 2;
+    breaks[j - 2] = values[Math.max(0, idx)];
+    count = lower[count][j] - 1;
   }
 
-  const jenksBreaks = [];
-  for (let i = 0; i < classIndex.length; i++) {
-    jenksBreaks.push(data[classIndex[i]]);
+  // 兜底：防止极端数据下断点非递增导致大量类别塌缩。
+  for (let i = 1; i < breaks.length; i++) {
+    if (breaks[i] < breaks[i - 1]) {
+      breaks[i] = breaks[i - 1];
+    }
   }
-  return jenksBreaks;
+
+  return breaks;
 };
 
 // 计算颜色类别索引（优化版本：使用预计算的缓存值）
