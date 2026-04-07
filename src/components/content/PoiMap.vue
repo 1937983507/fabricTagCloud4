@@ -1173,10 +1173,118 @@ const normalizeAmapLngLat = (raw) => {
   return null;
 };
 
-/** 地点关键词 → LngLat（Geocoder 优先，失败则 PlaceSearch） */
+/** 仅空白归一化，不改变大小写（中文检索） */
+const normalizePlaceQueryZh = (s) => String(s ?? '').trim().replace(/\s+/g, '');
+
+/**
+ * 从当前已加载/导入的 poiList 解析经纬度；匹配不中返回 null，再走高德。
+ * 规则：精确中文/英文 → 去空白后精确 → 中文包含（多命中时按专指度打分）→ 英文包含。
+ */
+const resolveLngLatFromImportedPois = (keyword) => {
+  const raw = keyword?.trim();
+  if (!raw || !amapGlobal) return null;
+  const list = poiStore.poiList;
+  if (!Array.isArray(list) || !list.length) return null;
+
+  const withCoord = list.filter(
+    (p) =>
+      p &&
+      p.lng != null &&
+      p.lat != null &&
+      Number.isFinite(+p.lng) &&
+      Number.isFinite(+p.lat),
+  );
+  if (!withCoord.length) return null;
+
+  const q = raw;
+  const qNorm = normalizePlaceQueryZh(raw).replace(/\s/g, '');
+  const qLower = q.toLowerCase();
+  const toLngLat = (p) => new amapGlobal.LngLat(+p.lng, +p.lat);
+
+  for (const p of withCoord) {
+    const zh = p.name && String(p.name).trim();
+    if (zh && zh === q) return toLngLat(p);
+  }
+  for (const p of withCoord) {
+    const zh = p.name && String(p.name).trim();
+    if (zh && normalizePlaceQueryZh(zh).replace(/\s/g, '') === qNorm) return toLngLat(p);
+  }
+  for (const p of withCoord) {
+    const en = p.name_en && String(p.name_en).trim();
+    if (en && en.toLowerCase() === qLower) return toLngLat(p);
+  }
+
+  const pickBestZhCandidates = (candidates) => {
+    if (!candidates.length) return null;
+    if (candidates.length === 1) return toLngLat(candidates[0]);
+    if (qNorm.length <= 2) return null;
+    const scored = candidates.map((p) => {
+      const zn = normalizePlaceQueryZh(p.name).replace(/\s/g, '');
+      let score = 0;
+      if (zn === qNorm) score += 100000;
+      if (zn.startsWith(qNorm)) score += 50000;
+      else if (zn.includes(qNorm)) score += 10000;
+      score += zn.length;
+      return { p, score, zn };
+    });
+    scored.sort((a, b) => b.score - a.score || a.zn.length - b.zn.length);
+    return toLngLat(scored[0].p);
+  };
+
+  if (qNorm.length >= 2) {
+    const zhSub = withCoord.filter((p) => {
+      const zn = p.name && normalizePlaceQueryZh(p.name).replace(/\s/g, '');
+      return zn && zn.includes(qNorm);
+    });
+    const hit = pickBestZhCandidates(zhSub);
+    if (hit) return hit;
+  }
+
+  if (qLower.length >= 2) {
+    const enSub = withCoord.filter((p) => {
+      const en = p.name_en && String(p.name_en).trim();
+      return en && en.toLowerCase().includes(qLower);
+    });
+    if (enSub.length === 1) return toLngLat(enSub[0]);
+    if (enSub.length > 1 && qLower.length >= 3) {
+      const scored = enSub.map((p) => {
+        const en = String(p.name_en).trim().toLowerCase();
+        let score = 0;
+        if (en === qLower) score += 100000;
+        if (en.startsWith(qLower)) score += 50000;
+        else if (en.includes(qLower)) score += 10000;
+        score += en.length;
+        return { p, score };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      return toLngLat(scored[0].p);
+    }
+  }
+
+  /* city + 名称 拼接唯一命中（例如「武汉市」+「黄鹤楼」应对整句地名） */
+  if (qNorm.length >= 3) {
+    const cityHits = withCoord.filter((p) => {
+      const city = p.city && String(p.city).trim().replace(/\s+/g, '');
+      const zn = p.name && normalizePlaceQueryZh(p.name).replace(/\s/g, '');
+      return Boolean(city && zn && `${city}${zn}`.includes(qNorm));
+    });
+    if (cityHits.length === 1) return toLngLat(cityHits[0]);
+  }
+
+  return null;
+};
+
+/** 地点关键词 → LngLat（优先当前数据集 POI，再高德 Geocoder / PlaceSearch） */
 const geocodeKeyword = async (keyword) => {
   const input = keyword?.trim();
   if (!input) throw new Error('请输入地点关键词');
+
+  const localLngLat = resolveLngLatFromImportedPois(input);
+  if (localLngLat) {
+    currentLocationMethod.value = '已从数据集中匹配地点';
+    return localLngLat;
+  }
+
   if (!geocoder) {
     geocoder = new amapGlobal.Geocoder({ city: '全国' });
   }
