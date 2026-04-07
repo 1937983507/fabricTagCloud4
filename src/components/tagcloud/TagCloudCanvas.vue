@@ -380,6 +380,7 @@ import {
 import { usePoiStore } from '@/stores/poiStore';
 import { cityNameToPinyin } from '@/utils/cityNameToPinyin';
 import AMapLoader from '@amap/amap-jsapi-loader';
+import { getAmapLoaderConfig } from '@/config/amapLoader';
 import {
   RefreshLeft,
   FullScreen,
@@ -800,11 +801,9 @@ const initAMapDriving = async () => {
   if (amapGlobal && drivingInstance) return;
   
   try {
-    amapGlobal = await AMapLoader.load({
-      key: '80838eddfb922202b289fd1ad6fa4e58',
-      version: '2.0',
-      plugins: ['AMap.Driving'],
-    });
+    amapGlobal = await AMapLoader.load(
+      getAmapLoaderConfig({ plugins: ['AMap.Driving'] }),
+    );
     drivingInstance = new amapGlobal.Driving({
       policy: amapGlobal.DrivingPolicy.LEAST_TIME,
     });
