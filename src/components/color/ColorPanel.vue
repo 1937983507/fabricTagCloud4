@@ -266,9 +266,7 @@ const handleBackgroundChange = (color) => {
 const handleCenterLabelColorChange = (color) => {
   if (!color) return;
   localSettings.value.centerLabelColor = color;
-  poiStore.updateColorSettings({
-    centerLabelColor: color,
-  });
+  poiStore.updateCenterLabelColor(color);
 };
 
 // 配色模式切换
