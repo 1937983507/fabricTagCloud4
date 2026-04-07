@@ -84,9 +84,20 @@
             <div
               v-for="(color, index) in currentRibbon"
               :key="`ribbon-${index}`"
-              class="ribbon-color-item"
-              :style="{ background: color }"
-            ></div>
+              class="ribbon-color-editor-item"
+            >
+              <el-color-picker
+                :model-value="localSettings.palette?.[index]"
+                @active-change="(value) => handleRibbonColorInput(index, value, false)"
+                @change="(value) => handleRibbonColorInput(index, value, true)"
+                show-alpha
+                size="small"
+              />
+              <div
+                class="ribbon-color-item"
+                :style="{ background: color }"
+              ></div>
+            </div>
           </div>
         </div>
 
@@ -130,7 +141,7 @@
               v-for="(scheme, index) in availableRibbons"
               :key="`ribbon-${index}`"
               class="ribbon-scheme-item"
-              :class="{ active: currentRibbonIndex === index }"
+              :class="{ active: currentRibbonIndex >= 0 && currentRibbonIndex === index }"
               @click="handleRibbonSchemeSelect(index)"
             >
               <div class="ribbon-scheme-colors">
@@ -329,6 +340,37 @@ const handleRibbonSchemeSelect = (index) => {
   });
 };
 
+let ribbonPaletteSyncTimer = null;
+const commitRibbonPalette = (palette) => {
+  poiStore.updatePalette(palette);
+};
+
+// 复色色带颜色输入：拖动时节流同步，确认时立即同步
+const handleRibbonColorInput = (index, color, immediate = false) => {
+  if (!color || localSettings.value.colorMode !== 'multi') return;
+  const nextPalette = [...(localSettings.value.palette || [])];
+  if (index < 0 || index >= nextPalette.length) return;
+  nextPalette[index] = color;
+  localSettings.value.palette = nextPalette;
+  // 手动改色后取消预设方案高亮，直到用户再次选择预设方案
+  currentRibbonIndex.value = -1;
+
+  if (immediate) {
+    if (ribbonPaletteSyncTimer) {
+      clearTimeout(ribbonPaletteSyncTimer);
+      ribbonPaletteSyncTimer = null;
+    }
+    commitRibbonPalette(nextPalette);
+    return;
+  }
+
+  if (ribbonPaletteSyncTimer) clearTimeout(ribbonPaletteSyncTimer);
+  ribbonPaletteSyncTimer = setTimeout(() => {
+    commitRibbonPalette(nextPalette);
+    ribbonPaletteSyncTimer = null;
+  }, 50);
+};
+
 // 初始化时确保使用第三个配色方案（如果当前palette不匹配任何方案）
 onMounted(() => {
   nextTick(() => {
@@ -448,12 +490,21 @@ onMounted(() => {
   border: 1px solid #e4e7ed;
 }
 
+.ribbon-color-editor-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
 .ribbon-color-item {
   flex: 1;
-  height: 32px;
+  min-width: 28px;
+  height: 28px;
   border-radius: 4px;
   border: 1px solid rgba(0, 0, 0, 0.1);
-  min-width: 40px;
 }
 
 /* 离散设置 */
@@ -596,6 +647,10 @@ onMounted(() => {
   .ribbon-color-item {
     min-width: 0;
     height: 28px;
+  }
+
+  .ribbon-color-editor-item {
+    gap: 6px;
   }
 
   .discrete-settings {

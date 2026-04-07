@@ -386,6 +386,12 @@ export const usePoiStore = defineStore('poiStore', {
         singleColor,
       };
     },
+    updatePalette(palette) {
+      this.colorSettings = {
+        ...this.colorSettings,
+        palette,
+      };
+    },
     updateAlgorithmSettings(payload) {
       this.algorithmSettings = {
         ...this.algorithmSettings,
