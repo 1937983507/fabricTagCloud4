@@ -283,7 +283,9 @@ const handleCenterLabelColorChange = (color) => {
 // 配色模式切换
 const handleColorModeChange = (mode) => {
   localSettings.value.colorMode = mode;
-  poiStore.updateColorSettings({
+  // 切换单色/复色只需要更新 colorSettings，让画布根据新模式刷新颜色即可
+  // 不需要触发 poiList 的全量映射（否则切换会明显卡顿）
+  poiStore.updateColorSettingsLight({
     colorMode: mode,
   });
 };
