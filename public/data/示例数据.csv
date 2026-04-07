@@ -1,0 +1,1001 @@
+地名,X,Y,城市,排名,name_en
+外滩,121.490603,31.237771,上海,1,The Bund
+东方明珠,121.499739,31.239777,上海,2,Oriental Pearl Tower
+上海迪士尼度假区,121.665534,31.142003,上海,3,Shanghai Disney Resort
+鼓浪屿,118.067623,24.445391,厦门,4,Gulangyu Island
+故宫博物院,116.397048,39.917752,北京,5,The Palace Museum
+西湖,120.121526,30.222576,杭州,6,West Lake
+上海野生动物园,121.721461,31.055591,上海,7,Shanghai Wild Animal Park
+丽江古城,100.235437,26.870614,丽江,8,Old Town of Lijiang
+长隆野生动物世界,113.31521,23.002039,广州,9,Chimelong Safari Park
+蜈支洲岛,109.72747,18.27433,三亚,10,Wuzhizhou Island
+颐和园,116.273833,40.002482,北京,11,Summer Palace
+亚龙湾,109.649664,18.235582,三亚,12,Yalong Bay
+锦里古街,104.049824,30.64563,成都,13,Jinli Ancient Street
+瘦西湖,119.421577,32.408594,扬州,14,Slender West Lake
+成都大熊猫繁育研究基地,104.144469,30.737103,成都,15,Chengdu Research Base of Giant Panda Breeding
+秦始皇帝陵博物院,109.258987,34.380987,西安,16,Emperor Qinshihuang's Mausoleum Site Museum
+都江堰景区,103.610865,31.001164,成都,17,Dujiangyan Irrigation System
+八达岭长城,116.017596,40.356499,北京,18,Badaling Great Wall
+黄山风景区,118.161524,30.124159,黄山,19,Mount Huangshan Scenic Area
+广州塔,113.324542,23.106459,广州,20,Canton Tower
+拙政园,120.62921,31.324231,苏州,21,Humble Administrator's Garden
+宽窄巷子,104.053338,30.663699,成都,22,Kuanzhai Alley
+厦门大学,118.100086,24.436851,厦门,23,Xiamen University
+华清宫,109.216458,34.35777,西安,25,Huaqing Palace
+南京路步行街,121.484119,31.237473,上海,26,Nanjing Road Pedestrian Street
+天涯海角,109.352782,18.292598,三亚,27,Tianya Haijiao
+磁器口古镇,106.450003,29.58143,重庆,28,Ciqikou Ancient Town
+黄鹤楼,114.302457,30.544658,武汉,29,Yellow Crane Tower
+乌镇,120.491844,30.747986,嘉兴,30,Wuzhen
+大理古城,100.164146,25.694484,大理,31,Dali Old Town
+夫子庙,118.788869,32.020645,南京,32,Confucius Temple
+九寨沟风景区,103.914688,33.157204,阿坝,33,Jiuzhaigou Valley Scenic and Historic Interest Area
+中山陵景区,118.854435,32.054614,南京,34,Sun Yat-sen Mausoleum
+华山,110.066529,34.491583,渭南,35,Mount Hua
+大唐芙蓉园,108.97,34.21,西安,36,Tang Paradise
+陕西历史博物馆,108.955104,34.224245,西安,37,Shaanxi History Museum
+泸沽湖,100.786955,27.683485,丽江,38,Lugu Lake
+泸沽湖,100.786955,27.683485,凉山,39,Lugu Lake
+西塘风景区,120.893254,30.944834,嘉兴,40,Xitang Ancient Town
+玉龙雪山,100.204046,27.13384,丽江,41,Jade Dragon Snow Mountain
+广州长隆度假区,113.323998,23.00063,广州,42,Chimelong Tourist Resort
+亚龙湾热带天堂森林公园,109.647562,18.251156,三亚,43,Yalong Bay Tropical Paradise Forest Park
+骊山,109.215174,34.357798,西安,44,Mount Li
+崂山,120.619214,36.184467,青岛,45,Mount Lao
+鼋头渚,120.227001,31.523518,无锡,46,Turtle Head Isle
+周庄,120.850985,31.115325,苏州,47,Zhouzhuang
+武陵源,110.468151,29.352736,张家界,48,Wulingyuan
+天门山国家森林公园,110.483808,29.112197,张家界,49,Tianmen Mountain National Forest Park
+峨眉山,103.349794,29.567821,乐山,50,Mount Emei
+青城山,103.562793,30.905436,成都,51,Mount Qingcheng
+哈尔滨冰雪大世界,126.563939,45.779012,哈尔滨,52,Harbin Ice and Snow World
+洱海,100.213135,25.726601,大理,53,Erhai Lake
+漓江风景名胜区,110.431811,25.147164,桂林,54,Li River Scenic Area
+栈桥,120.32004,36.059623,青岛,55,Zhanqiao Pier
+宏村景区,117.990546,30.003343,黄山,56,Hongcun Village
+泰山风景区,117.08821,36.26392,泰安,57,Mount Tai Scenic Area
+南京总统府,118.797425,32.04421,南京,58,Nanjing Presidential Palace
+武侯祠,104.048197,30.646639,成都,59,Wuhou Shrine
+西溪国家湿地公园,120.064921,30.267233,杭州,60,Xixi National Wetland Park
+天安门广场,116.397714,39.90375,北京,61,Tiananmen Square
+凤凰古城,109.60249,27.947418,湘西,62,Fenghuang Ancient Town
+趵突泉景区,117.015968,36.661123,济南,63,Baotu Spring Scenic Area
+天津之眼摩天轮,117.186405,39.153934,天津,64,Tianjin Eye Ferris Wheel
+千岛湖景区,119.053653,29.546712,杭州,65,Qiandao Lake Scenic Area
+洪崖洞民俗风貌区,106.578343,29.561938,重庆,66,Hongyadong Folk Custom Area
+中央大街,126.618478,45.775822,哈尔滨,67,Central Street
+灵山大佛,120.096439,31.430295,无锡,68,Lingshan Grand Buddha
+黄果树瀑布,105.672589,25.98004,安顺,69,Huangguoshu Waterfall
+上海科技馆,121.541317,31.218404,上海,70,Shanghai Science and Technology Museum
+老虎滩海洋公园,121.675822,38.871792,大连,71,Tiger Beach Ocean Park
+张家界国家森林公园,110.434767,29.315306,张家界,72,Zhangjiajie National Forest Park
+石林风景区,103.323315,24.811902,昆明,73,Stone Forest Scenic Area
+灵隐寺,120.101383,30.240712,杭州,74,Lingyin Temple
+太平山顶,114.163512,22.260616,香港,75,Victoria Peak
+北戴河,119.485004,39.8351,秦皇岛,76,Beidaihe
+杭州宋城,120.098912,30.16963,杭州,77,Hangzhou Songcheng
+大三巴牌坊,113.545922,22.193682,澳门,78,Ruins of St. Paul's
+西街,110.494172,24.775098,桂林,79,West Street
+双廊,100.19349,25.909591,大理,80,Shuanglang
+户部巷,114.298117,30.547291,武汉,81,Hubu Alley
+星海广场,121.588117,38.882135,大连,82,Xinghai Square
+曾厝垵,118.126514,24.426797,厦门,83,Zengcuoan
+第一市场,109.508666,18.2386,三亚,84,First Market
+南山文化旅游区,109.207188,18.29815,三亚,85,Nanshan Cultural Tourism Zone
+青海湖,100.228654,36.894097,海南藏族自治州,86,Qinghai Lake
+青海湖,100.228654,36.894097,西宁,87,Qinghai Lake
+城隍庙旅游区,121.49139,31.22672,上海,88,City God Temple Tourist Area
+虎丘山风景名胜区,120.580928,31.335413,苏州,89,Tiger Hill Scenic Area
+大连圣亚海洋世界,121.571652,38.878954,大连,90,Dalian Sun Asia Ocean World
+普陀山风景区,122.391186,30.001647,舟山,91,Mount Putuo Scenic Area
+八大关,120.351235,36.053392,青岛,92,Eight Great Passes
+鸣沙山月牙泉,94.678802,40.08877,酒泉,93,Mingsha Mountain and Crescent Spring
+环岛路,118.109689,24.429816,厦门,94,Island Ring Road
+布达拉宫,91.11856,29.654487,拉萨,95,Potala Palace
+大明湖景区,117.02619,36.675413,济南,96,Daming Lake Scenic Area
+象鼻山景区,110.296645,25.268176,桂林,97,Elephant Trunk Hill Scenic Area
+上海环球金融中心,121.506792,31.235399,上海,98,Shanghai World Financial Center
+武隆,107.753497,29.319113,重庆,99,Wulong
+三亚千古情,109.531216,18.291235,三亚,100,Sanya Romance Park
+上海海洋水族馆,121.501977,31.241113,上海,101,Shanghai Ocean Aquarium
+圆明园,116.303268,40.010067,北京,102,Old Summer Palace
+龙门石窟,112.477533,34.558506,洛阳,103,Longmen Grottoes
+束河古镇,100.206435,26.920049,丽江,104,Shuhe Ancient Town
+遇龙河,110.433042,24.776193,桂林,105,Yulong River
+蓬莱阁,120.755302,37.824527,烟台,106,Penglai Pavilion
+普达措国家公园,99.944576,27.858665,迪庆,107,Potatso National Park
+台北故宫博物院,121.55231,25.099474,台北,108,National Palace Museum (Taipei)
+武隆天生三桥,107.805121,29.433587,重庆,109,Wulong Three Natural Bridges
+天坛,116.412869,39.883639,北京,110,Temple of Heaven
+沈阳故宫,123.455717,41.797103,沈阳,111,Shenyang Imperial Palace
+圣索菲亚大教堂,126.627271,45.770105,哈尔滨,112,Hagia Sophia
+深圳平安金融中心云际观光层,114.055639,22.533181,深圳,113,Ping An Finance Centre Sky View
+长隆欢乐世界,113.330306,22.999111,广州,114,Chimelong Paradise
+杜甫草堂,104.028514,30.660271,成都,115,Du Fu Thatched Cottage
+玄武湖景区,118.797448,32.073261,南京,116,Xuanwu Lake Scenic Area
+橘子洲,112.962093,28.186915,长沙,117,Orange Isle
+横店影视城,120.316836,29.137863,金华,118,Hengdian World Studios
+南普陀寺,118.096618,24.440803,厦门,119,Nanputuo Temple
+鹿回头风景区,109.500773,18.226059,三亚,120,Luhuitou Scenic Area
+岳麓山,112.937434,28.182918,长沙,121,Yuelu Mountain
+三坊七巷,119.296498,26.082313,福州,122,Three Lanes and Seven Alleys
+乐山大佛,103.774945,29.541456,乐山,123,Leshan Giant Buddha
+张掖七彩丹霞旅游景区,100.06935,38.958062,张掖,124,Zhangye Danxia Landform Geological Park
+两江四湖,110.294571,25.267868,桂林,125,Two Rivers and Four Lakes
+雷峰塔,120.148877,30.230882,杭州,126,Leifeng Pagoda
+滇池,102.659729,24.958924,昆明,127,Dianchi Lake
+沙面,113.244606,23.106723,广州,128,Shamian Island
+明孝陵,118.834691,32.04671,南京,129,Ming Xiaoling Mausoleum
+南山竹海,119.524631,31.168801,常州,130,Nanshan Bamboo Sea
+古文化街,117.192536,39.144026,天津,131,Ancient Culture Street
+青岛海底世界,120.33607,36.057177,青岛,132,Qingdao Underwater World
+尖沙咀,114.177156,22.29608,香港,133,Tsim Sha Tsui
+前门大街,116.398133,39.893302,北京,134,Qianmen Street
+三亚湾,109.437141,18.287185,三亚,135,Sanya Bay
+鲁迅故里景区,120.58434,29.992628,绍兴,136,Lu Xun's Hometown Scenic Area
+金石滩度假区,121.994152,39.095863,大连,137,Jinshitan Resort
+荔波小七孔景区,107.704379,25.244882,黔南,138,Xiaoqikong Scenic Area
+云南民族村,102.661388,24.965147,昆明,139,Yunnan Ethnic Village
+慕田峪长城,116.569299,40.434445,北京,140,Mutianyu Great Wall
+镇北堡西部影城,106.072296,38.614861,银川,141,Western Film Studio
+拉市海,100.137561,26.873477,丽江,142,Lashi Lake
+呀诺达雨林文化旅游区,109.648452,18.452313,保亭,143,Yanoda Rainforest Cultural Tourism Zone
+南锣鼓巷,116.403136,39.936827,北京,144,Nanluoguxiang Lane
+同里古镇,120.722975,31.154514,苏州,145,Tongli Ancient Town
+平遥古城,112.183705,37.203509,晋中,146,Pingyao Ancient City
+崇圣寺三塔文化旅游区,100.143271,25.704358,大理,147,Chongsheng Temple Three Pagodas Cultural Tourism Zone
+云水谣古镇,117.095068,24.665129,漳州,148,Yunshuiyao Ancient Town
+龙脊梯田,110.13016,25.761599,桂林,149,Longji Rice Terraces
+天下第一关,119.760843,40.010135,秦皇岛,150,First Pass Under Heaven
+狮子林,120.629113,31.321107,苏州,151,Lion Grove Garden
+台北101大楼,121.568674,25.030419,台北,152,Taipei 101
+陆家嘴中心绿地,121.505928,31.237861,上海,153,Lujiazui Central Green Space
+武夷山国家公园,117.956346,27.652352,南平,154,Wuyishan National Park
+日光岩,118.067547,24.442328,厦门,155,Sunlight Rock
+意大利风情区,117.199883,39.135537,天津,156,Italian Style Town
+云台山风景名胜区,113.375545,35.45551,焦作,157,Yuntai Mountain Scenic Area
+南浔古镇,120.430221,30.875828,湖州,158,Nanxun Ancient Town
+个园,119.443757,32.398992,扬州,159,Geyuan Garden
+黄河壶口瀑布旅游区(陕西侧),110.448823,36.145366,延安,160,Yellow River Hukou Waterfall Tourist Area (Shaanxi Side)
+大东海,109.52038,18.22071,三亚,161,Dadonghai
+西栅,120.486147,30.749061,嘉兴,162,Xizhan Scenic Area
+沙坡头,105.002105,37.477076,中卫,163,Shapotou Scenic Area
+莫高窟,94.809378,40.042475,酒泉,164,Mogao Caves
+维多利亚港,114.176305,22.290419,香港,165,Victoria Harbour
+少林寺,112.941376,34.506844,郑州,166,Shaolin Temple
+中科院西双版纳热带植物园,101.244966,21.931077,西双版纳,167,Xishuangbanna Tropical Botanical Garden
+青秀山,108.389501,22.788903,南宁,168,Qingxiu Mountain
+什刹海,116.384842,39.942135,北京,169,Shichahai
+天山天池,88.129005,43.881303,昌吉,170,Tianshan Tianchi Lake
+古北水镇,117.2781,40.655198,北京,171,Gubei Water Town
+长江索道,106.5828,29.55774,重庆,172,Yangtze River Cableway
+解放碑步行街,106.577161,29.557298,重庆,173,Jiefangbei Pedestrian Street
+银子岩,110.439375,24.637371,桂林,174,Silver Cave
+西江千户苗寨,108.172617,26.494308,黔东南,175,Xijiang Miao Village
+滕王阁,115.881135,28.681531,南昌,176,Tengwang Pavilion
+山塘街,120.603165,31.316804,苏州,177,Shantang Street
+曲江海洋极地公园,108.980232,34.215254,西安,1129,Qujiang Ocean Polar Park
+青岛啤酒博物馆,120.347158,36.079099,青岛,179,Tsingtao Beer Museum
+台儿庄古城,117.743095,34.557686,枣庄,180,Taierzhuang Ancient City
+云冈石窟,113.13782,40.113132,大同,181,Yungang Grottoes
+田子坊,121.468474,31.208082,上海,182,Tianzifang
+木府,100.234503,26.869249,丽江,183,Mufu Palace
+中山路步行街,118.079222,24.453869,厦门,184,Zhongshan Road Pedestrian Street
+灵山胜境,120.100887,31.425912,无锡,185,Lingshan Scenic Spot
+曼听公园,100.807871,21.992409,西双版纳,186,Man Ting Park
+恭王府,116.386206,39.937126,北京,187,Prince Gong's Mansion
+避暑山庄,117.932868,40.995637,承德,188,Chengde Mountain Resort
+庐山风景名胜区,115.99554,29.558523,九江,189,Mount Lu Scenic Area
+茶卡盐湖,99.078454,36.760472,海西,190,Chaka Salt Lake
+苍山,100.120817,25.66105,大理,191,Cangshan Mountain
+青岩古镇,106.686366,26.331572,贵阳,192,Qingyan Ancient Town
+五大道,117.203497,39.111488,天津,193,Five Great Avenues
+黔灵山公园,106.694219,26.598873,贵阳,194,Qianling Mountain Park
+寒山寺,120.568457,31.310464,苏州,195,Hanshan Temple
+上海动物园,121.362867,31.192908,上海,196,Shanghai Zoo
+恩施大峡谷,109.166783,30.425836,恩施,197,Enshi Grand Canyon
+三国城,120.232813,31.47537,无锡,198,Three Kingdoms City
+塔尔寺,101.56884,36.4875,西宁,199,Kumbum Monastery (Ta'er Temple)
+山西黄河壶口瀑布旅游区,110.452351,36.147605,临汾,200,Yellow River Hukou Waterfall Tourist Area (Shanxi Side)
+武汉长江大桥,114.288431,30.549645,武汉,201,Wuhan Yangtze River Bridge
+长岛,120.71345,37.978419,烟台,202,Long Island
+北海公园,116.388624,39.927886,北京,203,Beihai Park
+垂云通天河,119.532938,29.925248,杭州,204,Chuiyun Tongtian River
+鸽子窝公园,119.526762,39.836741,秦皇岛,205,Dove's Nest Park
+夫子庙秦淮风光带,118.789559,32.019909,南京,206,Confucius Temple and Qinhuai River Scenic Belt
+武汉大学,114.365716,30.53789,武汉,207,Wuhan University
+黄河铁桥,103.817054,36.064758,兰州,208,Yellow River Iron Bridge
+晋祠博物馆,112.44175,37.708869,太原,209,Jinci Museum
+五四广场,120.384279,36.063398,青岛,210,May Fourth Square
+北京野生动物园,116.334326,39.496469,北京,211,Beijing Wildlife Park
+岭南印象园,113.406492,23.036784,广州,212,Lingnan Impression Park
+天一阁博物院,121.539596,29.871177,宁波,213,Tianyi Pavilion Museum
+东湖,114.41343,30.552196,武汉,214,East Lake
+刘公岛,122.141068,37.494012,威海,215,Liugong Island
+水立方（国家游泳中心）,116.390415,39.992954,北京,216,Water Cube (National Aquatics Center)
+三清山风景区,118.065641,28.894674,上饶,217,Mount Sanqingshan Scenic Area
+上海市银行博物馆,121.476338,31.216454,上海,218,Shanghai Bank Museum
+平江路历史街区,120.634774,31.313999,苏州,219,Pingjiang Road Historic Block
+青岛奥帆中心,120.39482,36.05653,青岛,220,Qingdao Olympic Sailing Center
+淹城野生动物世界,119.925244,31.698939,常州,221,Yancheng Wildlife World
+毕棚沟,102.994429,31.380598,阿坝,222,Bipenggou
+西岛,109.374424,18.23363,三亚,223,West Island
+金茂大厦,121.505647,31.23537,上海,224,Jinmao Tower
+绍兴柯岩风景区,120.473103,30.046853,绍兴,225,Shaoxing Keyan Scenic Area
+秦王宫景区,120.313488,29.134602,金华,226,Qin Emperor Palace Scenic Spot
+骑楼老街,110.344767,20.043923,海口,227,Qilou Old Street
+北京动物园,116.335729,39.942072,北京,228,Beijing Zoo
+长影世纪城,125.446256,43.772532,长春,229,Changchun Film Century City
+炭河古城,112.11506,28.152109,长沙,230,Tanhe Ancient Town
+苏州博物馆,120.627825,31.323017,苏州,231,Suzhou Museum
+澳门塔,113.541887,22.176853,澳门,232,Macau Tower
+金沙遗址博物馆,104.012718,30.681689,成都,233,Jinsha Site Museum
+黄龙溪,103.969922,30.317683,成都,234,Huanglongxi
+九乡,103.382512,25.064819,昆明,235,Jiuxiang Scenic Area
+胡里山炮台,118.106468,24.429514,厦门,236,Hulishan Fortress
+石燕湖,113.086201,28.009422,长沙,237,Shiyan Lake
+东关街历史街区,119.443219,32.396481,扬州,238,Dongguan Street Historic Block
+上海城隍庙道观,121.492429,31.225804,上海,239,Shanghai City God Temple
+朱家角古镇景区,121.053861,31.109856,上海,240,Zhujiajiao Ancient Town
+中环,114.170218,22.277316,香港,241,Central
+何园,119.448797,32.385619,扬州,242,He Garden
+黄姚古镇,111.206917,24.248012,贺州,243,Huangyao Ancient Town
+拈花湾,120.076166,31.41896,无锡,244,Nianhua Bay
+和顺古镇,98.458909,25.006896,保山,245,Heshun Ancient Town
+西岭雪山,103.188871,30.684825,成都,246,Xiling Snow Mountain
+长白山景区,128.085008,42.053708,延边,247,Changbai Mountain Scenic Area
+上海博物馆,121.47581,31.228254,上海,248,Shanghai Museum
+天津海昌极地海洋公园,117.662159,39.008758,天津,249,Tianjin Haichang Polar Ocean Park
+芦笛岩,110.271693,25.31019,桂林,250,Reed Flute Cave
+莫干山风景名胜区,119.86402,30.607263,湖州,251,Mogan Mountain Scenic Area
+明十三陵,116.225228,40.257878,北京,252,Ming Tombs
+浦东开发陈列馆,121.513797,31.239208,上海,253,Pudong Development Exhibition Hall
+千佛山,117.036133,36.639156,济南,254,Thousand Buddha Mountain
+金顶,103.336038,29.521928,乐山,255,Golden Summit
+九份,121.846823,25.106777,台北,256,Jiufen
+九份,121.846823,25.106777,新北,257,Jiufen
+上海长风海洋世界,121.396897,31.225157,上海,258,Shanghai Changfeng Ocean World
+分界洲岛,110.199964,18.576332,陵水,259,Boundary Island
+百龙天梯,110.467113,29.349015,张家界,260,Bailong Elevator
+五台山,113.589123,38.970506,忻州,261,Mount Wutai
+布尔津县,86.875,47.701703,阿勒泰,262,Burqin County
+西门町,121.511314,25.03969,台北,263,Ximending
+三峡人家,111.192018,30.81049,宜昌,264,Three Gorges Tribe
+腾冲热海风景区,98.440595,24.94678,保山,265,Tengchong Hot Sea Scenic Area
+日照海洋公园,119.571865,35.431782,日照,266,Rizhao Ocean Park
+六合丝厂,106.093953,30.73983,南充,267,Liuhe Silk Factory
+景山公园,116.396602,39.925799,北京,268,Jingshan Park
+瓷房子,117.202352,39.124856,天津,269,Porcelain House
+大连森林动物园,121.610655,38.882895,大连,270,Dalian Forest Zoo
+菽庄花园,118.069755,24.438921,厦门,271,Shuzhuang Garden
+金鸡湖,120.701451,31.311097,苏州,272,Jinji Lake
+哈尔滨极地公园·海洋馆,126.586544,45.785253,哈尔滨,273,Harbin Polarland · Oceanarium
+留园,120.592564,31.315396,苏州,274,Lingering Garden
+药王山,118.982214,28.760351,衢州,275,Yaowang Mountain
+陈家祠,113.245498,23.126692,广州,276,Chen Clan Ancestral Hall
+悬空寺,113.715777,39.66112,大同,277,Hanging Temple
+武汉海昌极地海洋公园,114.277901,30.664404,武汉,278,Wuhan Haichang Polar Ocean Park
+米亚罗风景区,102.791244,31.673384,阿坝,279,Miyaluo Scenic Area
+星光大道,114.178751,22.290271,香港,280,Avenue of Stars
+宜兴竹海,119.697949,31.167029,无锡,281,Yixing Bamboo Sea
+三峡大坝旅游区,111.034063,30.826819,宜昌,282,Three Gorges Dam Tourist Area
+老龙头,119.798474,39.969349,秦皇岛,283,Old Dragon Head
+中南百草原,119.657558,30.672567,湖州,284,Zhongnan Hundred Grasslands
+花果山,119.2746,34.640888,连云港,285,Mount Huaguo
+世纪公园,121.551809,31.215412,上海,286,Century Park
+岳麓书院,112.940511,28.180297,长沙,287,Yuelu Academy
+三亚亚特兰蒂斯失落的空间水族馆,109.743047,18.355985,三亚,288,The Lost Chambers Aquarium at Atlantis Sanya
+上海自然博物馆,121.46266,31.235079,上海,289,Shanghai Natural History Museum
+婺源篁岭,118.120139,29.322671,上饶,290,Wuyuan Huangling
+野象谷,100.855322,22.169281,西双版纳,291,Wild Elephant Valley
+西双版纳热带雨林国家公园望天树景区,101.587625,21.596156,西双版纳,292,"Wangtianshu Scenic Area, Xishuangbanna Tropical Rainforest National Park"
+槟榔谷,109.664866,18.399546,保亭,293,Binglang Valley
+梵净山,108.694294,27.914084,铜仁,294,Fanjing Mountain
+喀纳斯景区,87.131919,48.507202,阿勒泰,295,Kanas Scenic Area
+情侣路,113.62258,22.349301,珠海,296,Lovers' Road
+丹霞山,113.721126,25.021712,韶关,297,Danxia Mountain
+开封府,114.346962,34.789672,开封,298,Kaifeng Prefecture
+衡山风景名胜区,112.715522,27.269758,衡阳,299,Mount Heng Scenic Area
+接引殿,103.33602,29.532259,乐山,300,Jiuyin Hall
+喜洲,100.131359,25.853537,大理,301,Xizhou
+翠湖公园,102.703689,25.048475,昆明,302,Cuihu Park
+官也街,113.561984,22.150721,澳门,303,Rua do Cunha
+巽寮湾,114.756239,22.685174,惠州,304,Xunliao Bay
+十里画廊,110.49226,24.739709,桂林,305,Ten-mile Gallery
+香山公园,116.187547,39.989642,北京,306,Fragrant Hills Park
+沈园,120.590316,29.990376,绍兴,307,Shen Garden
+太阳岛风景区,126.598059,45.791402,哈尔滨,308,Sun Island Scenic Area
+武当山风景区,111.063283,32.46172,十堰,309,Wudang Mountain Scenic Area
+甲秀楼,106.719721,26.571359,贵阳,310,Jiaxiu Tower
+阆中古城,105.971711,31.573799,南充,311,Langzhong Ancient City
+三星堆博物馆,104.218589,31.001474,德阳,312,Sanxingdui Museum
+山西王家大院,111.87414,36.89628,晋中,313,Shanxi Wang Family Compound
+上海海昌海洋公园,121.904359,30.914702,上海,314,Shanghai Haichang Ocean Park
+中国雪乡,128.2101,44.333044,延边,315,China Snow Town
+天目湖山水园,119.4351,31.312817,常州,316,Tianmu Lake Scenic Area
+岳阳楼,113.09437,29.379371,岳阳,317,Yueyang Tower
+深圳野生动物园,113.970473,22.596711,深圳,318,Shenzhen Safari Park
+厦门园林植物园,118.109618,24.448741,厦门,319,Xiamen Botanical Garden
+上海影视乐园,121.312823,31.010204,上海,320,Shanghai Film Park
+越秀公园,113.265834,23.139834,广州,321,Yuexiu Park
+田螺坑土楼群,117.060735,24.584232,漳州,322,Tianluokeng Tulou Cluster
+万州大瀑布,108.256812,30.657078,重庆,323,Wanzhou Grand Waterfall
+人民广场,121.474602,31.22938,上海,324,People's Square
+张学良旧居,123.457765,41.794147,沈阳,325,Zhang Xueliang's Former Residence
+大小洞天,109.158077,18.300365,三亚,326,Size Cave Tourist Area
+海棠湾,109.730478,18.316377,三亚,327,Haitang Bay
+西海大峡谷,118.156833,30.132931,黄山,328,West Sea Grand Canyon
+雅丹地质公园,93.239694,40.513238,酒泉,329,Yardang Geological Park
+法门寺文化景区,107.901647,34.43447,宝鸡,330,Famen Temple Cultural Scenic Area
+白石山世界地质公园,114.702785,39.216725,保定,331,Baishi Mountain Global Geopark
+香港杜莎夫人蜡像馆,114.154754,22.268496,香港,332,Madame Tussauds Hong Kong
+侵华日军南京大屠杀遇难同胞纪念馆,118.743264,32.035327,南京,333,The Memorial Hall of the Victims of the Nanjing Massacre by Japanese Invaders
+西递,117.995975,29.90334,黄山,334,Xidi
+伪满皇宫博物院,125.348662,43.90583,长春,335,Museum of the Imperial Palace of Manchukuo
+东湖,120.632052,29.998387,绍兴,336,East Lake
+情人滩,100.814658,27.743249,凉山,337,Lovers' Beach
+净月潭,125.453244,43.801267,长春,338,Jingyuetan Lake
+黄岛金沙滩,120.252841,35.963349,青岛,339,"Jinsha Beach, Huangdao"
+稻城亚丁,100.286793,28.458898,甘孜,340,Daocheng Yading
+北京大学,116.310868,39.992799,北京,341,Peking University
+松花江,126.613019,45.784135,哈尔滨,342,Songhua River
+纳木措,90.866863,30.769535,拉萨,343,Lake Namtso
+东栅,120.49702,30.739848,嘉兴,344,Dongzha Scenic Area
+西夏陵国家考古遗址公园,106.017622,38.442444,银川,345,Western Xia Mausoleums National Archaeological Site Park
+黄浦江游览（十六铺码头）,121.49811,31.228068,上海,346,Huangpu River Cruise (Shiliupu Wharf)
+金山寺,119.415892,32.215331,镇江,347,Jinshan Temple
+金茂大厦88层观光厅,121.505623,31.235367,上海,348,Jinmao Tower Skywalk
+大明山景区,118.992042,30.086278,杭州,349,Daming Mountain Scenic Area
+大昭寺,91.132963,29.650212,拉萨,350,Jokhang Temple
+赛里木湖,81.172738,44.604252,博尔塔拉,351,Sayram Lake
+独秀峰王城景区,110.299201,25.281686,桂林,352,Solitary Beauty Peak & Prince City Scenic Area
+张家界大峡谷,110.699955,29.409529,张家界,353,Zhangjiajie Grand Canyon
+秦皇岛野生动物园,119.521323,39.870212,秦皇岛,354,Qinhuangdao Safari Park
+外滩观光隧道,121.491274,31.239788,上海,355,Bund Sightseeing Tunnel
+三叠泉,116.044392,29.555566,九江,356,Three-Step Waterfall
+春熙路,104.077965,30.656877,成都,357,Chunxi Road
+李坑景区,117.929266,29.32469,上饶,358,Likeng Scenic Area
+剑门关,105.577268,32.224044,广元,359,Jianmen Pass
+李鸿章故居,117.291301,31.864636,合肥,360,Li Hongzhang's Former Residence
+世外桃源,110.388315,24.862155,桂林,361,Shangri-La
+狼山风景区,120.887776,31.950115,南通,362,Langshan Mountain Scenic Area
+武夷山九曲溪,117.931435,27.638637,南平,363,"Nine Bend Stream, Wuyishan"
+清远宝晶宫国际旅游度假区,113.368466,24.125167,清远,364,"Baojing Palace International Tourism Resort, Qingyuan"
+善卷洞,119.669759,31.299156,无锡,365,Shanjuan Cave
+清江画廊,111.14026,30.463441,宜昌,366,Qingjiang River Gallery
+惠州西湖,114.398093,23.089811,惠州,367,Huizhou West Lake
+天龙八部影视城,100.148685,25.679997,大理,368,Demigods and Semi-Devils Film City
+阿尔山国家森林公园,120.339836,47.202516,兴安盟,369,Arshan National Forest Park
+顾村公园,121.368238,31.338557,上海,370,Gucun Park
+灵隐飞来峰景区,120.10207,30.239004,杭州,371,Lingyin Temple and Feilai Peak Scenic Area
+孔庙,116.99,35.594664,济宁,372,Confucius Temple
+长白山天池,128.071295,42.020316,延边,373,Heaven Lake of Changbai Mountain
+羊卓雍措,90.619414,29.190864,山南,374,Yamdrok Lake
+南诏风情岛,100.191154,25.901875,大理,375,Nanzhao Folk Island
+白水寨风景名胜区,113.764735,23.592926,广州,376,Baishuizhai Scenic Area
+山海关,119.760968,40.010048,秦皇岛,377,Shanhai Pass
+南京博物院,118.825141,32.040701,南京,378,Nanjing Museum
+黑虎泉,117.033577,36.66251,济南,379,Heihu Spring
+猴岛公园,109.98057,18.402601,陵水,380,Monkey Island Park
+七星潭风景区,121.628586,24.03565,花莲,381,Qixingtan Scenic Area
+湖北省博物馆,114.365485,30.561502,武汉,382,Hubei Provincial Museum
+日月潭,120.917,23.866699,南投,383,Sun Moon Lake
+明清宫苑景区,120.302888,29.174147,金华,384,Ming Qing Palace Garden Scenic Area
+神仙居,120.603127,28.688223,台州,385,Xianju
+虎跳峡（丽江段）,100.146114,27.231841,丽江,386,Tiger Leaping Gorge (Lijiang Section)
+清华大学,116.326767,40.00391,北京,387,Tsinghua University
+天池山,120.481073,31.294588,苏州,388,Tianchi Mountain
+三河古镇,117.244926,31.511535,合肥,389,Sanhe Ancient Town
+大足石刻,105.76976,29.746757,重庆,390,Dazu Rock Carvings
+珠海渔女,113.588245,22.261734,珠海,391,Zhuhai Fisher Girl
+乔家大院,112.438951,37.406934,晋中,392,Qiao Family Compound
+百万葵园,113.619996,22.62824,广州,393,Million Sunflower Garden
+雷琼海口火山群世界地质公园,110.218265,19.930013,海口,394,Leiqiong Haikou Volcanic Cluster Global Geopark
+白云山,113.300072,23.18445,广州,395,Baiyun Mountain
+万平口风景区,119.56414,35.406355,日照,396,Wanpingkou Scenic Area
+青海湖二郎剑景区,100.495951,36.578324,海南藏族自治州,397,Qinghai Lake Erlangjian Scenic Area
+藏龙百瀑,119.610984,30.439331,湖州,398,Canglong Hundred Waterfalls
+光雾山,106.800747,32.688489,巴中,399,Guangwu Mountain
+雅鲁藏布大峡谷,94.938004,29.612861,林芝,400,Yarlung Zangbo Grand Canyon
+白马寺,112.605311,34.721827,洛阳,401,White Horse Temple
+沙家浜风景区,120.794008,31.549287,苏州,402,Shajiabang Scenic Area
+新疆国际大巴扎,87.618014,43.779977,乌鲁木齐,403,Xinjiang International Grand Bazaar
+黑山谷风景区,106.997816,28.887775,重庆,404,Heishan Valley Scenic Area
+普者黑景区,104.131523,24.117923,文山,405,Puzhehei Scenic Area
+龙虎山风景区,116.981167,28.117322,鹰潭,406,Longhu Mountain Scenic Area
+鹅銮鼻公园,120.854354,21.900193,屏东,407,Eluanbi Park
+曲阜三孔景区,116.990687,35.596515,济宁,408,Qufu San Kong (Three Confucius Sites)
+皇城相府,112.583069,35.513819,晋城,409,Huangcheng Xiangfu
+圆明新园,113.540189,22.243344,珠海,410,Yuanming New Garden
+古窑民俗博览区,117.184904,29.283796,景德镇,411,Ancient Kiln Folk Customs Expo Area
+五彩池,103.933001,33.045128,阿坝,412,Five-Color Pond
+上海证券交易所,121.511081,31.236357,上海,413,Shanghai Stock Exchange
+天一广场,121.553917,29.87006,宁波,414,Tianyi Square
+北京杜莎夫人蜡像馆,116.398288,39.897315,北京,415,Madame Tussauds Beijing
+西津渡古街,119.430166,32.213355,镇江,416,Xijin Ferry Ancient Street
+响沙湾,109.956368,40.244019,鄂尔多斯,417,Xiangshawan Desert
+恩施土司城,109.471938,30.300813,恩施,418,Enshi Tusi City
+东平国家森林公园,121.480171,31.683674,上海,419,Dongping National Forest Park
+袁家界,110.447748,29.347929,张家界,420,Yuanjiajie
+恒山,113.726862,39.663666,大同,421,Mount Heng
+上海辰山植物园,121.182639,31.075431,上海,422,Shanghai Chenshan Botanical Garden
+中正纪念堂,121.519674,25.035679,台北,423,National Chiang Kai-shek Memorial Hall
+三潭印月,120.144214,30.237965,杭州,424,Three Pools Mirroring the Moon
+清昭陵,123.427776,41.851193,沈阳,425,Zhaoling Mausoleum (Qing)
+大开元寺,118.585539,24.914307,泉州,426,Dakaiyuan Temple
+鸭绿江断桥,124.393701,40.118256,丹东,427,Yalu River Broken Bridge
+光明顶,118.169224,30.132215,黄山,428,Bright Summit Peak
+瞻园,118.784995,32.020969,南京,429,Zhan Garden
+大明寺,119.413025,32.419513,扬州,430,Daming Temple
+西双版纳原始森林公园,100.895359,22.018238,西双版纳,431,Xishuangbanna Primitive Forest Park
+清明上河图景区,120.311365,29.140505,金华,432,Riverside Scene at Qingming Festival Scenic Area
+南京海底世界,118.844988,32.05359,南京,433,Nanjing Underwater World
+九华山,117.823956,30.478805,池州,434,Mount Jiuhua
+卓尔山,100.270663,38.182308,海北,435,Zhuoer Mountain
+星海公园,121.568831,38.878365,大连,436,Xinghai Park
+南戴河,119.425385,39.786888,秦皇岛,437,Nandaihe
+苏堤,120.142616,30.232099,杭州,438,Su Causeway
+中国国家博物馆,116.401643,39.905103,北京,439,National Museum of China
+日照海滨国家森林公园,119.625625,35.540452,日照,440,Rizhao Seaside National Forest Park
+观澜湖华谊冯小刚电影公社,110.350471,19.918771,海口,441,Mission Hills Hualong Feng Xiaogang Movie Town
+天脊龙门,118.963693,28.71487,衢州,442,Tianji Longmen
+上海植物园,121.444548,31.147521,上海,443,Shanghai Botanical Garden
+龙水峡地缝,107.791899,29.402655,重庆,444,Longshuixia Ground Fissure
+贺兰山岩画,106.026671,38.741674,银川,445,Helan Mountain Rock Art
+秋水广场,115.862743,28.682686,南昌,446,Qiushui Square
+大梅沙海滨公园,114.307373,22.592442,深圳,447,Dameisha Seaside Park
+交通银行博物馆,121.504107,31.23931,上海,448,Bank of Communications Museum
+红山森林动物园,118.801675,32.091775,南京,449,Hongshan Forest Zoo
+蜀南竹海,105.00779,28.473247,宜宾,450,Bamboo Sea in Southern Sichuan
+织金洞,105.901884,26.768655,毕节,451,Zhijin Cave
+清河坊街,120.169201,30.239934,杭州,452,Qinghefang Ancient Street
+天子山,110.443743,29.401464,张家界,453,Tianzi Mountain
+木渎古镇,120.512099,31.251197,苏州,454,Mudu Ancient Town
+假日海滩,110.23797,20.03639,海口,455,Holiday Beach
+新天地,121.474704,31.22125,上海,456,Xintiandi
+尚湖风景区,120.685517,31.643186,苏州,457,Shanghu Scenic Area
+海陵岛,111.847363,21.580409,阳江,458,Hailing Island
+鸡鸣寺,118.795146,32.061,南京,459,Jiming Temple
+呼伦贝尔大草原,117.988336,49.496456,呼伦贝尔,460,Hulunbuir Grassland
+太平老街,112.972078,28.19358,长沙,461,Taiping Old Street
+乾陵,108.219027,34.572845,咸阳,462,Qianling Mausoleum
+蠡园,120.258752,31.517311,无锡,463,Li Garden
+黄龙风景名胜区,103.835251,32.739304,阿坝,464,Huanglong Scenic and Historic Interest Area
+旺角,114.175137,22.311889,香港,465,Mong Kok
+溪口-滕头旅游景区,121.217049,29.661585,宁波,466,Xikou-Tengtou Tourist Scenic Area
+锦溪古镇,120.899259,31.174811,苏州,467,Jinxi Ancient Town
+江岭景区,118.03384,29.453165,上饶,468,Jiangling Scenic Area
+玉门关,93.865188,40.354068,酒泉,469,Yumen Pass
+仙女山国家森林公园,107.738939,29.497186,重庆,470,Fairy Mountain National Forest Park
+七宝老街,121.354622,31.151929,上海,471,Qibao Old Street
+四姑娘山,102.812234,31.02914,阿坝,472,Mount Siguniang
+宝墨园,113.294504,22.894468,广州,473,Baomo Garden
+卧佛院,105.319633,30.299553,资阳,474,Reclining Buddha Temple
+古堰画乡景区,119.745375,28.296395,丽水,475,Ancient Weir Painting Village Scenic Area
+黄龙洞,110.618542,29.367861,张家界,476,Huanglong Cave
+红海滩国家风景廊道,121.84524,40.902395,盘锦,477,Red Beach National Scenic Corridor
+岱庙,117.13059,36.193999,泰安,478,Dai Temple
+上下九步行街,113.246022,23.113878,广州,479,Shangxiajiu Pedestrian Street
+本溪水洞,124.081994,41.301172,本溪,480,Benxi Water Cave
+滨海路,121.873126,39.380795,大连,481,Binhai Road
+信号山公园,120.331592,36.06644,青岛,482,Signal Hill Park
+千年瑶寨,112.301232,24.580936,清远,483,Thousand-Year Yao Village
+成山头风景名胜区,122.704121,37.394428,威海,484,Chengshantou Scenic Area
+朝天门广场,106.588003,29.567184,重庆,485,Chaotianmen Square
+小梅沙海洋世界,114.328506,22.60403,深圳,486,Xiaomeisha Ocean World
+栖霞山,118.969788,32.158176,南京,487,Qixia Mountain
+千山,123.129957,41.009047,鞍山,488,Qianshan Mountain
+千岛湖中心湖区,119.013154,29.594516,杭州,489,Qiandao Lake Central Area
+外白渡桥,121.490393,31.243886,上海,490,Garden Bridge of Shanghai
+鼎湖山,112.540906,23.1659,肇庆,491,Dinghu Mountain
+木兰天池,114.284995,31.177941,武汉,492,Mulan Tianchi
+西樵山风景名胜区,112.977168,22.924574,佛山,493,Xiqiao Mountain Scenic Area
+溱湖国家湿地公园,120.085001,32.612741,泰州,494,Qinhu National Wetland Park
+海军博物馆,120.329018,36.055515,青岛,495,Naval Museum
+邛海国家湿地公园,102.276966,27.830916,凉山,496,Qionghai National Wetland Park
+洗马潭大索道,100.145928,25.676751,大理,497,Xima Cableway
+长隆飞鸟乐园,113.277786,23.02502,广州,498,Chimelong Birds Park
+观前街,120.627433,31.311336,苏州,499,Guanqian Street
+798艺术区,116.494614,39.984971,北京,500,798 Art District
+库布齐沙漠,109.341701,40.382898,鄂尔多斯,501,Kubuqi Desert
+蓬莱海洋极地世界,120.747592,37.826424,烟台,502,Penglai Polar Ocean World
+杭州野生动物世界,119.984851,30.153993,杭州,503,Hangzhou Safari Park
+大榕树,110.486022,24.731585,桂林,504,Big Banyan Tree
+金马碧鸡坊,102.709864,25.033321,昆明,505,Golden Horse and Jade Rooster Archway
+平江石牛寨景区,113.993667,28.909373,岳阳,506,Pingjiang Shiniu Fortress Scenic Area
+天河潭旅游度假区,106.580084,26.441707,贵阳,507,Tianhetan Tourism Resort
+陆家嘴,121.52439,31.22901,上海,508,Lujiazui
+阅江楼,118.746528,32.094078,南京,509,Yuejiang Tower
+九份老街,121.846823,25.106777,新北,510,Jiufen Old Street
+千岛湖森林氧吧,119.218244,29.589513,杭州,511,Qiandao Lake Forest Oxygen Bar
+广东科学中心,113.363065,23.039489,广州,512,Guangdong Science Center
+西双版纳傣族园,100.94669,21.848265,西双版纳,513,Xishuangbanna Dai Garden
+柳巷,112.567966,37.871075,太原,514,Liuxiang Lane
+古猗园,121.316512,31.291636,上海,515,Guyi Garden
+南丫岛,114.140147,22.197369,香港,516,Lamma Island
+沙湖生态旅游区,106.36163,38.801701,石嘴山,517,Shahu Ecological Tourism Area
+甘肃省博物馆,103.77546,36.066518,兰州,518,Gansu Provincial Museum
+屯溪老街,118.308966,29.70883,黄山,519,Tunxi Old Street
+濠河风景名胜区,120.867012,32.014318,南通,520,Haohe Scenic Area
+天星桥风景区,105.676652,25.942419,安顺,521,Tianxingqiao Scenic Area
+草原天路,114.795076,41.0042,张家口,522,Grassland Sky Road
+月牙泉小镇,94.672029,40.102787,酒泉,523,Crescent Spring Town
+马岭河峡谷,104.95345,25.130332,黔西南,524,Maling River Gorge
+宁夏水洞沟旅游区,106.513202,38.292005,银川,525,Ningxia Shuidonggou Tourist Area
+野柳地质公园,121.694303,25.203656,台北,526,Yehliu Geopark
+野柳地质公园,121.694303,25.203656,新北,527,Yehliu Geopark
+玉渊潭公园,116.322498,39.916168,北京,528,Yuyuantan Park
+天柱山,116.459755,30.721562,安庆,529,Mount Tianzhu
+独克宗古城,99.704778,27.804028,迪庆,530,Dukezong Ancient City
+太鲁阁国家公园,121.622305,24.158001,花莲,531,Taroko National Park
+内蒙古博物院,111.738654,40.839645,呼和浩特,532,Inner Mongolia Museum
+王府井,116.411649,39.913507,北京,533,Wangfujing
+盘山,117.282694,40.098392,天津,534,Panshan Mountain
+东钱湖,121.648524,29.790562,宁波,535,Dongqian Lake
+龙亭公园,114.351862,34.807092,开封,536,Longting Park
+厦门湾·白塘湾火山公园,118.046079,24.224936,漳州,537,Xiamen Bay · Baitang Bay Volcanic Park
+沱江,109.602269,27.950095,湘西,538,Tuo River
+镇远古城,108.418569,27.050105,黔东南,539,Zhenyuan Ancient City
+上海之巅观光厅,121.505505,31.233456,上海,540,Shanghai Tower Sightseeing Hall
+李小龙乐园,113.12451,22.721849,佛山,541,Bruce Lee Paradise
+东北虎林园,126.601024,45.817304,哈尔滨,542,Siberian Tiger Park
+翡翠谷,118.224386,30.111356,黄山,543,Emerald Valley
+张学良故居,117.201665,39.123925,天津,544,Zhang Xueliang's Former Residence
+佛山祖庙,113.11354,23.028993,佛山,545,Foshan Ancestral Temple
+泉城欧乐堡海洋极地世界,116.840082,36.74339,德州,546,Overseas Chinese Town OCT Ocean Polar World (Jinan)
+焦山,119.487232,32.236965,镇江,547,Jiaoshan
+成都动物园,104.10596,30.709602,成都,548,Chengdu Zoo
+花之城,102.789085,25.053987,昆明,549,Flower City
+昙华林,114.309012,30.551802,武汉,550,Tanhualin
+太姥山,120.185015,27.11036,宁德,551,Mount Taimu
+老门东历史街区,118.787627,32.01172,南京,552,Laomendong Historical Block
+满洲里国门景区,117.354024,49.629424,呼伦贝尔,553,Manzhouli Gate Scenic Area
+椰梦长廊,109.475726,18.274205,三亚,554,Coconut Dream Corridor
+芙蓉街,117.023158,36.665563,济南,555,Furong Street
+连岛,119.471162,34.759694,连云港,556,Liandao Island
+锡惠名胜区,120.274963,31.577464,无锡,557,Xihui Scenic Area
+陡坡塘瀑布,105.676833,25.995464,安顺,558,Dupotang Waterfall
+黄帝陵,109.271084,35.585966,延安,559,Mausoleum of the Yellow Emperor
+竹泉村,118.438235,35.646122,临沂,560,Bamboo Spring Village
+北极村,122.359561,53.48156,大兴安岭,561,Arctic Village
+文殊院,104.072502,30.675367,成都,562,Wenshu Monastery
+断桥残雪,120.151655,30.258579,杭州,563,Melting Snow at Broken Bridge
+老君山景区,111.656382,33.746184,洛阳,564,Laojun Mountain Scenic Area
+迪士尼小镇,121.661903,31.139714,上海,565,Disneytown
+天平山,120.500724,31.285915,苏州,566,Tianping Mountain
+宜春明月山旅游区,114.261937,27.6021,宜春,567,Yichun Mingyue Mountain Tourist Area
+中国科举博物馆(江南贡院),118.791068,32.020564,南京,568,China Imperial Examination Museum (Jiangnan Examination Hall)
+地下大峡谷,118.540389,35.728195,临沂,569,Underground Grand Canyon
+清水断崖,121.697396,24.216069,花莲,570,Qingshui Cliff
+烟雨长廊,120.89497,30.94555,嘉兴,571,Smoky Rain Corridor
+河南博物院,113.67193,34.78822,郑州,572,Henan Museum
+八廓街,91.129011,29.650141,拉萨,573,Barkhor Street
+朱家尖风景区,122.38616,29.904988,舟山,574,Zhujiajian Scenic Area
+万峰林景区,104.924627,24.993929,黔西南,575,Wanfenglin Scenic Area
+伏尔加庄园,126.902388,45.67283,哈尔滨,576,Volga Manor
+五龙潭公园,117.014752,36.666154,济南,577,Wulongtan Park
+周村古商城,117.842146,36.798273,淄博,578,Zhoucun Ancient Commercial City
+江汉路步行街,114.288399,30.58333,武汉,579,Jianghan Road Pedestrian Street
+北京海洋馆,116.340839,39.94461,北京,580,Beijing Aquarium
+北京汽车博物馆,116.301669,39.828898,北京,581,Beijing Auto Museum
+云龙湖旅游景区,117.153835,34.23734,徐州,582,Yunlong Lake Scenic Area
+肇兴侗寨,109.181338,25.906198,黔东南,583,Zhaoxing Dong Village
+南澳岛,117.061723,23.434951,汕头,584,Nan'ao Island
+烟台山景区,121.402468,37.548901,烟台,585,Yantai Mountain Scenic Area
+西栅夜游,120.486146,30.749076,嘉兴,586,Xizhan Night Tour
+南海湾森林生态园,112.880494,22.856805,佛山,587,Nanhai Bay Forest Ecological Park
+泉城广场,117.022209,36.661623,济南,588,Quancheng Square
+上海海湾国家森林公园,121.69063,30.861384,上海,589,Shanghai Bay National Forest Park
+华严寺,113.295009,40.092505,大同,590,Huayan Temple
+龙凤山庄影视度假村,114.19285,22.713758,东莞,591,Dragon and Phoenix Villa Film & TV Resort
+劈柴院,120.317917,36.071301,青岛,592,Pichaiyuan
+龙宫,105.877456,26.106866,安顺,593,Dragon Palace
+闸坡大角湾,111.847259,21.569034,阳江,594,Zhabo Dajiaowan
+雍和宫,116.417362,39.947102,北京,595,Yonghe Temple (Lama Temple)
+宋城千古情,120.098219,30.170602,杭州,596,Songcheng Romance of the Song Dynasty
+日月双塔,110.294231,25.271323,桂林,597,Sun and Moon Pagodas
+五泄风景区,120.05413,29.705651,绍兴,598,Wuxie Scenic Area
+士林夜市,121.528604,25.084525,台北,599,Shilin Night Market
+广州街香港街,120.298238,29.173711,金华,600,Guangzhou Street and Hong Kong Street
+大炮台,113.547374,22.193989,澳门,601,Fortaleza do Monte
+那拉提旅游风景区,84.026346,43.319504,伊犁,602,Nalati Tourist Scenic Area
+盘门,120.616891,31.288656,苏州,603,Panmen Gate
+东方绿舟景区,121.010537,31.109012,上海,604,Oriental Land Scenic Area
+清源山,118.611006,24.942874,泉州,605,Mount Qingyuan
+象山影视城,121.83724,29.287757,宁波,606,Xiangshan Film Studio
+皓月园,118.075623,24.441906,厦门,607,Haoyue Garden
+瑶琳仙境,119.538594,29.885814,杭州,608,Yaolin Fairyland
+昂坪360缆车,113.906264,22.253297,香港,609,Ngong Ping 360 Cable Car
+烂柯山,118.925232,28.877878,衢州,610,Lanke Mountain
+棒棰岛,121.718886,38.88502,大连,611,Bangchui Island
+九如山休闲旅游度假风景区,117.298028,36.480949,济南,612,Jiurushan Leisure Tourism Resort
+三峡大瀑布,111.322556,30.925074,宜昌,613,Three Gorges Waterfall
+十里画廊,110.485856,29.366054,张家界,614,Ten-mile Gallery
+福建土楼王景区,117.006485,24.661522,龙岩,615,Fujian Tulou King Scenic Area
+大召寺,111.654239,40.799817,呼和浩特,616,Dazhao Temple
+西霞口神雕山野生动物园,122.631724,37.413371,威海,617,Xixiakou Wildlife World
+蓝月谷,100.245047,27.126128,丽江,618,Blue Moon Valley
+连州地下河,112.330034,25.001762,清远,619,Lianzhou Underground River
+甪直古镇,120.872645,31.268812,苏州,620,Luzhi Ancient Town
+噶丹松赞林寺,99.705807,27.859773,迪庆,621,Ganden Sumtseling Monastery
+碧峰峡,102.990603,30.072412,雅安,622,Bifengxia
+大屿山,113.946611,22.263509,香港,623,Lantau Island
+北京世园公园,115.950939,40.444331,北京,624,Beijing Expo Park
+中华门瓮城,118.781744,32.012662,南京,625,Zhonghuamen Wengcheng (Gate City)
+花港观鱼,120.141778,30.23216,杭州,626,Viewing Fish at Flower Pond
+兴坪古镇,110.529533,24.917127,桂林,627,Xingping Ancient Town
+亚布力滑雪旅游度假区,128.468395,44.779394,哈尔滨,628,Yabuli Ski Resort
+禾木风景区,87.433012,48.568649,阿勒泰,629,Hemu Scenic Area
+东湖磨山景区,114.413148,30.548737,武汉,630,East Lake Moshan Scenic Area
+北固山,119.457342,32.216716,镇江,631,Beigu Mountain
+黑龙潭公园,100.237338,26.891912,丽江,632,Black Dragon Pool Park
+虎跳峡,100.11318,27.18922,迪庆,633,Tiger Leaping Gorge
+清晖园,113.255483,22.835639,佛山,634,Qinghui Garden
+四方街,100.233809,26.872095,丽江,635,Sifang Street
+天目湖,119.44579,31.318718,常州,636,Tianmu Lake
+腾龙洞风景区,108.986117,30.329476,恩施,637,Tenglong Cave Scenic Area
+松赞林景区,99.705848,27.859787,迪庆,638,Songzanlin Scenic Area
+兴隆热带植物园,110.196094,18.733573,万宁,639,Xinglong Tropical Botanical Garden
+人民公园,104.057641,30.656989,成都,640,People's Park
+龙塔,126.680369,45.747833,哈尔滨,641,Long Tower (Dragon Tower)
+广州动物园,113.305367,23.140399,广州,642,Guangzhou Zoo
+巴山大峡谷,108.478932,31.682058,达州,643,Bashan Grand Canyon
+滦州古城,118.757831,39.742487,唐山,644,Luanzhou Ancient City
+北京大观园,116.356225,39.871304,北京,645,Beijing Grand View Garden
+中国大竹海,119.659571,30.487078,湖州,646,China Big Bamboo Sea
+第一海水浴场,120.342325,36.055751,青岛,647,First Bathing Beach
+火焰山景区,89.514782,42.91897,吐鲁番,648,Flaming Mountain Scenic Area
+天堂寨,115.777574,31.138093,六安,649,Paradise寨 (Tiantangzhai)
+九溪烟树,120.113285,30.202739,杭州,650,Nine Creeks and Eighteen Gullies (Nine Creeks Misty Trees)
+十八盘,117.10794,36.251013,泰安,651,Eighteen Bends
+济南动物园,116.986795,36.70237,济南,652,Jinan Zoo
+兰桂坊,114.16069,22.27813,香港,653,Lan Kwai Fong
+武隆喀斯特旅游区,107.768121,29.417681,重庆,654,Wulong Karst Tourist Area
+东部华侨城茶溪谷,114.278185,22.63152,深圳,655,OCT East Tea Stream Valley
+厦门海底世界,118.071297,24.445865,厦门,656,Xiamen Underwater World
+广东罗浮山风景名胜区,114.036321,23.26468,惠州,657,Guangdong Luofu Mountain Scenic Area
+石室圣心大教堂,113.260105,23.114614,广州,658,Sacred Heart Cathedral (Shishi Cathedral)
+长白山北坡景区,128.177585,42.183161,延边,659,Changbai Mountain North Slope Scenic Area
+老外滩,121.560515,29.87653,宁波,660,The Bund (Ningbo)
+泰晤士小镇,121.198177,31.03382,上海,661,Thames Town
+观音山旅游风景区,114.115127,22.903181,东莞,662,Guanyinshan Tourist Scenic Area
+碧螺塔海上酒吧公园,119.534977,39.820438,秦皇岛,663,Biluota Sea Bar Park
+黄浦江,121.493,31.238457,上海,664,Huangpu River
+世界魔鬼城,85.747475,46.130617,克拉玛依,665,World Devil City
+钟山风景名胜区,118.850792,32.065815,南京,666,Zhongshan Scenic Area
+殷墟,114.325595,36.122578,安阳,667,Yinxu Ruins
+云南大学,102.70211,25.054066,昆明,668,Yunnan University
+太白山国家森林公园,107.820873,34.064991,宝鸡,669,Taibai Mountain National Forest Park
+胡雪岩故居,120.172586,30.237422,杭州,670,Hu Xueyan's Former Residence
+婺源风景区,117.856782,29.271896,上饶,671,Wuyuan Scenic Area
+福州云顶,119.01277,25.761929,福州,672,Fuzhou Yun Ding (Fuzhou Cloud Top)
+笔架山,121.074506,40.828554,锦州,673,Bijia Mountain
+惠山古镇,120.274156,31.581968,无锡,674,Huishan Ancient Town
+十渡风景名胜区,115.599896,39.638315,北京,675,Shidu Scenic Area
+赵州桥,114.768897,37.722504,石家庄,676,Zhaozhou Bridge
+丹东凤凰山,124.086448,40.423712,丹东,677,Dandong Phoenix Mountain
+雾凇岛,126.424765,44.120766,吉林市,678,Wusong Island (Rime Island)
+古隆中,112.035352,32.011915,襄阳,679,Ancient Longzhong
+湖南博物院,112.9935,28.211871,长沙,680,Hunan Museum
+飞来峰,120.100771,30.236833,杭州,681,Feilai Peak
+珠江夜游天字码头,113.271152,23.114695,广州,682,Pearl River Night Cruise Tianzi Wharf
+怀远楼,117.094542,24.672152,漳州,683,Huaiyuan Building
+金紫荆广场,114.178858,22.28168,香港,684,Golden Bauhinia Square
+岳王庙景区,120.134669,30.25241,杭州,685,Yuewang Temple Scenic Area
+梅园,120.226168,31.556019,无锡,686,Meiyuan (Plum Garden)
+麦积山石窟,106.00822,34.350784,天水,687,Maijishan Grottoes
+牛首山文化旅游区,118.748333,31.903477,南京,688,Niushou Mountain Cultural Tourism Area
+正佳极地海洋世界,113.326323,23.132019,广州,689,Grandview Polar Ocean World
+地王观光·深港之窗,114.110096,22.542486,深圳,690,Diwang Sightseeing · Shenzhen-Hong Kong Window
+萍乡武功山风景区,114.129525,27.489096,萍乡,691,Pingxiang Wugong Mountain Scenic Area
+逍遥津公园,117.295366,31.868709,合肥,692,Xiaoyaojin Park
+仙都景区,120.140668,28.690055,丽水,693,Xiandu Scenic Area
+镜泊湖风景区,128.954713,44.06464,牡丹江,694,Jingpo Lake Scenic Area
+圣弥厄尔教堂,120.32075,36.068163,青岛,695,St. Michael's Cathedral (Qingdao)
+鼓山,119.410892,26.079276,福州,696,Drum Mountain (Gushan)
+山顶缆车,114.164184,22.274943,香港,697,Peak Tram
+九丈崖,120.690037,37.989336,烟台,698,Jiuzhang Cliff
+大宁公园,121.446764,31.27834,上海,699,Daning Park
+中央广播电视塔,116.307129,39.919447,北京,700,China Central Radio & TV Tower
+雪窦山,121.220505,29.692243,宁波,701,Xuedou Mountain
+梅州客天下景区,116.155768,24.256962,梅州,702,Meizhou Hakka World Scenic Area
+孔府,116.991667,35.597673,济宁,703,Kong Family Mansion
+希拉穆仁草原,111.243656,41.319498,包头,704,Xilamuren Grassland
+垦丁大街,120.796229,21.943291,屏东,705,Kending Street
+湖光岩,110.285448,21.138815,湛江,706,Lake Light Rock (Huguangyan)
+神农顶风景区,110.26248,31.463083,神农架,707,Shennongding Scenic Area
+爱晚亭,112.937561,28.180438,长沙,708,Aiwan Pavilion
+南山寺,109.200653,18.289439,三亚,709,Nanshan Temple
+雨花台,118.781677,31.996791,南京,710,Yuhuatai Memorial Park
+垦丁国家公园,120.78337,21.945715,屏东,711,Kenting National Park
+通灵大峡谷,106.62545,23.023399,百色,712,Tongling Grand Canyon
+虎跳峡（香格里拉段）,100.115197,27.189315,迪庆,713,Tiger Leaping Gorge (Shangri-La Section)
+巴松措,93.967914,30.007832,林芝,714,Basong Tso (Basongcuo)
+隐贤山庄,114.024421,22.974295,东莞,715,Yinxian Mountain Villa
+包公园,117.293878,31.856757,合肥,716,Bao Park
+东江湖旅游区,113.263979,25.934287,郴州,717,Dongjiang Lake Tourist Area
+天心阁,112.981388,28.183743,长沙,718,Tianxin Pavilion
+沂蒙山云蒙景区（蒙山国家森林公园）,117.966787,35.557897,临沂,719,Yimeng Mountain Yunmeng Scenic Area (Mengshan National Forest Park)
+上海城市历史发展陈列馆,121.499768,31.239774,上海,720,Shanghai Urban History Exhibition Hall
+猫鼻头公园,120.741651,21.919425,屏东,721,Maobitou Park
+世界花卉大观园,116.353216,39.835645,北京,722,World Flower Grand View Garden
+百里峡,115.390068,39.659798,保定,723,Baili Gorge
+集美学村,118.092675,24.56628,厦门,724,Jimei School Village
+纳帕海,99.647928,27.854611,迪庆,725,Napahai Lake
+秦淮河,118.7487,32.062788,南京,726,Qinhuai River
+江郎山风景名胜区,118.568363,28.531666,衢州,727,Jianglang Mountain Scenic Area
+青羊宫,104.041157,30.660052,成都,728,Qingyang Palace
+美丽岛站光之穹顶,120.305919,22.628615,高雄,729,Formosa Boulevard Station Dome of Light
+小普陀,100.223051,25.807426,大理,730,Little Putuo
+自贡恐龙博物馆,104.829653,29.395625,自贡,731,Zigong Dinosaur Museum
+大奇山国家森林公园,119.731451,29.755721,杭州,732,Daqi Mountain National Forest Park
+新澳海底世界,119.563292,39.906128,秦皇岛,733,Xin'ao Underwater World
+五花海,103.88097,33.15912,阿坝,734,Five-Flower Sea (Wuhua Hai)
+网师园,120.633718,31.298253,苏州,735,Master-of-Nets Garden
+黑马河乡,99.779349,36.72879,海南藏族自治州,736,Heima River Township
+铜锣湾,114.18892,22.277512,香港,737,Causeway Bay
+长风公园,121.399514,31.225055,上海,738,Changfeng Park
+月亮山,110.47406,24.72384,桂林,739,Moon Hill
+上海大自然野生昆虫馆,121.497703,31.240413,上海,740,Shanghai Wild Insect Kingdom
+云水谣景区,117.095668,24.666056,漳州,741,Yunshuiyao Scenic Area
+抚仙湖国际旅游度假区,102.95936,24.579846,玉溪,742,Fuxian Lake International Tourism Resort
+杭州动物园,120.133292,30.212566,杭州,743,Hangzhou Zoo
+迎客松,118.17582,30.12217,黄山,744,Guest-Greeting Pine
+赤水丹霞旅游区·大瀑布,105.74679,28.376076,遵义,745,Chishui Danxia Tourist Area · Great Waterfall
+泰安地下龙宫（原泰山大裂谷）,117.239392,36.149275,泰安,746,Taian Underground Dragon Palace (Former Taishan Grand Canyon)
+火宫殿,112.973712,28.190689,长沙,747,Fire Palace
+兰亭,120.501301,29.926047,绍兴,748,Lanting Pavilion
+彩虹桥,117.774838,29.415167,上饶,749,Rainbow Bridge
+天际100香港观景台,114.165227,22.300657,香港,750,Sky100 Hong Kong Observation Deck
+山西博物院,112.531026,37.865433,太原,751,Shanxi Museum
+金山,119.414431,32.215265,镇江,752,Jinshan (Gold Mountain)
+崂山仰口游览区,120.666119,36.236685,青岛,753,Laoshan Yangkou Tourist Area
+天门山玻璃栈道,110.478526,29.046773,张家界,754,Tianmen Mountain Glass Walkway
+白洋淀风景区,115.98984,38.936495,保定,755,Baiyangdian Lake Scenic Area
+上海马戏城,121.451538,31.278142,上海,756,Shanghai Circus World
+蝴蝶泉,100.098109,25.906656,大理,757,Butterfly Spring
+六和塔,120.132654,30.195818,杭州,758,Six Harmonies Pagoda (Liuhe Pagoda)
+琼台仙谷,121.01062,29.208852,台州,759,Qiongtai Immortal Valley
+中国科学院华南国家植物园,113.367004,23.183094,广州,760,"South China Botanical Garden, Chinese Academy of Sciences"
+静安寺,121.445167,31.223591,上海,761,Jing'an Temple
+云和梯田景区,119.486404,28.049714,丽水,762,Yunhe Rice Terraces Scenic Area
+白堤,120.148897,30.255347,杭州,763,Bai Causeway
+太行大峡谷景区,113.748905,36.176177,安阳,764,Taihang Grand Canyon Scenic Area
+潭柘寺,116.031232,39.904911,北京,765,Tanzhe Temple
+贡嘎山,101.880876,29.59307,甘孜,766,Mount Gongga
+六合夜市,120.30316,22.629252,高雄,767,Liuhe Night Market
+中华艺术宫,121.494758,31.184343,上海,768,China Art Museum
+沈阳世博园,123.639462,41.857639,沈阳,769,Shenyang Expo Garden
+琅琊山景区,118.287227,32.280531,滁州,770,Langya Mountain Scenic Area
+居庸关长城,116.071722,40.291432,北京,771,Juyongguan Great Wall
+小梅沙,114.327944,22.600923,深圳,772,Xiaomeisha
+南宋御街,120.171018,30.24182,杭州,773,Southern Song Imperial Street
+日月山,101.094102,36.442499,西宁,774,Riyue Mountain
+麦积山风景名胜区,106.008827,34.351448,天水,775,Maiji Mountain Scenic Area
+海螺沟,102.013175,29.585766,甘孜,776,Hailuo Gully
+白城沙滩,118.102891,24.432042,厦门,777,Baicheng Beach
+大相国寺,114.354684,34.79179,开封,778,Daxiangguo Temple
+隆兴寺,114.582489,38.144265,石家庄,779,Longxing Temple
+句容茅山景区,119.315514,31.785557,镇江,780,Jurong Maoshan Scenic Area
+上海汽车博物馆,121.170217,31.278695,上海,781,Shanghai Auto Museum
+黄龙溪欢乐田园,103.983016,30.332476,成都,782,Huanglongxi Happy Countryside
+采石矶,118.457373,31.655382,马鞍山,783,Caishiji
+俄罗斯风情街,121.637207,38.927059,大连,784,Russian Style Street
+安昌古镇,120.492067,30.138072,绍兴,785,Anchang Ancient Town
+万绿湖风景区,114.632454,23.775582,河源,786,Wanlv Lake Scenic Area
+库木塔格沙漠,90.247693,42.690853,吐鲁番,787,Kumtag Desert
+清东陵,117.684093,40.175106,唐山,788,Eastern Qing Tombs
+南桥,103.615872,30.996327,成都,789,Nanqiao
+平潭岛,119.73637,25.613511,福州,790,Pingtan Island
+崇武古城风景区,118.933415,24.872751,泉州,791,Chongwu Ancient City Scenic Area
+南湖公园,108.354167,22.805766,南宁,792,South Lake Park
+青岛森林野生动物世界,120.058484,35.98186,青岛,793,Qingdao Forest Wildlife World
+八达岭野生动物世界,115.994738,40.353828,北京,794,Badaling Wildlife World
+世界园艺博览园,102.762817,25.07482,昆明,795,World Horticultural Exposition Garden
+下川岛王府洲旅游度假区,112.569397,21.624163,江门,796,Xiachuan Island Wangfuzhou Tourism Resort
+1933老场坊,121.491739,31.254478,上海,797,1933 Old Millfun
+司马台长城,117.286281,40.657921,北京,798,Simatai Great Wall
+天子驾六博物馆,112.443197,34.674081,洛阳,799,Museum of the Son of Heaven's Six Horses
+长沙生态动物园,113.003644,28.032934,长沙,800,Changsha Ecological Zoo
+海南热带野生动植物园,110.246702,19.770934,海口,801,Hainan Tropical Wildlife Park and Botanical Garden
+木兰草原,114.460529,30.959407,武汉,802,Mulan Grassland
+新都桥,101.49346,30.04528,甘孜,803,Xinduqiao
+大金湖,117.102172,26.864964,三明,804,Dajin Lake
+额济纳胡杨林旅游区,101.083401,41.961803,阿拉善盟,805,Ejina Poplar Forest Tourist Area
+钢琴博物馆,118.069819,24.43828,厦门,806,Piano Museum
+张家界大峡谷景区（玻璃桥）,110.701244,29.395616,张家界,807,Zhangjiajie Grand Canyon (Glass Bridge)
+虎跑公园,120.132062,30.209412,杭州,808,Hupao Park (Tiger Running Park)
+绵山景区,111.992701,36.889361,晋中,809,Mianshan Scenic Area
+驳二艺术特区,120.285583,22.617164,高雄,810,The Pier-2 Art Center
+黄大仙祠,114.198307,22.339691,香港,811,Wong Tai Sin Temple
+扬州古运河,119.451538,32.407848,扬州,812,Yangzhou Ancient Canal
+渔人码头,121.414857,25.180417,台北,813,Fisherman's Wharf
+渔人码头,121.414857,25.180417,新北,814,Fisherman's Wharf
+南湖景区,120.758521,30.751622,嘉兴,815,South Lake Scenic Area
+台湾海洋生物博物馆,120.698907,22.046017,屏东,816,National Museum of Marine Biology and Aquarium (Taiwan)
+普陀宗乘之庙,117.934063,41.013571,承德,817,Putuo Zongcheng Temple (Little Potala Palace)
+南山一棵树观景台,106.603308,29.545816,重庆,818,Nanshan Tree Viewing Platform
+枫泾古镇,121.015494,30.887518,上海,819,Fengjing Ancient Town
+中国科学技术馆,116.398545,40.005981,北京,820,China Science and Technology Museum
+天游峰,117.95237,27.649778,南平,821,Tianyou Peak
+青城后山,103.481164,30.921323,成都,822,Back Qingcheng Mountain
+淡水老街,121.445969,25.166487,新北,823,Tamsui Old Street
+武汉植物园,114.423362,30.544892,武汉,824,Wuhan Botanical Garden
+花城广场,113.324596,23.119991,广州,825,Huacheng Square
+龙庆峡,116.002806,40.551981,北京,826,Longqing Gorge
+梅峰岛,118.921428,29.589619,杭州,827,Meifeng Island
+芙蓉镇,109.945009,28.742006,湘西,828,Furong Town
+古兵器博物馆,112.176208,37.204215,晋中,829,Ancient Weapons Museum
+西涌,114.550493,22.482242,深圳,830,Xichong (West Charging)
+国家植物园（原北京植物园）,116.209534,40.003166,北京,831,National Botanical Garden (Former Beijing Botanical Garden)
+上海世博园,121.48639,31.187321,上海,832,Shanghai Expo Park
+九皇山,104.689461,31.935202,绵阳,833,Jiuhuang Mountain
+木兰围场,117.494808,42.320388,承德,834,Mulan Hunting Ground
+双桥,120.849933,31.114216,苏州,835,Double Bridges
+兴城古城,120.712905,40.62257,葫芦岛,836,Xingcheng Ancient City
+三峡博物馆,106.550382,29.562136,重庆,837,Three Gorges Museum
+梅花山,118.839128,32.050942,南京,838,Plum Blossom Hill
+和贵楼,117.093617,24.657851,漳州,839,He Gui Lou
+元阳哈尼梯田,102.739627,23.117321,红河,840,Yuanyang Hani Rice Terraces
+西子湾风景区,120.270008,22.615068,高雄,841,Xizi Bay Scenic Area
+荔波古镇,107.892219,25.40964,黔南,842,Libo Ancient Town
+关门山国家森林公园,124.181263,41.115236,本溪,843,Guanmen Mountain National Forest Park
+武汉园博园（武汉自然博物馆）,114.215856,30.626113,武汉,844,Wuhan Garden Expo (Wuhan Natural Museum)
+扎龙生态旅游区,124.241142,47.196971,齐齐哈尔,845,Zhalong Ecological Tourism Area
+呈坎,118.284392,29.922315,黄山,846,Chengkan
+荆州古城,112.217429,30.350492,荆州,847,Jingzhou Ancient City
+虞山景区,120.705263,31.670876,苏州,848,Yushan Scenic Area
+首都博物馆,116.34258,39.906631,北京,849,Capital Museum
+广济桥,116.657839,23.662301,潮州,850,Guangji Bridge
+苏州古运河,120.611504,31.291776,苏州,851,Suzhou Ancient Canal
+蒙古汗城,117.662533,44.459477,锡林郭勒盟,852,Mongolian Khan City
+曲院风荷,120.133498,30.249518,杭州,853,Lotus in the Breeze at Crooked Courtyard
+若尔盖花湖生态旅游区,102.822647,33.931221,阿坝,854,Zoige Flower Lake Ecological Tourism Area
+白塔山公园,103.811775,36.06969,兰州,855,Baita Mountain Park
+仙门奇峡,113.061005,24.626627,韶关,856,Xianmen Qixia (Fairy Gate Wonder Gorge)
+石象湖,103.424111,30.194454,成都,857,Shixiang Lake
+浅水湾,114.201279,22.233976,香港,858,Repulse Bay
+荔波大七孔景区,107.751483,25.278295,黔南,859,Libo Daqikong Scenic Area
+叠彩山,110.301067,25.290049,桂林,860,Diecai Hill
+长海,103.93421,33.035781,阿坝,861,Long Lake (Changhai)
+洋人街,100.16088,25.694204,大理,862,Foreigner Street
+海舌生态公园,100.156657,25.870703,大理,863,Haise Ecological Park
+垦丁白沙湾海滩,120.717432,21.934401,屏东,864,Kenting Baisha Bay
+浙西大峡谷,119.103562,30.234613,杭州,865,Zhejiang Grand West Canyon
+红山公园,87.606485,43.807967,乌鲁木齐,866,Red Hill Park
+厦门科技馆,118.108222,24.490684,厦门,867,Xiamen Science and Technology Museum
+马蹄寺景区,100.426449,38.501422,张掖,868,Horse Hoof Temple Scenic Area
+红树林,114.001301,22.523255,深圳,869,Mangrove Forest
+瑶里景区,117.583685,29.558381,景德镇,870,Yaoli Scenic Area
+郑州市动物园,113.685214,34.789402,郑州,871,Zhengzhou Zoo
+清漪湖风景区,103.161435,30.136227,雅安,872,Qingyi Lake Scenic Area
+东方威尼斯水城,121.691759,38.924409,大连,873,Oriental Venice Water Town
+海驴岛,122.67077,37.44752,威海,874,Hailv Island
+乌兰布统旅游区,117.200062,42.58767,承德,875,Ulan Butong Scenic Area
+四洞沟景区,105.648375,28.468979,遵义,876,Sidonggou Scenic Area
+八仙过海景区,120.77577,37.825402,烟台,877,Eight Immortals Crossing the Sea Scenic Area
+北京路步行街,113.268998,23.121664,广州,878,Beijing Road Pedestrian Street
+哈尔滨融创乐园,126.506347,45.803167,哈尔滨,879,Harbin Wanda Theme Park
+南市食品街,117.183885,39.132962,天津,880,Nanshi Food Street
+千灯古镇,121.000987,31.263953,苏州,881,Qiandeng Ancient Town
+法雨寺,122.393945,30.002863,舟山,882,Fayu Temple
+奥林匹克森林公园,116.390406,40.018918,北京,883,Olympic Forest Park
+万绿园,110.313766,20.033727,海口,884,Evergreen Park
+郑州黄河文化公园,113.512946,34.953923,郑州,885,Zhengzhou Yellow River Cultural Park
+永定土楼,116.974964,24.651809,龙岩,886,Yongding Tulou
+老邮局,120.481651,30.749872,嘉兴,887,Old Post Office
+芦林湖,115.974797,29.549858,九江,888,Lulin Lake
+富国海底世界,116.447094,39.928276,北京,889,Fuguo Underwater World
+重庆园博园,106.554015,29.680087,重庆,890,Chongqing Garden Expo
+上海大观园,120.91006,31.073553,上海,891,Shanghai Grand View Garden
+螺髻山,102.41874,27.574089,凉山,892,Luoji Mountain
+梅里雪山国家公园,98.856375,28.438704,迪庆,893,Meili Snow Mountain National Park
+船帆石,120.823982,21.931218,屏东,894,Sail Rock
+渔岛海洋温泉景区,119.286873,39.600952,秦皇岛,895,Fisherman's Island Ocean Hot Spring Resort
+张裕酒文化博物馆,121.405823,37.542047,烟台,896,Changyu Wine Culture Museum
+南北湖,120.858836,30.382629,嘉兴,897,South-North Lake
+黄河口生态旅游区,118.989638,37.761957,东营,898,Yellow River Estuary Ecological Tourism Area
+大栅栏,116.391237,39.895221,北京,899,Dashilan
+上海老街,121.496844,31.225373,上海,900,Shanghai Old Street
+俄罗斯风情小镇,126.600806,45.786294,哈尔滨,901,Russian Style Town
+告庄西双景,100.821334,22.007155,西双版纳,902,Gaozhuang Xijing
+门源百里油菜花海,101.440476,37.477304,海北,903,Menyuan Hundred-Mile Rape Flower Sea
+穹窿山,120.429118,31.265845,苏州,904,Qionglong Mountain
+小寨天坑风景区,109.475459,30.744847,重庆,905,Xiaozhai Tiankeng Scenic Area
+李中水上森林公园,119.731339,33.033769,泰州,906,Li Zhong Water Forest Park
+中华孝道园,120.071177,31.476677,常州,907,China Filial Piety Park
+雾漫小东江,113.258499,25.9403,郴州,908,Foggy Little East River
+东门老街,114.116252,22.544128,深圳,909,Dongmen Old Street
+黄金寨原生态旅游区,114.06799,38.429274,石家庄,910,Golden Village Original Eco-Tourism Area
+天门山索道,110.483391,29.111946,张家界,911,Tianmen Mountain Cableway
+渣滓洞,106.433464,29.585237,重庆,912,Cinder Cave
+长洲岛,114.031543,22.198884,香港,913,Cheung Chau Island
+风琴博物馆,118.068594,24.447126,厦门,914,Organ Museum
+万仙山景区,113.621595,35.721485,新乡,915,Wanxian Mountain Scenic Area
+阳关遗址,94.054051,39.935343,酒泉,916,Yangguan Pass
+世界城-光谷步行街,114.402059,30.50528,武汉,917,World City - Optics Valley Walking Street
+昭化古城,105.714551,32.331563,广元,918,Zhaohua Ancient City
+明仕田园,106.916249,22.710552,崇左,919,Mingshi Pastoral
+威海华夏城,122.113871,37.424092,威海,920,Weihai Huaxia City
+诸葛八卦村,119.296399,29.247745,金华,921,Zhuge Bagua Village
+马仁奇峰风景区,118.168275,30.972916,芜湖,922,Maren Qifeng Scenic Area
+广东省博物馆,113.326421,23.114798,广州,923,Guangdong Museum
+宝塔山,109.496943,36.593729,延安,924,Pagoda Hill (Baota Mountain)
+连城冠豸山,116.786182,25.710917,龙岩,925,Liancheng Guanzhi Mountain
+中国航海博物馆,121.919595,30.896078,上海,926,China Maritime Museum
+渔湾风景区,119.338399,34.64432,连云港,927,Yuwan Scenic Area
+天都峰,118.179592,30.12013,黄山,928,Tiandu Peak
+小青岛,120.323827,36.05313,青岛,929,Little Qingdao (Xiaoqingdao)
+古城大水车,100.233324,26.876027,丽江,930,Ancient City Water Wheel
+陶然亭公园,116.381994,39.874449,北京,931,Taoranting Park
+丽景门景区,112.471497,34.680783,洛阳,932,Lijingmen Scenic Area
+南翔古镇,121.307186,31.290864,上海,933,Nanxiang Ancient Town
+阳明山国家公园,121.55159,25.15303,台北,934,Yangmingshan National Park
+桃花潭,118.150326,30.481022,宣城,935,Peach Blossom Pond
+金殿公园,102.771327,25.084399,昆明,936,Golden Temple Park
+南京大学,118.77961,32.055348,南京,937,Nanjing University
+巴丹吉林沙漠,102.87378,40.42505,阿拉善盟,938,Badain Jaran Desert
+鲁迅公园,120.332648,36.05462,青岛,939,Lu Xun Park
+湘湖,120.215069,30.130178,杭州,940,Xiang Lake
+静园,117.189288,39.123259,天津,941,Jingyuan (Tianjin)
+茅山森林世界,119.329496,31.809971,常州,942,Maoshan Forest World
+定陵,116.225824,40.294818,北京,943,Dingling (Ming Tombs)
+莫愁湖景区,118.761158,32.036535,南京,944,Mochou Lake Scenic Area
+汉口江滩,114.31629,30.606763,武汉,945,Hankou River Beach
+南湾湖风景区,114.001413,32.124914,信阳,946,Nanwan Lake Scenic Area
+日升昌票号,112.183662,37.205278,晋中,947,Rishengchang Draft Bank
+恐龙传奇,121.586436,38.877596,大连,948,Dinosaur Legend
+廿八都古镇,118.482641,28.29162,衢州,949,Nianbadu Ancient Town
+武汉杜莎夫人蜡像馆,114.344569,30.555032,武汉,950,Madame Tussauds Wuhan
+东关清真大寺,101.79792,36.615301,西宁,951,Dongguan Mosque
+九龙瀑布群,104.427326,25.01305,曲靖,952,Jiulong (Nine Dragon) Waterfall Group
+南海影视城,113.107891,23.187255,佛山,953,Nanhai Film and Television City
+碧海金沙,121.576522,30.825191,上海,954,Blue Sea and Golden Sand
+桃花源,111.441872,28.790605,常德,955,Peach Blossom Land (Taohuayuan)
+千岛湖东南湖区,119.076356,29.585813,杭州,956,Qiandao Lake Southeast Lake Area
+复旦大学,121.504439,31.295883,上海,957,Fudan University
+辉腾锡勒黄花沟草原旅游区,112.52787,41.132266,乌兰察布,958,Huitengxile Huanghuagou Grassland Tourist Area
+秦皇求仙入海处,119.62175,39.914043,秦皇岛,959,Qin Huangdao Qiuxian Entering the Sea Place
+人民大礼堂,106.55411,29.561636,重庆,960,Great Hall of the People
+天安门城楼,116.397492,39.909064,北京,961,Tiananmen Rostrum
+八里沟景区,113.563432,35.597599,新乡,962,Baligou Scenic Area
+平遥古城墙,112.182155,37.210619,晋中,963,Pingyao Ancient City Wall
+南宁动物园,108.268539,22.834938,南宁,964,Nanning Zoo
+花舞人间,103.797625,30.388894,成都,965,Flower Dance World
+火山岛旅游休闲度假区,118.023621,24.207461,漳州,966,Volcanic Island Tourism and Vacation Resort
+上海电影博物馆,121.438142,31.186142,上海,967,Shanghai Film Museum
+烟袋斜街,116.394605,39.939114,北京,968,Yandai Byway (Tobacco Pipe Lane)
+台州府城文化旅游区,121.117245,28.846582,台州,969,Taizhou Prefectural City Cultural Tourism Zone
+红石峡,113.355945,35.433452,焦作,970,Red Stone Gorge (Hongshixia)
+石林峡,117.242133,40.262445,北京,971,Shilin Gorge (Shilinxia)
+沙溪古镇,99.850353,26.316787,大理,972,Shaxi Ancient Town
+龙磐公园,120.851528,21.924454,屏东,973,Longpan Park
+大慈岩风景区,119.291343,29.31244,杭州,974,Daciyan Scenic Area
+东山岛,117.41166,23.691709,漳州,975,Dongshan Island
+太平洋海底世界,116.306136,39.91884,北京,976,Pacific Underwater World
+葡萄沟,89.243858,43.00095,吐鲁番,977,Grape Valley (Putao Valley)
+太子湾公园,120.142178,30.225507,杭州,978,Prince Bay Park
+外伶仃岛,114.042128,22.09914,珠海,979,Wailingding Island
+中山公园,120.350963,36.064308,青岛,980,Zhongshan Park
+走婚桥,100.87694,27.709764,凉山,981,Walking Marriage Bridge
+打狗英国领事馆,120.270946,22.616136,高雄,982,British Consulate at Takow (Dagou)
+夫子庙大成殿,118.788886,32.020556,南京,983,Confucius Temple Dacheng Hall
+海埂公园,102.659764,24.960162,昆明,984,Haigeng Park
+湖南省植物园,113.032182,28.103057,长沙,985,Hunan Botanical Garden
+雁栖湖,116.684269,40.397831,北京,986,Yanqi Lake
+防洪纪念塔,126.617197,45.78061,哈尔滨,987,Flood Control Monument
+狼牙山,115.178706,39.131319,保定,988,Langya Mountain
+马勒别墅,121.456328,31.2229,上海,989,Moller Villa
+白水河,100.242204,27.126216,丽江,990,Baishui River
+石浦渔港古城,121.94498,29.211478,宁波,991,Shipu Fishing Port Ancient City
+鸡公山景区,114.077358,31.809301,信阳,992,Jigong Mountain Scenic Area
+朝阳公园,116.482583,39.944139,北京,993,Chaoyang Park
+第二海水浴场,120.35115,36.050663,青岛,994,Second Bathing Beach
+大报恩寺遗址景区,118.783123,32.009233,南京,995,Dabao'en Temple Heritage Scenic Area
+张北坝上草原,114.767056,41.286869,张家口,996,Zhangbei Bashang Grassland
+姑婆山,111.560318,24.636065,贺州,997,Gupo Mountain
+云上草原,119.654799,30.446609,湖州,998,Yunshang Grassland
+遇龙河漂流,110.39971,24.809901,桂林,999,Yulong River Rafting
+桃坪羌寨,103.458772,31.555344,阿坝,1000,Taoping Qiang Village
+呼伦湖,117.664396,49.333616,呼伦贝尔,1001,Hulun Lake
