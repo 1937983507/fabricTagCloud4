@@ -368,6 +368,12 @@ export const usePoiStore = defineStore('poiStore', {
         fontColor: this.colorSettings.palette[index % this.colorSettings.palette.length],
       }));
     },
+    updateBackgroundColor(background) {
+      this.colorSettings = {
+        ...this.colorSettings,
+        background,
+      };
+    },
     updateAlgorithmSettings(payload) {
       this.algorithmSettings = {
         ...this.algorithmSettings,

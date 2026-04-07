@@ -253,15 +253,13 @@ watch(
   { immediate: true, deep: true }
 );
 
-// 背景色变化 - 立即更新
+// 背景色变化/确认 - 仅提交背景色
 const handleBackgroundChange = (color) => {
   if (!color) return;
   // 确保localSettings同步
   localSettings.value.background = color;
-  // 立即更新store和canvas
-  poiStore.updateColorSettings({
-    background: color,
-  });
+  // 仅更新背景色，避免触发与标签颜色相关的全量数据更新
+  poiStore.updateBackgroundColor(color);
 };
 
 // 中心标签颜色变化 - 立即更新

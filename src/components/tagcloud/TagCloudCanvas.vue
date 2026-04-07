@@ -58,7 +58,11 @@
         >
           <!-- 勿绑定 :width/:height：会重置位图并破坏 Fabric 的 retina 缓冲，导致文字缩放发糊 -->
           <canvas :key="canvasKey" ref="canvasRef"></canvas>
-          <div v-if="!allowRenderCloud || poiStore.tagCloudList.length === 0" class="empty-cloud-hint">
+          <div
+            v-if="!allowRenderCloud || poiStore.tagCloudList.length === 0"
+            class="empty-cloud-hint"
+            :style="emptyCloudHintStyle"
+          >
             <div class="hint-content">
               <div class="hint-icon">
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -517,6 +521,13 @@ const renderProgress = computed(() => {
   if (!totalLabelCount.value) return 0;
   const ratio = currentRenderedCount.value / totalLabelCount.value;
   return Math.min(100, Math.max(0, Math.round(ratio * 100)));
+});
+
+const emptyCloudHintStyle = computed(() => {
+  const bg = poiStore.colorSettings.background || '#0c1024';
+  return {
+    background: `linear-gradient(135deg, ${toRgbaWithAlpha(bg, 0.95)} 0%, ${toRgbaWithAlpha(bg, 0.88)} 100%)`,
+  };
 });
 
 // 计算各个色块之间的分界点距离值
