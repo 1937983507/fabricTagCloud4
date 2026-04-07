@@ -1132,6 +1132,47 @@ const openNearbyDialog = () => {
   openLocationFilter.value = true;
 };
 
+const GEOCODE_TIMEOUT_MS = 15000;
+
+/** 防止高德 Geocoder / PlaceSearch 回调永不触发导致界面永久卡在「正在解析地点」 */
+const promiseWithTimeout = (promise, ms, message = '请求超时') =>
+  new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(message)), ms);
+    promise
+      .then((v) => {
+        clearTimeout(t);
+        resolve(v);
+      })
+      .catch((e) => {
+        clearTimeout(t);
+        reject(e);
+      });
+  });
+
+/** 将 Geocoder / POI 返回的 location 统一为 AMap.LngLat */
+const normalizeAmapLngLat = (raw) => {
+  if (!raw || !amapGlobal) return null;
+  if (typeof raw.getLng === 'function' && typeof raw.getLat === 'function') return raw;
+  const lng =
+    typeof raw.getLng === 'function'
+      ? raw.getLng()
+      : raw.lng ?? raw.longitude ?? (Array.isArray(raw) ? raw[0] : undefined);
+  const lat =
+    typeof raw.getLat === 'function'
+      ? raw.getLat()
+      : raw.lat ?? raw.latitude ?? (Array.isArray(raw) ? raw[1] : undefined);
+  if (lng != null && lat != null && !Number.isNaN(+lng) && !Number.isNaN(+lat)) {
+    return new amapGlobal.LngLat(+lng, +lat);
+  }
+  if (typeof raw === 'string') {
+    const parts = raw.split(/[,\s]+/).map((s) => parseFloat(s.trim()));
+    if (parts.length >= 2 && !Number.isNaN(parts[0]) && !Number.isNaN(parts[1])) {
+      return new amapGlobal.LngLat(parts[0], parts[1]);
+    }
+  }
+  return null;
+};
+
 /** 地点关键词 → LngLat（Geocoder 优先，失败则 PlaceSearch） */
 const geocodeKeyword = async (keyword) => {
   const input = keyword?.trim();
@@ -1140,44 +1181,57 @@ const geocodeKeyword = async (keyword) => {
     geocoder = new amapGlobal.Geocoder({ city: '全国' });
   }
   currentLocationMethod.value = '正在解析地点…';
-  try {
-    const geocodeResult = await new Promise((resolve, reject) => {
+
+  const geocodeViaGeocoder = () =>
+    new Promise((resolve, reject) => {
       geocoder.getLocation(input, (status, result) => {
-        if (status === 'complete' && result.geocodes?.length) {
+        if (status === 'complete' && result?.geocodes?.length) {
           resolve(result.geocodes[0]);
         } else {
-          reject(new Error('Geocoder未找到该地点'));
+          reject(new Error(result?.info || 'Geocoder未找到该地点'));
         }
       });
     });
-    if (geocodeResult?.location) {
-      return geocodeResult.location;
-    }
+
+  try {
+    const geocodeItem = await promiseWithTimeout(
+      geocodeViaGeocoder(),
+      GEOCODE_TIMEOUT_MS,
+      '地理编码超时，将尝试地点搜索',
+    );
+    const lngLat = normalizeAmapLngLat(geocodeItem?.location);
+    if (lngLat) return lngLat;
   } catch {
     /* PlaceSearch 兜底 */
   }
-  if (!placeSearch) {
-    placeSearch = new amapGlobal.PlaceSearch({ map: mapInstance, city: '全国' });
-  }
-  const placeResult = await new Promise((resolve, reject) => {
-    placeSearch.search(input, (status, result) => {
-      if (status !== 'complete') {
-        reject(new Error(result?.info || '搜索失败'));
-        return;
-      }
-      let poi = null;
-      if (result.poiList?.pois?.length) {
-        poi = result.poiList.pois[0];
-      } else if (Array.isArray(result.poiList) && result.poiList.length) {
-        poi = result.poiList[0];
-      } else if (Array.isArray(result.pois) && result.pois.length) {
-        poi = result.pois[0];
-      }
-      if (poi?.location) resolve(poi);
-      else reject(new Error('未找到该地点'));
-    });
-  });
-  return placeResult.location;
+
+  // 独立实例 + 不设 map，避免与初始化时的 PlaceSearch 抢回调或受地图状态影响
+  const placeSearchLocal = new amapGlobal.PlaceSearch({ city: '全国' });
+  const placeResult = await promiseWithTimeout(
+    new Promise((resolve, reject) => {
+      placeSearchLocal.search(input, (status, result) => {
+        if (status !== 'complete') {
+          reject(new Error(result?.info || '搜索失败'));
+          return;
+        }
+        let poi = null;
+        if (result.poiList?.pois?.length) {
+          poi = result.poiList.pois[0];
+        } else if (Array.isArray(result.poiList) && result.poiList.length) {
+          poi = result.poiList[0];
+        } else if (Array.isArray(result.pois) && result.pois.length) {
+          poi = result.pois[0];
+        }
+        if (poi?.location) resolve(poi);
+        else reject(new Error('未找到该地点'));
+      });
+    }),
+    GEOCODE_TIMEOUT_MS,
+    '地点搜索超时，请检查网络或稍后重试',
+  );
+  const lngLat = normalizeAmapLngLat(placeResult.location);
+  if (!lngLat) throw new Error('无法解析该地点坐标');
+  return lngLat;
 };
 
 /** 多级自动定位：浏览器 → 高德 → IP；失败返回 null */
