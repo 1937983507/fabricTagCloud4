@@ -225,7 +225,7 @@ watch(
             const defaultIndex = Math.min(2, availableRibbons.value.length - 1);
             currentRibbonIndex.value = defaultIndex;
             if (availableRibbons.value.length > 0) {
-              poiStore.updateColorSettings({
+              poiStore.updateColorSettingsLight({
                 palette: availableRibbons.value[defaultIndex],
                 discreteCount: newCount,
               });
@@ -302,7 +302,7 @@ const handleColorFlip = () => {
   flipTimer = setTimeout(() => {
     const reversed = [...currentRibbon.value].reverse();
     localSettings.value.palette = reversed;
-    poiStore.updateColorSettings({
+    poiStore.updateColorSettingsLight({
       palette: reversed,
       inverted: !localSettings.value.inverted,
     });
@@ -334,7 +334,7 @@ const handleRibbonSchemeSelect = (index) => {
   currentRibbonIndex.value = index;
   const selectedScheme = availableRibbons.value[index];
   localSettings.value.palette = selectedScheme;
-  poiStore.updateColorSettings({
+  poiStore.updateColorSettingsLight({
     palette: selectedScheme,
     discreteCount: colorDiscreteCount.value,
   });
@@ -390,7 +390,7 @@ onMounted(() => {
         const defaultIndex = Math.min(2, availableRibbons.value.length - 1);
         const defaultScheme = availableRibbons.value[defaultIndex];
         currentRibbonIndex.value = defaultIndex;
-        poiStore.updateColorSettings({
+        poiStore.updateColorSettingsLight({
           palette: defaultScheme,
           discreteCount: colorDiscreteCount.value,
         });

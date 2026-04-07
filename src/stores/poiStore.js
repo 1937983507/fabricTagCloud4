@@ -368,6 +368,13 @@ export const usePoiStore = defineStore('poiStore', {
         fontColor: this.colorSettings.palette[index % this.colorSettings.palette.length],
       }));
     },
+    // 轻量更新：只改 colorSettings，不触发 poiList 全量映射（用于配色方案/色带等高频切换）
+    updateColorSettingsLight(payload) {
+      this.colorSettings = {
+        ...this.colorSettings,
+        ...payload,
+      };
+    },
     updateBackgroundColor(background) {
       this.colorSettings = {
         ...this.colorSettings,
