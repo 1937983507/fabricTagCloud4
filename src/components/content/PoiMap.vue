@@ -1338,7 +1338,7 @@ const resolveAdvancedCenter = async () => {
   return geocodeKeyword(q);
 };
 
-/** 按直线距离取距中心最近的 N 个 POI，并绘制包络圆（无 CircleEditor） */
+/** 按直线距离取距中心最近的 N 个 POI，并绘制包络圆；与半径模式一致启用 CircleEditor，可拖移圆心、调整半径 */
 const applyNearbyCountFilter = async (centerLngLat, n) => {
   const count = Math.max(1, Math.floor(Number(n)) || 1);
   resetDrawing();
@@ -1364,7 +1364,23 @@ const applyNearbyCountFilter = async (centerLngLat, n) => {
     ...drawStyle,
   });
   drawObj.setMap(mapInstance);
+
+  drawEditor = new amapGlobal.CircleEditor(mapInstance, drawObj);
+  drawEditor.open();
+
   updateCircleMarkers(drawObj);
+  drawEditor.on('move', () => {
+    updateCircleMarkers(drawObj);
+    filterPOIByGeometry(drawObj);
+  });
+  drawEditor.on('adjust', () => {
+    updateCircleMarkers(drawObj);
+    filterPOIByGeometry(drawObj);
+  });
+  drawEditor.on('end', () => {
+    updateCircleMarkers(drawObj);
+    filterPOIByGeometry(drawObj);
+  });
 
   mapInstance.setCenter(centerLngLat);
   mapInstance.setZoom(calculateZoomByRadius(radiusMeters));
