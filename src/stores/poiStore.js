@@ -380,6 +380,12 @@ export const usePoiStore = defineStore('poiStore', {
         centerLabelColor,
       };
     },
+    updateSingleColor(singleColor) {
+      this.colorSettings = {
+        ...this.colorSettings,
+        singleColor,
+      };
+    },
     updateAlgorithmSettings(payload) {
       this.algorithmSettings = {
         ...this.algorithmSettings,

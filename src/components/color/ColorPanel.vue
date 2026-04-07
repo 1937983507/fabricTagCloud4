@@ -281,9 +281,7 @@ const handleColorModeChange = (mode) => {
 const handleSingleColorChange = (color) => {
   if (!color) return;
   localSettings.value.singleColor = color;
-  poiStore.updateColorSettings({
-    singleColor: color,
-  });
+  poiStore.updateSingleColor(color);
 };
 
 // 颜色翻转 - 使用防抖
