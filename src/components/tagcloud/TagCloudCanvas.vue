@@ -630,20 +630,37 @@ const calculateColorBoundaries = () => {
   return boundaries;
 };
 
-// 格式化距离数值，根据数值大小智能调整小数位数以避免重叠
-const formatDistance = (distanceInMeters) => {
+// 格式化距离数值（旧逻辑）：根据数值大小智能调整小数位数
+const formatDistanceLegacy = (distanceInMeters) => {
   const distanceInKm = distanceInMeters / 1000;
-  
+
   // 如果距离 >= 100km，显示整数（0位小数）
   if (distanceInKm >= 100) {
     return Math.round(distanceInKm).toString();
   }
-  // 如果距离 >= 10km，显示1位小数
-  if (distanceInKm >= 10) {
-    return distanceInKm.toFixed(1);
-  }
-  // 如果距离 < 10km，显示1位小数（保持一致性）
+  // 其余情况：显示 1 位小数（保持一致性）
   return distanceInKm.toFixed(1);
+};
+
+// 图例边界值优先用整数展示；但若整数四舍五入后出现重复，则回退到旧逻辑（1 位小数）
+const legendUseIntegerDistanceLabels = computed(() => {
+  if (!allowRenderCloud.value) return false;
+  const distances = [];
+  if (Array.isArray(colorBoundaries.value) && colorBoundaries.value.length) {
+    distances.push(...colorBoundaries.value);
+  }
+  if (maxDistance.value > 0) distances.push(maxDistance.value);
+  if (!distances.length) return false;
+
+  const rounded = distances.map(d => Math.round(d / 1000));
+  return new Set(rounded).size === rounded.length;
+});
+
+const formatDistance = (distanceInMeters) => {
+  if (legendUseIntegerDistanceLabels.value) {
+    return Math.round(distanceInMeters / 1000).toString();
+  }
+  return formatDistanceLegacy(distanceInMeters);
 };
 
 // 各个色块之间的分界点距离值
