@@ -2268,44 +2268,49 @@ const updateLabelFonts = () => {
   
   // 临时禁用canvas的渲染，避免逐个更新时触发重绘
   const wasRenderOnAddRemove = canvasInstance.renderOnAddRemove;
+  const wasRequestRenderAll = canvasInstance.requestRenderAll;
   canvasInstance.renderOnAddRemove = false;
+  // Fabric 在 obj.set(...) 时会触发 canvas.requestRenderAll()（requestAnimationFrame 异步重绘）
+  // 如果不禁用，会导致这里的批量更新期间出现“先重绘一次、末尾再 renderAll 一次”的现象。
+  canvasInstance.requestRenderAll = () => {};
   
-  // 批量更新所有对象的字体和字重
-  canvasInstance.forEachObject((obj, i) => {
-    if (i === 0) return; // 跳过中心点
-    
-    // 检查是否需要更新
-    const needsFontFamilyUpdate = obj.fontFamily !== fontSettings.fontFamily;
-    const needsFontWeightUpdate = obj.fontWeight !== fontSettings.fontWeight;
-    
-    if (needsFontFamilyUpdate || needsFontWeightUpdate) {
-      // 使用set方法批量更新属性，确保Fabric.js正确更新内部状态
-      // 注意：字体和字重改变可能影响文本尺寸，需要重新计算边界框
-      const updates = {};
-      if (needsFontFamilyUpdate) {
-        updates.fontFamily = fontSettings.fontFamily;
-      }
-      if (needsFontWeightUpdate) {
-        updates.fontWeight = fontSettings.fontWeight;
-      }
-      // 确保移除轮廓（切换字体时不应该有轮廓）
-      // 无条件清除轮廓，避免字体切换时出现轮廓
-      updates.strokeWidth = 0;
+  try {
+    // 批量更新所有对象的字体和字重
+    canvasInstance.forEachObject((obj, i) => {
+      if (i === 0) return; // 跳过中心点
       
-      // 批量更新属性（不触发渲染）
-      obj.set(updates);
-      // 确保对象状态已更新（字体改变可能影响文本尺寸，需要重新计算）
-      obj.setCoords();
-      hasUpdates = true;
-      updatedCount++;
+      // 检查是否需要更新
+      const needsFontFamilyUpdate = obj.fontFamily !== fontSettings.fontFamily;
+      const needsFontWeightUpdate = obj.fontWeight !== fontSettings.fontWeight;
+      
+      if (needsFontFamilyUpdate || needsFontWeightUpdate) {
+        // 注意：字体和字重改变可能影响文本尺寸，需要重新计算边界框
+        const updates = {};
+        if (needsFontFamilyUpdate) {
+          updates.fontFamily = fontSettings.fontFamily;
+        }
+        if (needsFontWeightUpdate) {
+          updates.fontWeight = fontSettings.fontWeight;
+        }
+        // 无条件清除轮廓，避免字体切换时出现轮廓
+        updates.strokeWidth = 0;
+        
+        // 批量更新属性（期间禁用 requestRenderAll，避免“二次刷新”）
+        obj.set(updates);
+        // 确保对象状态已更新（字体改变可能影响文本尺寸，需要重新计算）
+        obj.setCoords();
+        hasUpdates = true;
+        updatedCount++;
+      }
+    });
+    
+    if (hasUpdates) {
+      canvasInstance.renderAll();
     }
-  });
-  
-  // 恢复canvas的渲染设置
-  canvasInstance.renderOnAddRemove = wasRenderOnAddRemove;
-  
-  if (hasUpdates) {
-    canvasInstance.renderAll();
+  } finally {
+    // 恢复canvas的渲染设置
+    canvasInstance.renderOnAddRemove = wasRenderOnAddRemove;
+    canvasInstance.requestRenderAll = wasRequestRenderAll;
   }
 };
 

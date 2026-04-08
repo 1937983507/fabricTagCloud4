@@ -246,7 +246,7 @@ const handleSizeChange = () => {
 };
 
 const handleWeightChange = () => {
-  poiStore.updateFontLevel({
+  poiStore.updateFontSettingsLight({
     fontWeight: localSettings.fontWeight,
   });
 };

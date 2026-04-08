@@ -358,6 +358,13 @@ export const usePoiStore = defineStore('poiStore', {
         fontWeight: this.fontSettings.fontWeight,
       }));
     },
+    // 轻量更新：只改 fontSettings，不触发 poiList 全量映射（用于字重等仅影响渲染的配置）
+    updateFontSettingsLight(payload) {
+      this.fontSettings = {
+        ...this.fontSettings,
+        ...payload,
+      };
+    },
     updateColorSettings(payload) {
       this.colorSettings = {
         ...this.colorSettings,
