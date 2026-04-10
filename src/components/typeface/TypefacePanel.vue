@@ -152,8 +152,10 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { usePoiStore } from '@/stores/poiStore';
+import { useMobileLayout } from '@/composables/useMobileLayout';
 
 const poiStore = usePoiStore();
+const { isMobile } = useMobileLayout();
 
 const levelLabels = computed(() =>
   Array.from({ length: poiStore.fontSettings.levelCount }, (_, index) => `第 ${index + 1} 级`),
@@ -185,18 +187,106 @@ const englishFonts = [
   'Century Gothic', 'Franklin Gothic', 'Baskerville',
 ];
 
+/**
+ * 移动端中文：按「国产安卓系统预装 / AOSP 常见注册名」优先，再补 iOS 与通用族名。
+ * 说明：Canvas 只能用本机已安装的字体；名称需与系统注册一致，否则全部回退成同一套默认字形。
+ */
+const chineseFontsMobile = [
+  // 通用族名（任意平台都会解析，至少可与衬线/等宽形成对比）
+  'sans-serif',
+  'serif',
+  'monospace',
+  // 国产 ROM（名称因版本可能略有差异，未命中时由浏览器回退）
+  'MiSans',
+  'MiSans Latin',
+  'MiSans TC',
+  'HarmonyOS Sans SC',
+  'HarmonyOS Sans',
+  'OPPO Sans',
+  'vivo Sans',
+  'HONOR Sans',
+  'Honor Sans',
+  'OnePlus Sans',
+  // AOSP / GMS / 类原生常见（与「Noto Sans CJK SC」在不同机型上可能二选一存在）
+  'Noto Sans SC',
+  'Noto Sans CJK SC',
+  'Noto Sans CJK',
+  'Noto Serif SC',
+  'Noto Serif CJK SC',
+  'Source Han Sans SC',
+  'Source Han Sans CN',
+  'Source Han Serif SC',
+  'Roboto',
+  'Droid Sans Fallback',
+  // iOS / iPadOS（苹果设备上可见差异）
+  'PingFang SC',
+  'PingFang TC',
+  'Hiragino Sans GB',
+  'Heiti SC',
+  'STHeiti',
+  'Songti SC',
+  'STSong',
+  'Kaiti SC',
+];
+
+/** 移动端英文：系统无衬线/衬线常见族，避免依赖 PC 专属字体 */
+const englishFontsMobile = [
+  'Roboto',
+  'Helvetica Neue',
+  'Arial',
+  'Helvetica',
+  'Times New Roman',
+  'Georgia',
+  'Courier New',
+  'Verdana',
+  'Trebuchet MS',
+  'Palatino',
+  'Avenir Next',
+  'Futura',
+  'Gill Sans',
+  'Menlo',
+];
+
+function fontListFor(lang, mobile) {
+  if (lang === 'zh') return mobile ? chineseFontsMobile : chineseFonts;
+  return mobile ? englishFontsMobile : englishFonts;
+}
+
+function defaultFontFor(lang, mobile) {
+  // 移动端中文默认用通用无衬线族，避免默认指向仅 iOS 存在的 PingFang 导致安卓上无差别回退
+  if (lang === 'zh') return mobile ? 'sans-serif' : '等线';
+  return 'Arial';
+}
+
 // 根据语言过滤字体
-const filteredFonts = computed(() => {
-  return localSettings.language === 'zh' ? chineseFonts : englishFonts;
-});
+const filteredFonts = computed(() =>
+  fontListFor(localSettings.language, isMobile.value),
+);
 
 // 初始化时，如果字体不在对应语言的字体列表中，设置默认字体
 const currentLanguage = poiStore.fontSettings.language || 'zh';
-const availableFonts = currentLanguage === 'zh' ? chineseFonts : englishFonts;
-if (!availableFonts.includes(poiStore.fontSettings.fontFamily)) {
-  const defaultFont = currentLanguage === 'zh' ? '等线' : 'Arial';
-  poiStore.updateFontLevel({ fontFamily: defaultFont });
+const availableFontsInit = fontListFor(currentLanguage, isMobile.value);
+if (!availableFontsInit.includes(poiStore.fontSettings.fontFamily)) {
+  const fallback = defaultFontFor(currentLanguage, isMobile.value);
+  if (isMobile.value) {
+    poiStore.updateFontSettingsLight({ fontFamily: fallback });
+  } else {
+    poiStore.updateFontLevel({ fontFamily: fallback });
+  }
 }
+
+watch(isMobile, (mobile) => {
+  const lang = localSettings.language || 'zh';
+  const list = fontListFor(lang, mobile);
+  if (!list.includes(poiStore.fontSettings.fontFamily)) {
+    const fallback = defaultFontFor(lang, mobile);
+    if (mobile) {
+      poiStore.updateFontSettingsLight({ fontFamily: fallback });
+    } else {
+      poiStore.updateFontLevel({ fontFamily: fallback });
+    }
+  }
+});
 
 watch(
   () => poiStore.fontSettings.language,
@@ -209,11 +299,15 @@ watch(
 watch(
   () => localSettings.language,
   (newLanguage) => {
-    const defaultFont = newLanguage === 'zh' ? '等线' : 'Arial';
-    // 如果当前字体不在对应语言的字体列表中，则切换到默认字体
-    const availableFonts = newLanguage === 'zh' ? chineseFonts : englishFonts;
+    const mobile = isMobile.value;
+    const defaultFont = defaultFontFor(newLanguage, mobile);
+    const availableFonts = fontListFor(newLanguage, mobile);
     if (!availableFonts.includes(poiStore.fontSettings.fontFamily)) {
-      poiStore.updateFontLevel({ fontFamily: defaultFont });
+      if (mobile) {
+        poiStore.updateFontSettingsLight({ fontFamily: defaultFont });
+      } else {
+        poiStore.updateFontLevel({ fontFamily: defaultFont });
+      }
     }
   }
 );
@@ -251,23 +345,37 @@ const handleWeightChange = () => {
   });
 };
 
+// 字体库切换：移动端轻量更新 + 防抖，避免频繁触发 poiList 全量映射与画布多次批量更新
+let familyChangeTimer = null;
+const FAMILY_CHANGE_DEBOUNCE_MS = 100;
+function applyFontFamily(font) {
+  if (!font || poiStore.fontSettings.fontFamily === font) return;
+  if (isMobile.value) {
+    poiStore.updateFontSettingsLight({ fontFamily: font });
+  } else {
+    poiStore.updateFontLevel({ fontFamily: font });
+  }
+}
+
 const handleFamilyChange = (font) => {
-  poiStore.updateFontLevel({
-    fontFamily: font,
-  });
+  if (familyChangeTimer) clearTimeout(familyChangeTimer);
+  familyChangeTimer = setTimeout(() => {
+    applyFontFamily(font);
+  }, isMobile.value ? FAMILY_CHANGE_DEBOUNCE_MS : 0);
 };
 
 const handleLanguageChange = () => {
   const newLanguage = localSettings.language;
-  const availableFonts = newLanguage === 'zh' ? chineseFonts : englishFonts;
-  const defaultFont = newLanguage === 'zh' ? '等线' : 'Arial';
-  
+  const mobile = isMobile.value;
+  const availableFonts = fontListFor(newLanguage, mobile);
+  const defaultFont = defaultFontFor(newLanguage, mobile);
+
   // 如果当前字体不在新语言的字体列表中，则切换到默认字体
   const updatePayload = { language: newLanguage };
   if (!availableFonts.includes(poiStore.fontSettings.fontFamily)) {
     updatePayload.fontFamily = defaultFont;
   }
-  
+
   poiStore.updateFontLevel(updatePayload);
   // 语言变化需要重新编译数据并重绘（TagCloudCanvas.vue 中的 watch 会自动处理）
 };
