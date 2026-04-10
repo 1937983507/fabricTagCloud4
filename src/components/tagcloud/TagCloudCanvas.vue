@@ -2394,28 +2394,43 @@ const handleExportConfirm = () => {
   }
 };
 
-// 生成图例的SVG元素
-const generateLegendSVG = (canvasWidth, canvasHeight) => {
-  // 图例在原始canvas中的位置（右上角，距离边缘16px）
-  const legendRight = 16;
-  const legendTop = 16;
-  const legendMinWidth = 180;
-  
-  // 计算图例位置和尺寸
-  const legendX = canvasWidth - legendRight - legendMinWidth;
-  const legendY = legendTop;
-  const legendWidth = legendMinWidth;
-  const padding = 12;
-  const titleFontSize = 14;
-  const colorBarHeight = 24;
-  const colorBarGap = 2;
-  const textFontSize = 12;
-  const radius = 8;
-  
+// 生成图例的 SVG（坐标与导出用 viewBox 一致，锚定整张 SVG 的右上角，而非仅逻辑画布 0…W）
+const generateLegendSVG = (exportViewBox) => {
+  const canvasW = exportViewBox.width;
+  /** 图例宽度约为画布水平范围的 20%，并限制在合理区间，避免极小/极大导出时比例失调 */
+  const refLegendW = 180;
+  const legendRight = Math.max(8, Math.min(28, Math.round(canvasW * 0.02)));
+  const legendTop = legendRight;
+  const innerMargin = 8;
+  const maxLegendW = Math.max(0, canvasW - legendRight - innerMargin);
+  const desiredLegendW = Math.round(canvasW * 0.2);
+  /** 有空间时略抬高下限以保证可读；画布很窄时不超过 maxLegendW */
+  const minLegendW = Math.min(90, maxLegendW);
+  const legendWidth = Math.min(
+    maxLegendW,
+    Math.max(minLegendW, desiredLegendW),
+  );
+  const scale = legendWidth / refLegendW;
+
+  const legendX =
+    exportViewBox.x + exportViewBox.width - legendRight - legendWidth;
+  const legendY = exportViewBox.y + legendTop;
+  const padding = Math.max(6, Math.round(12 * scale));
+  const titleFontSize = Math.max(10, Math.round(14 * scale));
+  const colorBarHeight = Math.max(14, Math.round(24 * scale));
+  const colorBarGap = Math.max(1, Math.round(2 * scale));
+  const textFontSize = Math.max(9, Math.round(12 * scale));
+  const radius = Math.max(4, Math.round(8 * scale));
+  const strokeW = Math.max(0.5, Math.min(2, scale));
+
+  const titleGap = Math.max(4, Math.round(8 * scale));
+  const blockGap = Math.max(4, Math.round(8 * scale));
+  const boundaryPad = Math.max(2, Math.round(4 * scale));
+
   // 计算图例高度
-  const titleHeight = titleFontSize + 8;
-  const colorBarArea = colorBarHeight + 8;
-  const textHeight = textFontSize + 8;
+  const titleHeight = titleFontSize + titleGap;
+  const colorBarArea = colorBarHeight + blockGap;
+  const textHeight = textFontSize + blockGap;
   const legendHeight = padding * 2 + titleHeight + colorBarArea + textHeight;
   
   // 获取语言设置
@@ -2432,7 +2447,7 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
   const hasBoundaries = boundaries.length > 0 && allowRenderCloud.value;
   
   // 如果有距离标签，需要增加高度
-  const boundaryTextHeight = hasBoundaries ? textFontSize + 4 : 0;
+  const boundaryTextHeight = hasBoundaries ? textFontSize + boundaryPad : 0;
   const legendHeightWithBoundaries = legendHeight + boundaryTextHeight;
   
   // 构建SVG元素
@@ -2442,7 +2457,7 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
   legendSVG += `<g id="distance-legend">`;
   
   // 绘制圆角矩形背景
-  legendSVG += `<rect x="${legendX}" y="${legendY}" width="${legendWidth}" height="${legendHeightWithBoundaries}" rx="${radius}" ry="${radius}" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
+  legendSVG += `<rect x="${legendX}" y="${legendY}" width="${legendWidth}" height="${legendHeightWithBoundaries}" rx="${radius}" ry="${radius}" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.1)" stroke-width="${strokeW}"/>`;
   
   // 转义XML特殊字符
   const escapeXML = (str) => {
@@ -2467,13 +2482,13 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
     if (color.startsWith('rgb')) {
       fillColor = color;
     }
-    legendSVG += `<rect x="${currentX}" y="${colorBarY}" width="${colorBarWidth}" height="${colorBarHeight}" fill="${fillColor}" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>`;
+    legendSVG += `<rect x="${currentX}" y="${colorBarY}" width="${colorBarWidth}" height="${colorBarHeight}" fill="${fillColor}" stroke="rgba(255,255,255,0.2)" stroke-width="${strokeW}"/>`;
     currentX += colorBarWidth + colorBarGap;
   });
   
   // 在色块下面一行绘制距离标签
   if (hasBoundaries) {
-    const boundaryTextY = colorBarY + colorBarHeight + 4 + textFontSize;
+    const boundaryTextY = colorBarY + colorBarHeight + boundaryPad + textFontSize;
     
     // 绘制第一个标签 "0"（在第一个色块的左边界）
     legendSVG += `<text x="${legendX + padding}" y="${boundaryTextY}" font-family="sans-serif" font-size="${textFontSize}" fill="rgba(255,255,255,0.8)" text-anchor="start">0</text>`;
@@ -2500,26 +2515,81 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
   return legendSVG;
 };
 
+/** 方案 A：与逻辑画布 0…W×0…H 对齐的 viewBox，并包含所有标签墨迹（含 origin 中心时向上溢出的部分） */
+const computeSVGExportViewBox = (canvas, padding = 12) => {
+  const w = canvas.getWidth();
+  const h = canvas.getHeight();
+  let minX = 0;
+  let minY = 0;
+  let maxX = w;
+  let maxY = h;
+  canvas.forEachObject((obj) => {
+    if (obj.excludeFromExport) return;
+    const b = obj.getBoundingRect();
+    minX = Math.min(minX, b.left);
+    minY = Math.min(minY, b.top);
+    maxX = Math.max(maxX, b.left + b.width);
+    maxY = Math.max(maxY, b.top + b.height);
+  });
+  minX -= padding;
+  minY -= padding;
+  maxX += padding;
+  maxY += padding;
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+};
+
 // 导出为SVG
 const exportAsSVG = () => {
   if (!canvasInstance) return;
-  
-  let svgString = canvasInstance.toSVG();
-  
-  if (includeLegend.value) {
-    const canvasWidth = canvasInstance.getWidth();
-    const canvasHeight = canvasInstance.getHeight();
-    const legendSVG = generateLegendSVG(canvasWidth, canvasHeight);
-    svgString = svgString.replace(/<\/svg>\s*$/, `${legendSVG}</svg>`);
+
+  const savedVpt = [...canvasInstance.viewportTransform];
+  const savedSvgVpTransform = canvasInstance.svgViewportTransformation;
+  try {
+    canvasInstance.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    canvasInstance.svgViewportTransformation = false;
+    vpt = [1, 0, 0, 1, 0, 0];
+
+    const viewBox = computeSVGExportViewBox(canvasInstance);
+    // 根 svg 的 width/height 与 viewBox 宽高比一致，避免默认 xMidYMid meet 把内容居中导致图例偏离画布右上角
+    let svgString = canvasInstance.toSVG({
+      viewBox,
+      width: String(viewBox.width),
+      height: String(viewBox.height),
+    });
+    svgString = svgString.replace(
+      /\s+xml:space="preserve">/,
+      ' preserveAspectRatio="xMinYMin meet" xml:space="preserve">',
+    );
+
+    // Fabric 纯色背景固定为 rect(0,0,100%,100%)，与扩大的 viewBox 不同步时会出现白条，改为与 viewBox 同域
+    svgString = svgString.replace(
+      /<rect x="0" y="0" width="100%" height="100%"/,
+      `<rect x="${viewBox.x}" y="${viewBox.y}" width="${viewBox.width}" height="${viewBox.height}"`,
+    );
+
+    if (includeLegend.value) {
+      const legendSVG = generateLegendSVG(viewBox);
+      svgString = svgString.replace(/<\/svg>\s*$/, `${legendSVG}</svg>`);
+    }
+
+    const blob = new Blob([svgString], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'tag-cloud.svg';
+    link.click();
+    URL.revokeObjectURL(url);
+  } finally {
+    canvasInstance.svgViewportTransformation = savedSvgVpTransform;
+    canvasInstance.setViewportTransform(savedVpt);
+    vpt = [...savedVpt];
+    canvasInstance.renderAll();
   }
-  
-  const blob = new Blob([svgString], { type: 'image/svg+xml' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'tag-cloud.svg';
-  link.click();
-  URL.revokeObjectURL(url);
 };
 
 // 在canvas上绘制图例
