@@ -434,10 +434,21 @@ function syncTagcloudImmersiveBodyClass() {
 function resizeCanvasToWrapper() {
   if (!wrapperRef.value || !canvasInstance) return;
   initCanvasSize();
+  const nextW = canvasWidth.value;
+  const nextH = canvasHeight.value;
+  if (
+    canvasInstance.getWidth() === nextW &&
+    canvasInstance.getHeight() === nextH
+  ) {
+    if (typeof canvasInstance.calcOffset === 'function') {
+      canvasInstance.calcOffset();
+    }
+    return;
+  }
   const prevVpt = canvasInstance.viewportTransform;
   canvasInstance.setDimensions({
-    width: canvasWidth.value,
-    height: canvasHeight.value,
+    width: nextW,
+    height: nextH,
   });
   if (prevVpt) {
     canvasInstance.setViewportTransform(prevVpt);
@@ -449,6 +460,50 @@ function resizeCanvasToWrapper() {
   }
   if (typeof canvasInstance.calcOffset === 'function') {
     canvasInstance.calcOffset();
+  }
+}
+
+let wrapperResizeObserver = null;
+let observedWrapperEl = null;
+let resizeCanvasRafId = null;
+
+function scheduleResizeCanvasToWrapper() {
+  if (resizeCanvasRafId != null) return;
+  resizeCanvasRafId = requestAnimationFrame(() => {
+    resizeCanvasRafId = null;
+    resizeCanvasToWrapper();
+  });
+}
+
+function bindCanvasWrapperResize() {
+  if (typeof window === 'undefined') return;
+  window.addEventListener('resize', scheduleResizeCanvasToWrapper);
+  const el = wrapperRef.value;
+  if (el && typeof ResizeObserver !== 'undefined') {
+    observedWrapperEl = el;
+    wrapperResizeObserver = new ResizeObserver(() => {
+      scheduleResizeCanvasToWrapper();
+    });
+    wrapperResizeObserver.observe(el);
+  }
+}
+
+function unbindCanvasWrapperResize() {
+  if (typeof window === 'undefined') return;
+  window.removeEventListener('resize', scheduleResizeCanvasToWrapper);
+  if (resizeCanvasRafId != null) {
+    cancelAnimationFrame(resizeCanvasRafId);
+    resizeCanvasRafId = null;
+  }
+  if (wrapperResizeObserver && observedWrapperEl) {
+    try {
+      wrapperResizeObserver.unobserve(observedWrapperEl);
+    } catch {
+      /* already detached */
+    }
+    wrapperResizeObserver.disconnect();
+    wrapperResizeObserver = null;
+    observedWrapperEl = null;
   }
 }
 
@@ -2757,17 +2812,16 @@ const exportAsRaster = async (format = 'png', exportWidth = 800, exportHeight = 
 };
 
 onMounted(() => {
-  // 初始化canvas尺寸（只执行一次，固定大小）
   initCanvasSize();
-  // 初始化高德地图和Driving实例
   initAMapDriving();
-  // 初始化canvas，默认显示并使用设定好的背景色
   nextTick(() => {
     if (canvasRef.value) {
       initCanvas();
     }
+    requestAnimationFrame(() => {
+      bindCanvasWrapperResize();
+    });
   });
-  // 不再监听窗口大小变化，canvas尺寸固定
 });
 
 // 监听清除标签云事件
@@ -2927,6 +2981,7 @@ defineExpose({
 });
 
 onBeforeUnmount(() => {
+  unbindCanvasWrapperResize();
   resetMobileCanvasRotate90();
   if (canvasInstance) canvasInstance.dispose();
   if (typeof document !== 'undefined') {
