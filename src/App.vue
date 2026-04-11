@@ -6,9 +6,20 @@
       @navigate="handleNavigate"
       @start-tutorial="restartIntro"
     />
-    <HelpPage v-if="showHelpPage && !showFeedbackPage" @navigate="handleNavigate" />
-    <FeedbackPage v-if="showFeedbackPage && !showHelpPage" @navigate="handleNavigate" />
-    <template v-if="!showHelpPage && !showFeedbackPage">
+    <HelpPage
+      v-if="showHelpPage && !showFeedbackPage"
+      class="app-overlay-page"
+      @navigate="handleNavigate"
+    />
+    <FeedbackPage
+      v-if="showFeedbackPage && !showHelpPage"
+      class="app-overlay-page"
+      @navigate="handleNavigate"
+    />
+    <div
+      v-show="!showHelpPage && !showFeedbackPage"
+      class="app-home-stack"
+    >
       <div class="app-body">
         <SideMenu
           :active-panel="activePanel"
@@ -43,12 +54,12 @@
         <TagCloudCanvas ref="tagCloudCanvasRef" />
       </div>
       <FooterBar @navigate="handleNavigate" />
-    </template>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import introJs from 'intro.js';
 import 'intro.js/minified/introjs.min.css';
 import HeaderBar from '@/components/layout/HeaderBar.vue';
@@ -80,6 +91,41 @@ const poiContentRef = ref(null);
 const tagCloudCanvasRef = ref(null);
 const showHelpPage = ref(false);
 const showFeedbackPage = ref(false);
+
+const showHomeWorkspace = computed(
+  () => !showHelpPage.value && !showFeedbackPage.value,
+);
+
+watch(
+  showHomeWorkspace,
+  (visible) => {
+    if (!visible) return;
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        tagCloudCanvasRef.value?.relayoutAfterShow?.();
+        // PoiContent 在「字体/配色/算法」下为 display:none，此时容器宽高为 0，
+        // 对高德 map.resize() 会破坏底图与覆盖物；仅在实际展示「内容」面板时再调整地图。
+        if (activePanel.value === 'content') {
+          poiContentRef.value?.relayoutMap?.();
+        }
+      });
+    });
+  },
+  { flush: 'post' },
+);
+
+watch(
+  activePanel,
+  (panel) => {
+    if (panel !== 'content') return;
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        poiContentRef.value?.relayoutMap?.();
+      });
+    });
+  },
+  { flush: 'post' },
+);
 
 let firstIntroStarted = false;
 let currentIntro = null;
@@ -553,6 +599,20 @@ onMounted(async () => {
   height: 100vh;
   overflow: hidden;
   position: relative;
+}
+
+.app-overlay-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-home-stack {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .app-body {

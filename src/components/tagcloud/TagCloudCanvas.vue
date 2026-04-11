@@ -380,6 +380,7 @@ import {
   ref,
   watch,
   computed,
+  defineExpose,
 } from 'vue';
 import { usePoiStore } from '@/stores/poiStore';
 import { cityNameToPinyin } from '@/utils/cityNameToPinyin';
@@ -2919,6 +2920,10 @@ watch(isMobile, (m) => {
     resetMobileCanvasRotate90();
   }
   syncTagcloudImmersiveBodyClass();
+});
+
+defineExpose({
+  relayoutAfterShow: resizeCanvasToWrapper,
 });
 
 onBeforeUnmount(() => {

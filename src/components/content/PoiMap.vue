@@ -438,7 +438,15 @@ import { ArrowDown, Loading } from '@element-plus/icons-vue';
 import { usePoiStore } from '@/stores/poiStore';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { getAmapLoaderConfig } from '@/config/amapLoader';
-import { onMounted, onBeforeUnmount, ref, watch, nextTick, computed } from 'vue';
+import {
+  onMounted,
+  onBeforeUnmount,
+  ref,
+  watch,
+  nextTick,
+  computed,
+  defineExpose,
+} from 'vue';
 import { useMobileLayout } from '@/composables/useMobileLayout';
 import mapLayerNormalUrl from '@/assets/map-layers/normal.svg?url';
 import mapLayerSatelliteUrl from '@/assets/map-layers/satellite.svg?url';
@@ -995,11 +1003,6 @@ const handleDrawCommand = (command) => {
     mouseTool.polygon(drawStyle);
   }
 };
-
-// 暴露给父组件
-defineExpose({
-  clearDrawing,
-});
 
 const filterPOIByGeometry = (geometry) => {
   if (!geometry || !amapGlobal) return;
@@ -1756,6 +1759,25 @@ const transformLng = (lng, lat) => {
 };
 
 onMounted(loadMap);
+
+function relayoutMap() {
+  if (!mapInstance || !mapRef.value) return;
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      if (!mapInstance || !mapRef.value) return;
+      const { clientWidth: w, clientHeight: h } = mapRef.value;
+      if (w < 2 || h < 2) return;
+      if (typeof mapInstance.resize === 'function') {
+        mapInstance.resize();
+      }
+    });
+  });
+}
+
+defineExpose({
+  clearDrawing,
+  relayoutMap,
+});
 
 watch(
   () => poiStore.poiList,
