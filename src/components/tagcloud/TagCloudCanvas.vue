@@ -2999,7 +2999,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  min-width: 650px;
+  min-width: 0;
   width: 100%;
   height: 100%;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
@@ -3117,13 +3117,44 @@ canvas {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+  flex-wrap: nowrap;
+  gap: 12px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) rgba(255, 255, 255, 0.06);
+}
+
+.panel-head::-webkit-scrollbar {
+  height: 5px;
+}
+
+.panel-head::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+}
+
+.panel-head::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+}
+
+.panel-head::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
   gap: 16px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.toolbar-left :deep(.el-button-group) {
+  flex-shrink: 0;
 }
 
 .toolbar-options {
@@ -3131,6 +3162,9 @@ canvas {
   align-items: center;
   gap: 12px;
   color: #fff;
+  flex-wrap: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .toolbar-options :deep(.el-checkbox__label) {
@@ -3156,8 +3190,9 @@ canvas {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 200px;
-  flex-shrink: 0;
+  min-width: 0;
+  flex: 1 1 160px;
+  max-width: 320px;
 }
 
 .label-count-number {
@@ -3168,7 +3203,10 @@ canvas {
 }
 
 .label-progress-bar {
-  width: 140px;
+  flex: 1 1 72px;
+  width: auto;
+  min-width: 72px;
+  max-width: 140px;
 }
 
 .label-progress-bar :deep(.el-progress__text) {

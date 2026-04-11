@@ -37,13 +37,8 @@
         >
           清除绘制
         </el-button>
-        <el-button class="map-toolbar-btn map-head-ctl" @click="openSearch = true">
-          检索定位
-        </el-button>
     </header>
-    <!-- PC：弹窗；移动端：见下方内联块，避免覆盖 workspace 顶栏 -->
     <el-dialog
-      v-if="!isMobile"
       v-model="openSearch"
       title="搜索位置、公交站、地铁站"
       width="360px"
@@ -361,65 +356,75 @@
       </div>
     </div>
     <div ref="mapRef" class="map-canvas">
-      <div
-        class="map-layer-dock"
-        @mouseenter="onMapLayerDockEnter"
-        @mouseleave="onMapLayerDockLeave"
-      >
-        <div class="map-layer-hover-zone">
+      <div class="map-layer-dock">
+        <div class="map-top-right-tools">
           <button
             type="button"
-            class="map-layer-fab"
-            :aria-expanded="mapLayerPanelOpen"
-            :aria-label="`地图图层，当前：${currentMapLayerLabel}`"
+            class="map-search-fab"
+            aria-label="检索定位"
+            @click.stop="openSearch = true"
           >
-            <img
-              :src="currentMapLayerThumb"
-              alt=""
-              class="map-layer-fab__img"
-              width="28"
-              height="28"
-              draggable="false"
-            />
+            <el-icon :size="18"><Search /></el-icon>
           </button>
-          <transition name="map-layer-panel-t">
-            <div
-              v-show="mapLayerPanelOpen"
-              class="map-layer-panel"
-              role="listbox"
-              aria-label="选择地图类型"
+          <div
+            class="map-layer-hover-zone"
+            @mouseenter="onMapLayerDockEnter"
+            @mouseleave="onMapLayerDockLeave"
+          >
+            <button
+              type="button"
+              class="map-layer-fab"
+              :aria-expanded="mapLayerPanelOpen"
+              :aria-label="`地图图层，当前：${currentMapLayerLabel}`"
             >
-              <el-tooltip
-                v-for="opt in MAP_LAYER_OPTIONS"
-                :key="opt.type"
-                :content="opt.label"
-                placement="left"
-                effect="dark"
-                :show-after="0"
-                :hide-after="100"
-                popper-class="map-layer-el-tooltip"
+              <img
+                :src="currentMapLayerThumb"
+                alt=""
+                class="map-layer-fab__img"
+                width="28"
+                height="28"
+                draggable="false"
+              />
+            </button>
+            <transition name="map-layer-panel-t">
+              <div
+                v-show="mapLayerPanelOpen"
+                class="map-layer-panel"
+                role="listbox"
+                aria-label="选择地图类型"
               >
-                <button
-                  type="button"
-                  class="map-layer-option"
-                  :class="{ 'is-active': activeMapLayerType === opt.type }"
-                  role="option"
-                  :aria-label="opt.label"
-                  :aria-selected="activeMapLayerType === opt.type"
-                  @click="selectMapLayer(opt.type)"
+                <el-tooltip
+                  v-for="opt in MAP_LAYER_OPTIONS"
+                  :key="opt.type"
+                  :content="opt.label"
+                  placement="left"
+                  effect="dark"
+                  :show-after="0"
+                  :hide-after="100"
+                  popper-class="map-layer-el-tooltip"
                 >
-                  <img
-                    :src="opt.thumb"
-                    alt=""
-                    class="map-layer-option__thumb"
-                    width="28"
-                    height="28"
-                    draggable="false"
-                  />
-                </button>
-              </el-tooltip>
-            </div>
-          </transition>
+                  <button
+                    type="button"
+                    class="map-layer-option"
+                    :class="{ 'is-active': activeMapLayerType === opt.type }"
+                    role="option"
+                    :aria-label="opt.label"
+                    :aria-selected="activeMapLayerType === opt.type"
+                    @click="selectMapLayer(opt.type)"
+                  >
+                    <img
+                      :src="opt.thumb"
+                      alt=""
+                      class="map-layer-option__thumb"
+                      width="28"
+                      height="28"
+                      draggable="false"
+                    />
+                  </button>
+                </el-tooltip>
+              </div>
+            </transition>
+          </div>
         </div>
       </div>
       <!-- 数据加载遮罩 -->
@@ -434,7 +439,7 @@
 </template>
 
 <script setup>
-import { ArrowDown, Loading } from '@element-plus/icons-vue';
+import { ArrowDown, Loading, Search } from '@element-plus/icons-vue';
 import { usePoiStore } from '@/stores/poiStore';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { getAmapLoaderConfig } from '@/config/amapLoader';
@@ -2052,7 +2057,7 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-/* 右上角地图图层：悬停展开 4×1，缩略图 + tooltip 文案 */
+/* 右上角：检索（左）+ 地图图层（右），图层悬停展开 */
 .map-layer-dock {
   position: absolute;
   top: 10px;
@@ -2060,15 +2065,47 @@ onBeforeUnmount(() => {
   z-index: 500;
 }
 
+.map-top-right-tools {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.map-search-fab {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  color: #606266;
+  transition: border-color 0.15s, box-shadow 0.15s, color 0.15s;
+}
+
+.map-search-fab:hover {
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+  color: #409eff;
+}
+
 .map-layer-hover-zone {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  position: relative;
+  flex-shrink: 0;
+  width: 34px;
   padding: 2px;
+  box-sizing: content-box;
 }
 
 .map-layer-fab {
+  position: relative;
+  z-index: 11;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2097,6 +2134,11 @@ onBeforeUnmount(() => {
 }
 
 .map-layer-panel {
+  position: absolute;
+  /* 与 FAB 微重叠，避免鼠标经缝隙离开 .map-layer-hover-zone 导致列表收起 */
+  top: calc(100% - 2px);
+  right: 0;
+  z-index: 10;
   display: flex;
   flex-direction: column;
   align-items: stretch;

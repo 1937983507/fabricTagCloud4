@@ -28,8 +28,10 @@
           <a href="javascript:void(0)" @click="handleLinkClick('about')">关于我们</a>
         </div>
         <div class="footer-copyright">
-          <span>Copyright © 2024 地名标签云 hubutagcloud.cn All Rights Reserved. 备案号:</span>
-          <a href="https://beian.miit.gov.cn/" target="_blank" class="icp-link">鄂ICP备2024043287号-1</a>
+          <span class="footer-copyright__line">
+            Copyright © 2024 地名标签云 hubutagcloud.cn All Rights Reserved. 备案号:
+            <a href="https://beian.miit.gov.cn/" target="_blank" class="icp-link">鄂ICP备2024043287号-1</a>
+          </span>
         </div>
       </div>
       
@@ -129,20 +131,23 @@ onBeforeUnmount(() => {
 .footer {
   background: #ffffff;
   color: #1f2333;
-  padding: 12px 32px;
+  padding: 12px clamp(12px, 2.5vw, 32px);
   margin-top: auto;
   flex-shrink: 0;
   border-top: 1px solid rgba(31, 35, 51, 0.08);
   box-shadow: 0 -2px 8px rgba(31, 35, 51, 0.04);
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .footer-content {
   max-width: 1400px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 40px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: clamp(8px, 1.8vw, 32px);
   align-items: center;
+  min-width: 0;
 }
 
 .footer-left {
@@ -150,6 +155,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
+  min-width: 0;
 }
 
 .footer-brand {
@@ -180,6 +186,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
 }
 
 .footer-right {
@@ -187,6 +194,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 20px;
   align-items: flex-end;
+  min-width: 0;
 }
 
 
@@ -218,7 +226,9 @@ onBeforeUnmount(() => {
 .footer-links {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   font-size: 13px;
 }
 
@@ -259,10 +269,15 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   flex-wrap: nowrap;
-  gap: 4px;
+  gap: 0;
   font-size: 12px;
   color: #64748b;
   text-align: center;
+  line-height: 1.45;
+  min-width: 0;
+}
+
+.footer-copyright__line {
   white-space: nowrap;
 }
 
@@ -360,26 +375,6 @@ onBeforeUnmount(() => {
   transform: translateY(-2px);
 }
 
-
-@media (max-width: 1200px) {
-  .footer-content {
-    grid-template-columns: 1fr;
-    gap: 24px;
-    text-align: center;
-  }
-  
-  .footer-right {
-    align-items: center;
-  }
-  
-  .footer-left .footer-stats {
-    align-items: center;
-  }
-  
-  .footer-social {
-    align-items: center;
-  }
-}
 
 @include mobile-layout {
   .footer {

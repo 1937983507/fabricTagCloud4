@@ -288,7 +288,7 @@ const createIntro = () => {
 
   const stepMapIntro = narrow
     ? '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">地图</strong><br/><span style="color:#64748b;">在「内容」面板中查看地图；可清除绘制、使用<strong>周边筛选</strong>等（具体以当前布局为准）。</span></div>'
-    : '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">地图展示</strong><br/><span style="color:#64748b;">查看景点分布；使用<strong>地图框选</strong>在地图上绘制区域筛选数据，或使用<strong>周边筛选、检索定位</strong>等工具。</span></div>';
+    : '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">地图展示</strong><br/><span style="color:#64748b;">查看景点分布；使用<strong>地图框选</strong>在地图上绘制区域筛选数据，或使用<strong>周边筛选</strong>、地图右上角<strong>检索定位</strong>等工具。</span></div>';
 
   const stepTableIntro = narrow
     ? '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">数据表</strong><br/><span style="color:#64748b;">在「内容」面板下方查看地名、城市、数值/排名等；支持显示全部或所选、分页浏览。</span></div>'
@@ -620,7 +620,8 @@ onMounted(async () => {
   min-height: 0;
   overflow: hidden;
   display: grid;
-  grid-template-columns: 108px 1fr 12px 68vw;
+  /* 中间列上限避免过宽；标签云 1fr 吃满剩余宽度，消除 workspace max-width 与宽轨道不一致时的白条 */
+  grid-template-columns: 108px minmax(0, 540px) 12px minmax(0, 1fr);
   background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
 }
 
