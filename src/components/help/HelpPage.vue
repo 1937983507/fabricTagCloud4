@@ -58,6 +58,92 @@
         </ul>
       </div>
     </div>
+
+    <!-- 移动端：章节 / 本页目录 悬浮按钮与抽屉 -->
+    <div class="help-mobile-chrome">
+      <div
+        v-show="mobileOverlayOpen"
+        class="help-mobile-backdrop"
+        @click="closeMobilePanels"
+      />
+      <aside
+        class="help-mobile-drawer help-mobile-drawer--left"
+        :class="{ 'is-open': mobileManualOpen }"
+        :aria-hidden="!mobileManualOpen"
+      >
+        <div class="help-mobile-drawer__head">
+          <h3>用户手册</h3>
+          <button
+            type="button"
+            class="help-mobile-drawer__close"
+            aria-label="关闭"
+            @click="closeMobilePanels"
+          >
+            <el-icon><Close /></el-icon>
+          </button>
+        </div>
+        <ul class="help-mobile-drawer__list">
+          <li v-for="item in sidebarNavItems" :key="'mob-nav-' + item.id">
+            <a
+              :href="`#${item.id}`"
+              :class="{ active: activeNavId === item.id }"
+              @click.prevent="onMobileNavClick(item.id)"
+            >
+              {{ item.title }}
+            </a>
+          </li>
+        </ul>
+      </aside>
+      <aside
+        class="help-mobile-drawer help-mobile-drawer--right"
+        :class="{ 'is-open': mobileTocOpen }"
+        :aria-hidden="!mobileTocOpen"
+      >
+        <div class="help-mobile-drawer__head">
+          <h3>本页目录</h3>
+          <button
+            type="button"
+            class="help-mobile-drawer__close"
+            aria-label="关闭"
+            @click="closeMobilePanels"
+          >
+            <el-icon><Close /></el-icon>
+          </button>
+        </div>
+        <ul class="help-mobile-drawer__list help-mobile-drawer__list--toc">
+          <li v-for="item in currentToc" :key="'mob-toc-' + item.id">
+            <a
+              :href="`#${item.id}`"
+              :class="{ active: activeTocId === item.id }"
+              @click.prevent="onMobileTocClick(item.id)"
+            >
+              {{ item.title }}
+            </a>
+          </li>
+        </ul>
+      </aside>
+      <div class="help-mobile-fabs">
+        <button
+          type="button"
+          class="help-mobile-fab help-mobile-fab--left"
+          aria-label="打开用户手册章节"
+          @click="openMobileManual"
+        >
+          <el-icon :size="22"><Menu /></el-icon>
+          <span class="help-mobile-fab__label">章节</span>
+        </button>
+        <button
+          type="button"
+          class="help-mobile-fab help-mobile-fab--right"
+          aria-label="打开本页目录"
+          @click="openMobileToc"
+        >
+          <span class="help-mobile-fab__label">目录</span>
+          <el-icon :size="22"><List /></el-icon>
+        </button>
+      </div>
+    </div>
+
     <FooterBar class="help-footer" @navigate="handleNavigate" />
   </div>
 </template>
@@ -65,6 +151,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue';
 import { marked } from 'marked';
+import { Menu, List, Close } from '@element-plus/icons-vue';
 import HELP_MD from './HELP.md?raw';
 import FooterBar from '@/components/layout/FooterBar.vue';
 
@@ -463,6 +550,35 @@ const scrollToSection = (id) => {
   }
 };
 
+const mobileManualOpen = ref(false);
+const mobileTocOpen = ref(false);
+const mobileOverlayOpen = computed(() => mobileManualOpen.value || mobileTocOpen.value);
+
+const closeMobilePanels = () => {
+  mobileManualOpen.value = false;
+  mobileTocOpen.value = false;
+};
+
+const openMobileManual = () => {
+  mobileTocOpen.value = false;
+  mobileManualOpen.value = true;
+};
+
+const openMobileToc = () => {
+  mobileManualOpen.value = false;
+  mobileTocOpen.value = true;
+};
+
+const onMobileNavClick = (id) => {
+  handleNavClick(id);
+  closeMobilePanels();
+};
+
+const onMobileTocClick = (id) => {
+  scrollToSection(id);
+  closeMobilePanels();
+};
+
 // 处理图片点击（在新窗口打开）
 const handleImageClick = (e) => {
   if (e.target.tagName === 'IMG') {
@@ -598,6 +714,14 @@ const handleScroll = () => {
   }
 };
 
+const onHelpEscape = (e) => {
+  if (e.key === 'Escape') closeMobilePanels();
+};
+let mqHelpMobile = null;
+const onMqHelpMobileChange = () => {
+  if (mqHelpMobile && !mqHelpMobile.matches) closeMobilePanels();
+};
+
 onMounted(() => {
   sections.value = parseMarkdown();
   // 设置自动首项为选中
@@ -629,6 +753,10 @@ onMounted(() => {
     pedantic: false,
     smartLists: true,
   });
+
+  window.addEventListener('keydown', onHelpEscape);
+  mqHelpMobile = window.matchMedia('(max-width: 900px)');
+  mqHelpMobile.addEventListener('change', onMqHelpMobileChange);
 });
 
 // 监听 activeSectionId 变化，重置滚动位置
@@ -658,10 +786,16 @@ onBeforeUnmount(() => {
   if (helpPageRef.value) {
     helpPageRef.value.removeEventListener('scroll', handleScroll);
   }
+  window.removeEventListener('keydown', onHelpEscape);
+  if (mqHelpMobile) {
+    mqHelpMobile.removeEventListener('change', onMqHelpMobileChange);
+  }
 });
 </script>
 
 <style scoped lang="scss">
+@use '@/assets/styles/mobile-layout-mixin.scss' as *;
+
 .help-page {
   width: 100%;
   height: calc(100vh - 64px); /* 减去 HeaderBar 的高度 */
@@ -1113,6 +1247,230 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   position: relative;
   z-index: 1;
+}
+
+.help-mobile-chrome {
+  display: none;
+}
+
+@include mobile-layout {
+  .sidebar-left,
+  .sidebar-right {
+    display: none;
+  }
+
+  .container {
+    max-width: 100%;
+  }
+
+  .main-content {
+    flex: 1 1 100%;
+    min-width: 0;
+    padding: 16px 14px 88px;
+    line-height: 1.7;
+  }
+
+  .main-content-page {
+    padding: 8px 0 16px;
+  }
+
+  .page-title {
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+  }
+
+  .page-title h1 {
+    font-size: 24px;
+  }
+
+  .page-title span {
+    font-size: 12px;
+  }
+
+  .markdown-content {
+    :deep(h2) {
+      font-size: 20px;
+      margin: 28px 0 14px 0;
+      padding-top: 12px;
+    }
+
+    :deep(h3) {
+      font-size: 17px;
+    }
+
+    :deep(img),
+    :deep(.markdown-image) {
+      max-width: 100% !important;
+      width: 100% !important;
+      height: auto;
+    }
+  }
+
+  .help-mobile-chrome {
+    display: block;
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 200;
+  }
+
+  .help-mobile-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(31, 35, 51, 0.45);
+    pointer-events: auto;
+  }
+
+  .help-mobile-drawer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: min(88vw, 320px);
+    max-width: 100%;
+    background: #fff;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.12);
+    display: flex;
+    flex-direction: column;
+    pointer-events: auto;
+    transition: transform 0.28s ease;
+    z-index: 2;
+  }
+
+  .help-mobile-drawer--left {
+    left: 0;
+    transform: translateX(-100%);
+
+    &.is-open {
+      transform: translateX(0);
+    }
+  }
+
+  .help-mobile-drawer--right {
+    right: 0;
+    transform: translateX(100%);
+
+    &.is-open {
+      transform: translateX(0);
+    }
+  }
+
+  .help-mobile-drawer__head {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid #eee;
+
+    h3 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 600;
+    }
+  }
+
+  .help-mobile-drawer__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin: -8px -8px -8px 0;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: #666;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.06);
+      color: #333;
+    }
+  }
+
+  .help-mobile-drawer__list {
+    list-style: none;
+    margin: 0;
+    padding: 12px 14px 24px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+    min-height: 0;
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    a {
+      display: block;
+      padding: 10px 12px;
+      border-radius: 10px;
+      text-decoration: none;
+      color: #1f2333;
+      font-size: 15px;
+      transition:
+        background 0.2s,
+        color 0.2s;
+    }
+
+    a:hover {
+      color: #007bff;
+      background: rgba(0, 123, 255, 0.08);
+    }
+
+    a.active {
+      font-weight: 600;
+      color: rgb(26, 102, 255);
+      background: rgb(238, 243, 255);
+    }
+  }
+
+  .help-mobile-drawer__list--toc a {
+    border-left: 3px solid transparent;
+    padding-left: 14px;
+  }
+
+  .help-mobile-drawer__list--toc a:hover,
+  .help-mobile-drawer__list--toc a.active {
+    border-left-color: #007bff;
+  }
+
+  .help-mobile-fabs {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .help-mobile-fab {
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border: none;
+    border-radius: 999px;
+    background: rgb(26, 102, 255);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(26, 102, 255, 0.35);
+
+    &:active {
+      transform: scale(0.97);
+    }
+  }
+
+  .help-mobile-fab__label {
+    line-height: 1;
+  }
 }
 </style>
 
