@@ -601,10 +601,11 @@ onMounted(async () => {
   position: relative;
 }
 
+/* 勿设 overflow:hidden：会与 HelpPage/FeedbackPage 根元素 class 合并，覆盖其 overflow-y:auto，导致无法滚动 */
 .app-overlay-page {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 .app-home-stack {
