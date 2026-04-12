@@ -1075,7 +1075,7 @@ const findPositionWithArchimedeanSpiral = (centerX, centerY, width, height, plac
 };
 
 /**
- * 多角度径向移位算法：在标签与中心位置的真实角方向附近（±15度扇形区域）内，通过螺旋搜索找到可放置的空余位置
+ * 多角度径向移位算法（旧版）：在标签与中心位置的真实角方向附近（±15度扇形区域）内，通过螺旋搜索找到可放置的空余位置
  */
 const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placedLabels) => {
   const sectorHalfAngle = 15;
@@ -1119,6 +1119,63 @@ const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placed
     }
   }
 };
+
+/**
+ * 多角度径向移位算法（新版）：在真实方位角附近 ±sectorHalfAngle° 扇形内，按半径层向外搜索。
+ * 同一半径上先试真实方向角，再交替向正、负方向扩展（+δ、−δ、+2δ、−2δ…），避免旧实现从 minAngle 扫到 maxAngle 造成的 minAngle 侧偏置。
+ * δ 由弧长步长 arcLengthStep / radius 换算，使大半径时角步更细、沿圆周的名义位移更接近恒定；小半径时对角步设上限，避免一步跨过整个扇区。
+ * 注意：对比旧版多角度算法，将会获得更高的紧凑度与方向保真度，但是计算量将会变大，因此目前不使用该方案。
+ */
+ const findPositionWithSpiral2 = (centerX, centerY, bearing, width, height, placedLabels) => {
+  const sectorHalfAngle = 15;
+  const startRadius = 5;
+  const radiusIncrement = 5;
+  /** 沿圆周的名义采样间距（像素），角步长 ≈ arcLengthStep / radius */
+  const arcLengthStep = 6;
+  /** 小半径时限制单次角步，防止弧长换算出的角度过大而漏检 */
+  const maxAngularStepDeg = 6;
+
+  let radius = startRadius;
+
+  while (true) {
+    let dThetaDeg = (arcLengthStep / Math.max(radius, 1)) * (180 / Math.PI);
+    dThetaDeg = Math.min(dThetaDeg, maxAngularStepDeg);
+
+    const testAngle = (angleDeg) => {
+      const angleRad = (angleDeg * Math.PI) / 180;
+      const x = centerX + radius * Math.sin(angleRad);
+      const y = centerY - radius * Math.cos(angleRad);
+      const candidateRect = {
+        x: x - width / 2,
+        y: y - height / 2,
+        width: width,
+        height: height,
+      };
+      for (const placed of placedLabels) {
+        if (isOverlapping(candidateRect, placed, 2)) {
+          return null;
+        }
+      }
+      return { x, y };
+    };
+
+    let pos = testAngle(bearing);
+    if (pos) return pos;
+
+    for (let k = 1; ; k++) {
+      const delta = k * dThetaDeg;
+      if (delta > sectorHalfAngle) break;
+
+      pos = testAngle(bearing + delta);
+      if (pos) return pos;
+      pos = testAngle(bearing - delta);
+      if (pos) return pos;
+    }
+
+    radius += radiusIncrement;
+  }
+};
+
 
 /**
  * 单角度径向移位算法：对于每个非中心地点标签，直接按照标签与中心位置的真实角方向，一直沿着这个角度往外移动，找到可以放置的空余位置
