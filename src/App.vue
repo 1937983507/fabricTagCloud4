@@ -657,6 +657,8 @@ onMounted(async () => {
   .workspace .workspace-sheet-body {
     overflow-x: hidden;
     overflow-y: auto;
+    /* 预留滚动条占位，避免内容增高出现滚动条时挤压正文宽度 */
+    scrollbar-gutter: stable;
   }
 
   .workspace .workspace-sheet-body > * {
@@ -776,6 +778,7 @@ onMounted(async () => {
     min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
+    scrollbar-gutter: stable;
     padding: 0 14px 20px;
     -webkit-overflow-scrolling: touch;
   }

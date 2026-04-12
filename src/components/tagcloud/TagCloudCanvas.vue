@@ -1038,11 +1038,12 @@ const toRgbaWithAlpha = (color, alpha = 0.7) => {
  * 阿基米德螺线算法：从中心出发沿着连续的螺旋曲线向外布局标签
  * 该算法与距离/方位无关，只根据标签顺序在螺线上依次寻找不重叠的位置
  */
-const findPositionWithArchimedeanSpiral = (centerX, centerY, width, height, placedLabels) => {
-  // 螺线参数：r = a + b * theta
-  const a = 2;   // 初始半径
-  const b = 4;   // 每转一圈的间距控制
-  const angleStep = 0.15; // 弧度步长，控制密度
+const findPositionWithArchimedeanSpiral = (centerX, centerY, width, height, placedLabels, opts = {}) => {
+  // 螺线参数：r = a + b * theta（a 固定，b 可配置）
+  const a = 2;
+  const b = opts.spiralB ?? 4;
+  const angleStep = opts.angleStep ?? 0.15;
+  const padding = opts.overlapPadding ?? 2;
 
   let theta = 0;
 
@@ -1060,7 +1061,7 @@ const findPositionWithArchimedeanSpiral = (centerX, centerY, width, height, plac
 
     let hasCollision = false;
     for (const placed of placedLabels) {
-      if (isOverlapping(candidateRect, placed, 2)) {
+      if (isOverlapping(candidateRect, placed, padding)) {
         hasCollision = true;
         break;
       }
@@ -1077,13 +1078,14 @@ const findPositionWithArchimedeanSpiral = (centerX, centerY, width, height, plac
 /**
  * 多角度径向移位算法（旧版）：在标签与中心位置的真实角方向附近（±15度扇形区域）内，通过螺旋搜索找到可放置的空余位置
  */
-const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placedLabels) => {
-  const sectorHalfAngle = 15;
+const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placedLabels, opts = {}) => {
+  const sectorHalfAngle = opts.sectorHalfAngle ?? 15;
   const minAngle = bearing - sectorHalfAngle;
   const maxAngle = bearing + sectorHalfAngle;
   const startRadius = 5;
-  const radiusIncrement = 5;
-  const angleStep = 5;
+  const radiusIncrement = opts.radiusIncrement ?? 5;
+  const angleStep = opts.angleStep ?? 5;
+  const padding = opts.overlapPadding ?? 2;
 
   let radius = startRadius;
   let angle = minAngle;
@@ -1102,7 +1104,7 @@ const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placed
 
     let hasCollision = false;
     for (const placed of placedLabels) {
-      if (isOverlapping(candidateRect, placed, 2)) {
+      if (isOverlapping(candidateRect, placed, padding)) {
         hasCollision = true;
         break;
       }
@@ -1180,17 +1182,16 @@ const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placed
 /**
  * 单角度径向移位算法：对于每个非中心地点标签，直接按照标签与中心位置的真实角方向，一直沿着这个角度往外移动，找到可以放置的空余位置
  */
-const findPositionWithSingleAngle = (centerX, centerY, bearing, width, height, placedLabels) => {
+const findPositionWithSingleAngle = (centerX, centerY, bearing, width, height, placedLabels, opts = {}) => {
   const startRadius = 5;
-  const radiusIncrement = 5;
-  
-  // 将角度转换为弧度
+  const radiusIncrement = opts.radiusIncrement ?? 5;
+  const padding = opts.overlapPadding ?? 2;
+
   const angleRad = (bearing * Math.PI) / 180;
-  
+
   let radius = startRadius;
 
   while (true) {
-    // 沿着真实角度方向计算位置
     const x = centerX + radius * Math.sin(angleRad);
     const y = centerY - radius * Math.cos(angleRad);
 
@@ -1201,21 +1202,18 @@ const findPositionWithSingleAngle = (centerX, centerY, bearing, width, height, p
       height: height,
     };
 
-    // 检查是否与已放置的标签重叠
     let hasCollision = false;
     for (const placed of placedLabels) {
-      if (isOverlapping(candidateRect, placed, 2)) {
+      if (isOverlapping(candidateRect, placed, padding)) {
         hasCollision = true;
         break;
       }
     }
 
-    // 如果没有碰撞，返回这个位置
     if (!hasCollision) {
       return { x, y };
     }
 
-    // 如果有碰撞，增加半径继续往外移动
     radius += radiusIncrement;
   }
 };
@@ -1442,8 +1440,23 @@ const initPoisPyramid = (data) => {
  * @returns {Array} 布局结果数组 [{poi, text, x, y, width, height, fontSize, bearing}, ...]
  */
 const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisplayName, centerLabelRect = null) => {
-  // 获取算法设置
   const algorithm = poiStore.algorithmSettings.algorithm || 'multi-angle';
+  const algo = poiStore.algorithmSettings;
+  const multiOpts = {
+    sectorHalfAngle: algo.multiAngle?.sectorHalfAngle ?? 15,
+    radiusIncrement: algo.multiAngle?.radiusIncrement ?? 5,
+    angleStep: algo.multiAngle?.angleStep ?? 5,
+    overlapPadding: algo.multiAngle?.overlapPadding ?? 2,
+  };
+  const singleOpts = {
+    radiusIncrement: algo.singleAngle?.radiusIncrement ?? 5,
+    overlapPadding: algo.singleAngle?.overlapPadding ?? 2,
+  };
+  const archOpts = {
+    spiralB: algo.archimedean?.spiralB ?? 4,
+    angleStep: algo.archimedean?.angleStep ?? 0.15,
+    overlapPadding: algo.archimedean?.overlapPadding ?? 2,
+  };
   const layoutResults = [];
   const placedLabels = [];
   
@@ -1521,26 +1534,25 @@ const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisp
     // 5. 根据算法设置选择使用哪个算法查找位置
     let position;
     if (algorithm === 'single-angle') {
-      // 使用单角度径向移位算法
       position = findPositionWithSingleAngle(
         centerX,
         centerY,
         bearing,
         width,
         height,
-        placedLabels
+        placedLabels,
+        singleOpts,
       );
     } else if (algorithm === 'archimedean') {
-      // 使用阿基米德螺线算法（忽略真实方位角，只按顺序沿螺线布局）
       position = findPositionWithArchimedeanSpiral(
         centerX,
         centerY,
         width,
         height,
-        placedLabels
+        placedLabels,
+        archOpts,
       );
     } else {
-      // 使用多角度径向移位算法（默认）
       position = findPositionWithSpiral(
         centerX,
         centerY,
@@ -1548,7 +1560,7 @@ const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisp
         width,
         height,
         placedLabels,
-        centerLabelRect
+        multiOpts,
       );
     }
     
@@ -3011,18 +3023,26 @@ watch([showRank, showTime], () => {
   if (allowRenderCloud.value) renderCloud();
 });
 
-// 监听算法设置变化（需要重新绘制，因为布局算法变化）
+/** 算法参数连续变更时合并为一次重绘，降低布局计算频率 */
+const ALGORITHM_RELAYOUT_DEBOUNCE_MS = 320;
+let algorithmRelayoutDebounceTimer = null;
+
+function scheduleRelayoutForAlgorithmSettings() {
+  if (isClearing.value) return;
+  if (!allowRenderCloud.value) return;
+  clearTimeout(algorithmRelayoutDebounceTimer);
+  algorithmRelayoutDebounceTimer = setTimeout(() => {
+    algorithmRelayoutDebounceTimer = null;
+    renderCloud(false);
+  }, ALGORITHM_RELAYOUT_DEBOUNCE_MS);
+}
+
 watch(
-  () => poiStore.algorithmSettings.algorithm,
+  () => poiStore.algorithmSettings,
   () => {
-    // 如果正在清除，不触发重新渲染
-    if (isClearing.value) return;
-    
-    if (allowRenderCloud.value) {
-      // 算法变化需要重新绘制（布局变化）
-      renderCloud(false);
-    }
+    scheduleRelayoutForAlgorithmSettings();
   },
+  { deep: true },
 );
 
 watch(isMobile, (m) => {
@@ -3038,6 +3058,8 @@ defineExpose({
 });
 
 onBeforeUnmount(() => {
+  clearTimeout(algorithmRelayoutDebounceTimer);
+  algorithmRelayoutDebounceTimer = null;
   unbindCanvasWrapperResize();
   resetMobileCanvasRotate90();
   if (canvasInstance) canvasInstance.dispose();

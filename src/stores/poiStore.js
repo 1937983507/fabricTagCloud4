@@ -7,6 +7,25 @@ const DATA_SOURCE = 'json'; // 可以改为 'csv' 切换回CSV模式
 const CSV_DATA_URL = `${import.meta.env.BASE_URL}data/chinapoi.csv`;
 const JSON_DATA_URL = `${import.meta.env.BASE_URL}data/chinapoi.json`;
 
+/** 各布局算法参数的出厂默认值（与 TagCloudCanvas 内硬编码起点一致，供面板恢复默认与初始化） */
+export const ALGORITHM_PARAM_DEFAULTS = {
+  multiAngle: {
+    sectorHalfAngle: 15,
+    radiusIncrement: 5,
+    angleStep: 5,
+    overlapPadding: 2,
+  },
+  singleAngle: {
+    radiusIncrement: 5,
+    overlapPadding: 2,
+  },
+  archimedean: {
+    spiralB: 4,
+    angleStep: 0.15,
+    overlapPadding: 2,
+  },
+};
+
 /**
  * CSV 导入：替换会话内 POI（供对话框直接调用，避免仅依赖 store action 挂载）
  */
@@ -71,7 +90,10 @@ export const usePoiStore = defineStore('poiStore', {
       discreteCount: 5,
     },
     algorithmSettings: {
-      algorithm: 'multi-angle', // 'multi-angle' 多角度径向移位算法, 'single-angle' 单角度径向移位算法
+      algorithm: 'multi-angle', // 'multi-angle' | 'single-angle' | 'archimedean'
+      multiAngle: { ...ALGORITHM_PARAM_DEFAULTS.multiAngle },
+      singleAngle: { ...ALGORITHM_PARAM_DEFAULTS.singleAngle },
+      archimedean: { ...ALGORITHM_PARAM_DEFAULTS.archimedean },
     },
     /**
      * CSV 导入元信息（null 表示当前为网站默认数据）
@@ -407,9 +429,13 @@ export const usePoiStore = defineStore('poiStore', {
       };
     },
     updateAlgorithmSettings(payload) {
+      const prev = this.algorithmSettings;
       this.algorithmSettings = {
-        ...this.algorithmSettings,
+        ...prev,
         ...payload,
+        multiAngle: { ...prev.multiAngle, ...(payload.multiAngle ?? {}) },
+        singleAngle: { ...prev.singleAngle, ...(payload.singleAngle ?? {}) },
+        archimedean: { ...prev.archimedean, ...(payload.archimedean ?? {}) },
       };
     },
     setSelectionContext(context) {
