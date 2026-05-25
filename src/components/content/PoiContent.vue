@@ -1,24 +1,31 @@
 <template>
   <section class="panel-card content-panel">
     <div class="work-grid">
-      <PoiMap />
+      <PoiMap ref="poiMapRef" />
       <PoiTable />
     </div>
   </section>
 </template>
 
 <script setup>
-import { onMounted } from 'vue';
+import { ref, onMounted, defineExpose } from 'vue';
 import { usePoiStore } from '@/stores/poiStore';
 import PoiMap from './PoiMap.vue';
 import PoiTable from './PoiTable.vue';
 
 const poiStore = usePoiStore();
+const poiMapRef = ref(null);
 
 onMounted(() => {
   if (!poiStore.poiList.length) {
     poiStore.loadDefaultData();
   }
+});
+
+defineExpose({
+  relayoutMap() {
+    poiMapRef.value?.relayoutMap?.();
+  },
 });
 </script>
 

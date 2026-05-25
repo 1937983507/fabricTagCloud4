@@ -6,9 +6,20 @@
       @navigate="handleNavigate"
       @start-tutorial="restartIntro"
     />
-    <HelpPage v-if="showHelpPage && !showFeedbackPage" @navigate="handleNavigate" />
-    <FeedbackPage v-if="showFeedbackPage && !showHelpPage" @navigate="handleNavigate" />
-    <template v-if="!showHelpPage && !showFeedbackPage">
+    <HelpPage
+      v-if="showHelpPage && !showFeedbackPage"
+      class="app-overlay-page"
+      @navigate="handleNavigate"
+    />
+    <FeedbackPage
+      v-if="showFeedbackPage && !showHelpPage"
+      class="app-overlay-page"
+      @navigate="handleNavigate"
+    />
+    <div
+      v-show="!showHelpPage && !showFeedbackPage"
+      class="app-home-stack"
+    >
       <div class="app-body">
         <SideMenu
           :active-panel="activePanel"
@@ -43,12 +54,12 @@
         <TagCloudCanvas ref="tagCloudCanvasRef" />
       </div>
       <FooterBar @navigate="handleNavigate" />
-    </template>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import introJs from 'intro.js';
 import 'intro.js/minified/introjs.min.css';
 import HeaderBar from '@/components/layout/HeaderBar.vue';
@@ -80,6 +91,41 @@ const poiContentRef = ref(null);
 const tagCloudCanvasRef = ref(null);
 const showHelpPage = ref(false);
 const showFeedbackPage = ref(false);
+
+const showHomeWorkspace = computed(
+  () => !showHelpPage.value && !showFeedbackPage.value,
+);
+
+watch(
+  showHomeWorkspace,
+  (visible) => {
+    if (!visible) return;
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        tagCloudCanvasRef.value?.relayoutAfterShow?.();
+        // PoiContent 在「字体/配色/算法」下为 display:none，此时容器宽高为 0，
+        // 对高德 map.resize() 会破坏底图与覆盖物；仅在实际展示「内容」面板时再调整地图。
+        if (activePanel.value === 'content') {
+          poiContentRef.value?.relayoutMap?.();
+        }
+      });
+    });
+  },
+  { flush: 'post' },
+);
+
+watch(
+  activePanel,
+  (panel) => {
+    if (panel !== 'content') return;
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        poiContentRef.value?.relayoutMap?.();
+      });
+    });
+  },
+  { flush: 'post' },
+);
 
 let firstIntroStarted = false;
 let currentIntro = null;
@@ -242,7 +288,7 @@ const createIntro = () => {
 
   const stepMapIntro = narrow
     ? '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">地图</strong><br/><span style="color:#64748b;">在「内容」面板中查看地图；可清除绘制、使用<strong>周边筛选</strong>等（具体以当前布局为准）。</span></div>'
-    : '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">地图展示</strong><br/><span style="color:#64748b;">查看景点分布；使用<strong>地图框选</strong>在地图上绘制区域筛选数据，或使用<strong>周边筛选、检索定位</strong>等工具。</span></div>';
+    : '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">地图展示</strong><br/><span style="color:#64748b;">查看景点分布；使用<strong>地图框选</strong>在地图上绘制区域筛选数据，或使用<strong>周边筛选</strong>、地图右上角<strong>检索定位</strong>等工具。</span></div>';
 
   const stepTableIntro = narrow
     ? '<div style="line-height:1.6;"><strong style="font-size:16px;color:#1f2333;">数据表</strong><br/><span style="color:#64748b;">在「内容」面板下方查看地名、城市、数值/排名等；支持显示全部或所选、分页浏览。</span></div>'
@@ -555,12 +601,28 @@ onMounted(async () => {
   position: relative;
 }
 
+/* 勿设 overflow:hidden：会与 HelpPage/FeedbackPage 根元素 class 合并，覆盖其 overflow-y:auto，导致无法滚动 */
+.app-overlay-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+}
+
+.app-home-stack {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .app-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
   display: grid;
-  grid-template-columns: 108px 1fr 12px 68vw;
+  /* 中间列上限避免过宽；标签云 1fr 吃满剩余宽度，消除 workspace max-width 与宽轨道不一致时的白条 */
+  grid-template-columns: 108px minmax(0, 540px) 12px minmax(0, 1fr);
   background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
 }
 
@@ -595,6 +657,8 @@ onMounted(async () => {
   .workspace .workspace-sheet-body {
     overflow-x: hidden;
     overflow-y: auto;
+    /* 预留滚动条占位，避免内容增高出现滚动条时挤压正文宽度 */
+    scrollbar-gutter: stable;
   }
 
   .workspace .workspace-sheet-body > * {
@@ -714,6 +778,7 @@ onMounted(async () => {
     min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
+    scrollbar-gutter: stable;
     padding: 0 14px 20px;
     -webkit-overflow-scrolling: touch;
   }

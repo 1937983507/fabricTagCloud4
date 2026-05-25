@@ -37,13 +37,8 @@
         >
           清除绘制
         </el-button>
-        <el-button class="map-toolbar-btn map-head-ctl" @click="openSearch = true">
-          检索定位
-        </el-button>
     </header>
-    <!-- PC：弹窗；移动端：见下方内联块，避免覆盖 workspace 顶栏 -->
     <el-dialog
-      v-if="!isMobile"
       v-model="openSearch"
       title="搜索位置、公交站、地铁站"
       width="360px"
@@ -361,65 +356,75 @@
       </div>
     </div>
     <div ref="mapRef" class="map-canvas">
-      <div
-        class="map-layer-dock"
-        @mouseenter="onMapLayerDockEnter"
-        @mouseleave="onMapLayerDockLeave"
-      >
-        <div class="map-layer-hover-zone">
+      <div class="map-layer-dock">
+        <div class="map-top-right-tools">
           <button
             type="button"
-            class="map-layer-fab"
-            :aria-expanded="mapLayerPanelOpen"
-            :aria-label="`地图图层，当前：${currentMapLayerLabel}`"
+            class="map-search-fab"
+            aria-label="检索定位"
+            @click.stop="openSearch = true"
           >
-            <img
-              :src="currentMapLayerThumb"
-              alt=""
-              class="map-layer-fab__img"
-              width="28"
-              height="28"
-              draggable="false"
-            />
+            <el-icon :size="18"><Search /></el-icon>
           </button>
-          <transition name="map-layer-panel-t">
-            <div
-              v-show="mapLayerPanelOpen"
-              class="map-layer-panel"
-              role="listbox"
-              aria-label="选择地图类型"
+          <div
+            class="map-layer-hover-zone"
+            @mouseenter="onMapLayerDockEnter"
+            @mouseleave="onMapLayerDockLeave"
+          >
+            <button
+              type="button"
+              class="map-layer-fab"
+              :aria-expanded="mapLayerPanelOpen"
+              :aria-label="`地图图层，当前：${currentMapLayerLabel}`"
             >
-              <el-tooltip
-                v-for="opt in MAP_LAYER_OPTIONS"
-                :key="opt.type"
-                :content="opt.label"
-                placement="left"
-                effect="dark"
-                :show-after="0"
-                :hide-after="100"
-                popper-class="map-layer-el-tooltip"
+              <img
+                :src="currentMapLayerThumb"
+                alt=""
+                class="map-layer-fab__img"
+                width="28"
+                height="28"
+                draggable="false"
+              />
+            </button>
+            <transition name="map-layer-panel-t">
+              <div
+                v-show="mapLayerPanelOpen"
+                class="map-layer-panel"
+                role="listbox"
+                aria-label="选择地图类型"
               >
-                <button
-                  type="button"
-                  class="map-layer-option"
-                  :class="{ 'is-active': activeMapLayerType === opt.type }"
-                  role="option"
-                  :aria-label="opt.label"
-                  :aria-selected="activeMapLayerType === opt.type"
-                  @click="selectMapLayer(opt.type)"
+                <el-tooltip
+                  v-for="opt in MAP_LAYER_OPTIONS"
+                  :key="opt.type"
+                  :content="opt.label"
+                  placement="left"
+                  effect="dark"
+                  :show-after="0"
+                  :hide-after="100"
+                  popper-class="map-layer-el-tooltip"
                 >
-                  <img
-                    :src="opt.thumb"
-                    alt=""
-                    class="map-layer-option__thumb"
-                    width="28"
-                    height="28"
-                    draggable="false"
-                  />
-                </button>
-              </el-tooltip>
-            </div>
-          </transition>
+                  <button
+                    type="button"
+                    class="map-layer-option"
+                    :class="{ 'is-active': activeMapLayerType === opt.type }"
+                    role="option"
+                    :aria-label="opt.label"
+                    :aria-selected="activeMapLayerType === opt.type"
+                    @click="selectMapLayer(opt.type)"
+                  >
+                    <img
+                      :src="opt.thumb"
+                      alt=""
+                      class="map-layer-option__thumb"
+                      width="28"
+                      height="28"
+                      draggable="false"
+                    />
+                  </button>
+                </el-tooltip>
+              </div>
+            </transition>
+          </div>
         </div>
       </div>
       <!-- 数据加载遮罩 -->
@@ -434,11 +439,19 @@
 </template>
 
 <script setup>
-import { ArrowDown, Loading } from '@element-plus/icons-vue';
+import { ArrowDown, Loading, Search } from '@element-plus/icons-vue';
 import { usePoiStore } from '@/stores/poiStore';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { getAmapLoaderConfig } from '@/config/amapLoader';
-import { onMounted, onBeforeUnmount, ref, watch, nextTick, computed } from 'vue';
+import {
+  onMounted,
+  onBeforeUnmount,
+  ref,
+  watch,
+  nextTick,
+  computed,
+  defineExpose,
+} from 'vue';
 import { useMobileLayout } from '@/composables/useMobileLayout';
 import mapLayerNormalUrl from '@/assets/map-layers/normal.svg?url';
 import mapLayerSatelliteUrl from '@/assets/map-layers/satellite.svg?url';
@@ -996,11 +1009,6 @@ const handleDrawCommand = (command) => {
   }
 };
 
-// 暴露给父组件
-defineExpose({
-  clearDrawing,
-});
-
 const filterPOIByGeometry = (geometry) => {
   if (!geometry || !amapGlobal) return;
   const filtered = poiStore.poiList.filter((poi) => {
@@ -1132,52 +1140,214 @@ const openNearbyDialog = () => {
   openLocationFilter.value = true;
 };
 
-/** 地点关键词 → LngLat（Geocoder 优先，失败则 PlaceSearch） */
+const GEOCODE_TIMEOUT_MS = 15000;
+
+/** 防止高德 Geocoder / PlaceSearch 回调永不触发导致界面永久卡在「正在解析地点」 */
+const promiseWithTimeout = (promise, ms, message = '请求超时') =>
+  new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(message)), ms);
+    promise
+      .then((v) => {
+        clearTimeout(t);
+        resolve(v);
+      })
+      .catch((e) => {
+        clearTimeout(t);
+        reject(e);
+      });
+  });
+
+/** 将 Geocoder / POI 返回的 location 统一为 AMap.LngLat */
+const normalizeAmapLngLat = (raw) => {
+  if (!raw || !amapGlobal) return null;
+  if (typeof raw.getLng === 'function' && typeof raw.getLat === 'function') return raw;
+  const lng =
+    typeof raw.getLng === 'function'
+      ? raw.getLng()
+      : raw.lng ?? raw.longitude ?? (Array.isArray(raw) ? raw[0] : undefined);
+  const lat =
+    typeof raw.getLat === 'function'
+      ? raw.getLat()
+      : raw.lat ?? raw.latitude ?? (Array.isArray(raw) ? raw[1] : undefined);
+  if (lng != null && lat != null && !Number.isNaN(+lng) && !Number.isNaN(+lat)) {
+    return new amapGlobal.LngLat(+lng, +lat);
+  }
+  if (typeof raw === 'string') {
+    const parts = raw.split(/[,\s]+/).map((s) => parseFloat(s.trim()));
+    if (parts.length >= 2 && !Number.isNaN(parts[0]) && !Number.isNaN(parts[1])) {
+      return new amapGlobal.LngLat(parts[0], parts[1]);
+    }
+  }
+  return null;
+};
+
+/** 仅空白归一化，不改变大小写（中文检索） */
+const normalizePlaceQueryZh = (s) => String(s ?? '').trim().replace(/\s+/g, '');
+
+/**
+ * 从当前已加载/导入的 poiList 解析经纬度；匹配不中返回 null，再走高德。
+ * 规则：精确中文/英文 → 去空白后精确 → 中文包含（多命中时按专指度打分）→ 英文包含。
+ */
+const resolveLngLatFromImportedPois = (keyword) => {
+  const raw = keyword?.trim();
+  if (!raw || !amapGlobal) return null;
+  const list = poiStore.poiList;
+  if (!Array.isArray(list) || !list.length) return null;
+
+  const withCoord = list.filter(
+    (p) =>
+      p &&
+      p.lng != null &&
+      p.lat != null &&
+      Number.isFinite(+p.lng) &&
+      Number.isFinite(+p.lat),
+  );
+  if (!withCoord.length) return null;
+
+  const q = raw;
+  const qNorm = normalizePlaceQueryZh(raw).replace(/\s/g, '');
+  const qLower = q.toLowerCase();
+  const toLngLat = (p) => new amapGlobal.LngLat(+p.lng, +p.lat);
+
+  for (const p of withCoord) {
+    const zh = p.name && String(p.name).trim();
+    if (zh && zh === q) return toLngLat(p);
+  }
+  for (const p of withCoord) {
+    const zh = p.name && String(p.name).trim();
+    if (zh && normalizePlaceQueryZh(zh).replace(/\s/g, '') === qNorm) return toLngLat(p);
+  }
+  for (const p of withCoord) {
+    const en = p.name_en && String(p.name_en).trim();
+    if (en && en.toLowerCase() === qLower) return toLngLat(p);
+  }
+
+  const pickBestZhCandidates = (candidates) => {
+    if (!candidates.length) return null;
+    if (candidates.length === 1) return toLngLat(candidates[0]);
+    if (qNorm.length <= 2) return null;
+    const scored = candidates.map((p) => {
+      const zn = normalizePlaceQueryZh(p.name).replace(/\s/g, '');
+      let score = 0;
+      if (zn === qNorm) score += 100000;
+      if (zn.startsWith(qNorm)) score += 50000;
+      else if (zn.includes(qNorm)) score += 10000;
+      score += zn.length;
+      return { p, score, zn };
+    });
+    scored.sort((a, b) => b.score - a.score || a.zn.length - b.zn.length);
+    return toLngLat(scored[0].p);
+  };
+
+  if (qNorm.length >= 2) {
+    const zhSub = withCoord.filter((p) => {
+      const zn = p.name && normalizePlaceQueryZh(p.name).replace(/\s/g, '');
+      return zn && zn.includes(qNorm);
+    });
+    const hit = pickBestZhCandidates(zhSub);
+    if (hit) return hit;
+  }
+
+  if (qLower.length >= 2) {
+    const enSub = withCoord.filter((p) => {
+      const en = p.name_en && String(p.name_en).trim();
+      return en && en.toLowerCase().includes(qLower);
+    });
+    if (enSub.length === 1) return toLngLat(enSub[0]);
+    if (enSub.length > 1 && qLower.length >= 3) {
+      const scored = enSub.map((p) => {
+        const en = String(p.name_en).trim().toLowerCase();
+        let score = 0;
+        if (en === qLower) score += 100000;
+        if (en.startsWith(qLower)) score += 50000;
+        else if (en.includes(qLower)) score += 10000;
+        score += en.length;
+        return { p, score };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      return toLngLat(scored[0].p);
+    }
+  }
+
+  /* city + 名称 拼接唯一命中（例如「武汉市」+「黄鹤楼」应对整句地名） */
+  if (qNorm.length >= 3) {
+    const cityHits = withCoord.filter((p) => {
+      const city = p.city && String(p.city).trim().replace(/\s+/g, '');
+      const zn = p.name && normalizePlaceQueryZh(p.name).replace(/\s/g, '');
+      return Boolean(city && zn && `${city}${zn}`.includes(qNorm));
+    });
+    if (cityHits.length === 1) return toLngLat(cityHits[0]);
+  }
+
+  return null;
+};
+
+/** 地点关键词 → LngLat（优先当前数据集 POI，再高德 Geocoder / PlaceSearch） */
 const geocodeKeyword = async (keyword) => {
   const input = keyword?.trim();
   if (!input) throw new Error('请输入地点关键词');
+
+  const localLngLat = resolveLngLatFromImportedPois(input);
+  if (localLngLat) {
+    currentLocationMethod.value = '已从数据集中匹配地点';
+    return localLngLat;
+  }
+
   if (!geocoder) {
     geocoder = new amapGlobal.Geocoder({ city: '全国' });
   }
   currentLocationMethod.value = '正在解析地点…';
-  try {
-    const geocodeResult = await new Promise((resolve, reject) => {
+
+  const geocodeViaGeocoder = () =>
+    new Promise((resolve, reject) => {
       geocoder.getLocation(input, (status, result) => {
-        if (status === 'complete' && result.geocodes?.length) {
+        if (status === 'complete' && result?.geocodes?.length) {
           resolve(result.geocodes[0]);
         } else {
-          reject(new Error('Geocoder未找到该地点'));
+          reject(new Error(result?.info || 'Geocoder未找到该地点'));
         }
       });
     });
-    if (geocodeResult?.location) {
-      return geocodeResult.location;
-    }
+
+  try {
+    const geocodeItem = await promiseWithTimeout(
+      geocodeViaGeocoder(),
+      GEOCODE_TIMEOUT_MS,
+      '地理编码超时，将尝试地点搜索',
+    );
+    const lngLat = normalizeAmapLngLat(geocodeItem?.location);
+    if (lngLat) return lngLat;
   } catch {
     /* PlaceSearch 兜底 */
   }
-  if (!placeSearch) {
-    placeSearch = new amapGlobal.PlaceSearch({ map: mapInstance, city: '全国' });
-  }
-  const placeResult = await new Promise((resolve, reject) => {
-    placeSearch.search(input, (status, result) => {
-      if (status !== 'complete') {
-        reject(new Error(result?.info || '搜索失败'));
-        return;
-      }
-      let poi = null;
-      if (result.poiList?.pois?.length) {
-        poi = result.poiList.pois[0];
-      } else if (Array.isArray(result.poiList) && result.poiList.length) {
-        poi = result.poiList[0];
-      } else if (Array.isArray(result.pois) && result.pois.length) {
-        poi = result.pois[0];
-      }
-      if (poi?.location) resolve(poi);
-      else reject(new Error('未找到该地点'));
-    });
-  });
-  return placeResult.location;
+
+  // 独立实例 + 不设 map，避免与初始化时的 PlaceSearch 抢回调或受地图状态影响
+  const placeSearchLocal = new amapGlobal.PlaceSearch({ city: '全国' });
+  const placeResult = await promiseWithTimeout(
+    new Promise((resolve, reject) => {
+      placeSearchLocal.search(input, (status, result) => {
+        if (status !== 'complete') {
+          reject(new Error(result?.info || '搜索失败'));
+          return;
+        }
+        let poi = null;
+        if (result.poiList?.pois?.length) {
+          poi = result.poiList.pois[0];
+        } else if (Array.isArray(result.poiList) && result.poiList.length) {
+          poi = result.poiList[0];
+        } else if (Array.isArray(result.pois) && result.pois.length) {
+          poi = result.pois[0];
+        }
+        if (poi?.location) resolve(poi);
+        else reject(new Error('未找到该地点'));
+      });
+    }),
+    GEOCODE_TIMEOUT_MS,
+    '地点搜索超时，请检查网络或稍后重试',
+  );
+  const lngLat = normalizeAmapLngLat(placeResult.location);
+  if (!lngLat) throw new Error('无法解析该地点坐标');
+  return lngLat;
 };
 
 /** 多级自动定位：浏览器 → 高德 → IP；失败返回 null */
@@ -1284,7 +1454,7 @@ const resolveAdvancedCenter = async () => {
   return geocodeKeyword(q);
 };
 
-/** 按直线距离取距中心最近的 N 个 POI，并绘制包络圆（无 CircleEditor） */
+/** 按直线距离取距中心最近的 N 个 POI，并绘制包络圆；与半径模式一致启用 CircleEditor，可拖移圆心、调整半径 */
 const applyNearbyCountFilter = async (centerLngLat, n) => {
   const count = Math.max(1, Math.floor(Number(n)) || 1);
   resetDrawing();
@@ -1310,7 +1480,23 @@ const applyNearbyCountFilter = async (centerLngLat, n) => {
     ...drawStyle,
   });
   drawObj.setMap(mapInstance);
+
+  drawEditor = new amapGlobal.CircleEditor(mapInstance, drawObj);
+  drawEditor.open();
+
   updateCircleMarkers(drawObj);
+  drawEditor.on('move', () => {
+    updateCircleMarkers(drawObj);
+    filterPOIByGeometry(drawObj);
+  });
+  drawEditor.on('adjust', () => {
+    updateCircleMarkers(drawObj);
+    filterPOIByGeometry(drawObj);
+  });
+  drawEditor.on('end', () => {
+    updateCircleMarkers(drawObj);
+    filterPOIByGeometry(drawObj);
+  });
 
   mapInstance.setCenter(centerLngLat);
   mapInstance.setZoom(calculateZoomByRadius(radiusMeters));
@@ -1578,6 +1764,25 @@ const transformLng = (lng, lat) => {
 };
 
 onMounted(loadMap);
+
+function relayoutMap() {
+  if (!mapInstance || !mapRef.value) return;
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      if (!mapInstance || !mapRef.value) return;
+      const { clientWidth: w, clientHeight: h } = mapRef.value;
+      if (w < 2 || h < 2) return;
+      if (typeof mapInstance.resize === 'function') {
+        mapInstance.resize();
+      }
+    });
+  });
+}
+
+defineExpose({
+  clearDrawing,
+  relayoutMap,
+});
 
 watch(
   () => poiStore.poiList,
@@ -1852,7 +2057,7 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-/* 右上角地图图层：悬停展开 4×1，缩略图 + tooltip 文案 */
+/* 右上角：检索（左）+ 地图图层（右），图层悬停展开 */
 .map-layer-dock {
   position: absolute;
   top: 10px;
@@ -1860,15 +2065,47 @@ onBeforeUnmount(() => {
   z-index: 500;
 }
 
+.map-top-right-tools {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.map-search-fab {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  color: #606266;
+  transition: border-color 0.15s, box-shadow 0.15s, color 0.15s;
+}
+
+.map-search-fab:hover {
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+  color: #409eff;
+}
+
 .map-layer-hover-zone {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  position: relative;
+  flex-shrink: 0;
+  width: 34px;
   padding: 2px;
+  box-sizing: content-box;
 }
 
 .map-layer-fab {
+  position: relative;
+  z-index: 11;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1897,6 +2134,11 @@ onBeforeUnmount(() => {
 }
 
 .map-layer-panel {
+  position: absolute;
+  /* 与 FAB 微重叠，避免鼠标经缝隙离开 .map-layer-hover-zone 导致列表收起 */
+  top: calc(100% - 2px);
+  right: 0;
+  z-index: 10;
   display: flex;
   flex-direction: column;
   align-items: stretch;

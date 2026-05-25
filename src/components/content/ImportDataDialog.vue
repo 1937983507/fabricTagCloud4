@@ -9,7 +9,16 @@
   >
     <div class="import-body">
       <div class="sample-block">
-        <p class="hint-title">示例字段格式</p>
+        <div class="sample-header">
+          <p class="hint-title">示例字段格式</p>
+          <a
+            class="sample-download"
+            :href="sampleCsvUrl"
+            download="示例数据.csv"
+          >
+            示例数据下载
+          </a>
+        </div>
         <img
           class="sample-img"
           :src="sampleImgUrl"
@@ -186,6 +195,7 @@ const visible = computed({
 });
 
 const sampleImgUrl = `${import.meta.env.BASE_URL}img/示例数据.png`;
+const sampleCsvUrl = `${import.meta.env.BASE_URL}data/示例数据.csv`;
 
 const fileBuffer = ref(null);
 const rawText = ref('');
@@ -403,11 +413,30 @@ watch(visible, (v) => {
   border: 1px solid #ebeef5;
 }
 
+.sample-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .hint-title {
   margin: 0 0 8px;
   font-size: 14px;
   font-weight: 600;
   color: #303133;
+}
+
+.sample-download {
+  color: #409eff;
+  text-decoration: none;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.sample-download:hover {
+  color: #66b1ff;
+  text-decoration: underline;
 }
 
 .sample-img {

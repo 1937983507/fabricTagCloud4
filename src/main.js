@@ -1,3 +1,4 @@
+import './config/amapSecurityConfig.js';
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import ElementPlus from 'element-plus';

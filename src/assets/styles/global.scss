@@ -27,7 +27,8 @@ body,
 .app-body {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: 108px 1fr 12px 68vw; /* 更细的侧栏，更宽的右侧标签云 */
+  /* 与 App.vue 一致 */
+  grid-template-columns: 108px minmax(0, 540px) 12px minmax(0, 1fr);
   background-color: #fff;
   min-height: 0;
   overflow: hidden;
@@ -37,6 +38,7 @@ body,
 .app-body > * {
   height: 100%;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -53,7 +55,7 @@ body,
 }
 
 .tagcloud-panel {
-  min-width: 640px;
+  min-width: 0;
   width: 100%;
   overflow: hidden;
   display: flex;
@@ -63,8 +65,9 @@ body,
 }
 
 .workspace {
-  max-width: 680px;
-  min-width: 440px;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
   padding: 24px;
   background: linear-gradient(180deg, #f7f9fc 0%, #ffffff 100%);
   min-height: 0;

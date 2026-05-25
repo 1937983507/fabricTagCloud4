@@ -58,7 +58,11 @@
         >
           <!-- 勿绑定 :width/:height：会重置位图并破坏 Fabric 的 retina 缓冲，导致文字缩放发糊 -->
           <canvas :key="canvasKey" ref="canvasRef"></canvas>
-          <div v-if="!allowRenderCloud || poiStore.tagCloudList.length === 0" class="empty-cloud-hint">
+          <div
+            v-if="!allowRenderCloud || poiStore.tagCloudList.length === 0"
+            class="empty-cloud-hint"
+            :style="emptyCloudHintStyle"
+          >
             <div class="hint-content">
               <div class="hint-icon">
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -376,6 +380,7 @@ import {
   ref,
   watch,
   computed,
+  defineExpose,
 } from 'vue';
 import { usePoiStore } from '@/stores/poiStore';
 import { cityNameToPinyin } from '@/utils/cityNameToPinyin';
@@ -429,10 +434,21 @@ function syncTagcloudImmersiveBodyClass() {
 function resizeCanvasToWrapper() {
   if (!wrapperRef.value || !canvasInstance) return;
   initCanvasSize();
+  const nextW = canvasWidth.value;
+  const nextH = canvasHeight.value;
+  if (
+    canvasInstance.getWidth() === nextW &&
+    canvasInstance.getHeight() === nextH
+  ) {
+    if (typeof canvasInstance.calcOffset === 'function') {
+      canvasInstance.calcOffset();
+    }
+    return;
+  }
   const prevVpt = canvasInstance.viewportTransform;
   canvasInstance.setDimensions({
-    width: canvasWidth.value,
-    height: canvasHeight.value,
+    width: nextW,
+    height: nextH,
   });
   if (prevVpt) {
     canvasInstance.setViewportTransform(prevVpt);
@@ -444,6 +460,50 @@ function resizeCanvasToWrapper() {
   }
   if (typeof canvasInstance.calcOffset === 'function') {
     canvasInstance.calcOffset();
+  }
+}
+
+let wrapperResizeObserver = null;
+let observedWrapperEl = null;
+let resizeCanvasRafId = null;
+
+function scheduleResizeCanvasToWrapper() {
+  if (resizeCanvasRafId != null) return;
+  resizeCanvasRafId = requestAnimationFrame(() => {
+    resizeCanvasRafId = null;
+    resizeCanvasToWrapper();
+  });
+}
+
+function bindCanvasWrapperResize() {
+  if (typeof window === 'undefined') return;
+  window.addEventListener('resize', scheduleResizeCanvasToWrapper);
+  const el = wrapperRef.value;
+  if (el && typeof ResizeObserver !== 'undefined') {
+    observedWrapperEl = el;
+    wrapperResizeObserver = new ResizeObserver(() => {
+      scheduleResizeCanvasToWrapper();
+    });
+    wrapperResizeObserver.observe(el);
+  }
+}
+
+function unbindCanvasWrapperResize() {
+  if (typeof window === 'undefined') return;
+  window.removeEventListener('resize', scheduleResizeCanvasToWrapper);
+  if (resizeCanvasRafId != null) {
+    cancelAnimationFrame(resizeCanvasRafId);
+    resizeCanvasRafId = null;
+  }
+  if (wrapperResizeObserver && observedWrapperEl) {
+    try {
+      wrapperResizeObserver.unobserve(observedWrapperEl);
+    } catch {
+      /* already detached */
+    }
+    wrapperResizeObserver.disconnect();
+    wrapperResizeObserver = null;
+    observedWrapperEl = null;
   }
 }
 
@@ -517,6 +577,13 @@ const renderProgress = computed(() => {
   if (!totalLabelCount.value) return 0;
   const ratio = currentRenderedCount.value / totalLabelCount.value;
   return Math.min(100, Math.max(0, Math.round(ratio * 100)));
+});
+
+const emptyCloudHintStyle = computed(() => {
+  const bg = poiStore.colorSettings.background || '#0c1024';
+  return {
+    background: `linear-gradient(135deg, ${toRgbaWithAlpha(bg, 0.95)} 0%, ${toRgbaWithAlpha(bg, 0.88)} 100%)`,
+  };
 });
 
 // 计算各个色块之间的分界点距离值
@@ -619,20 +686,37 @@ const calculateColorBoundaries = () => {
   return boundaries;
 };
 
-// 格式化距离数值，根据数值大小智能调整小数位数以避免重叠
-const formatDistance = (distanceInMeters) => {
+// 格式化距离数值（旧逻辑）：根据数值大小智能调整小数位数
+const formatDistanceLegacy = (distanceInMeters) => {
   const distanceInKm = distanceInMeters / 1000;
-  
+
   // 如果距离 >= 100km，显示整数（0位小数）
   if (distanceInKm >= 100) {
     return Math.round(distanceInKm).toString();
   }
-  // 如果距离 >= 10km，显示1位小数
-  if (distanceInKm >= 10) {
-    return distanceInKm.toFixed(1);
-  }
-  // 如果距离 < 10km，显示1位小数（保持一致性）
+  // 其余情况：显示 1 位小数（保持一致性）
   return distanceInKm.toFixed(1);
+};
+
+// 图例边界值优先用整数展示；但若整数四舍五入后出现重复，则回退到旧逻辑（1 位小数）
+const legendUseIntegerDistanceLabels = computed(() => {
+  if (!allowRenderCloud.value) return false;
+  const distances = [];
+  if (Array.isArray(colorBoundaries.value) && colorBoundaries.value.length) {
+    distances.push(...colorBoundaries.value);
+  }
+  if (maxDistance.value > 0) distances.push(maxDistance.value);
+  if (!distances.length) return false;
+
+  const rounded = distances.map(d => Math.round(d / 1000));
+  return new Set(rounded).size === rounded.length;
+});
+
+const formatDistance = (distanceInMeters) => {
+  if (legendUseIntegerDistanceLabels.value) {
+    return Math.round(distanceInMeters / 1000).toString();
+  }
+  return formatDistanceLegacy(distanceInMeters);
 };
 
 // 各个色块之间的分界点距离值
@@ -954,11 +1038,12 @@ const toRgbaWithAlpha = (color, alpha = 0.7) => {
  * 阿基米德螺线算法：从中心出发沿着连续的螺旋曲线向外布局标签
  * 该算法与距离/方位无关，只根据标签顺序在螺线上依次寻找不重叠的位置
  */
-const findPositionWithArchimedeanSpiral = (centerX, centerY, width, height, placedLabels) => {
-  // 螺线参数：r = a + b * theta
-  const a = 2;   // 初始半径
-  const b = 4;   // 每转一圈的间距控制
-  const angleStep = 0.15; // 弧度步长，控制密度
+const findPositionWithArchimedeanSpiral = (centerX, centerY, width, height, placedLabels, opts = {}) => {
+  // 螺线参数：r = a + b * theta（a 固定，b 可配置）
+  const a = 2;
+  const b = opts.spiralB ?? 4;
+  const angleStep = opts.angleStep ?? 0.15;
+  const padding = opts.overlapPadding ?? 2;
 
   let theta = 0;
 
@@ -976,7 +1061,7 @@ const findPositionWithArchimedeanSpiral = (centerX, centerY, width, height, plac
 
     let hasCollision = false;
     for (const placed of placedLabels) {
-      if (isOverlapping(candidateRect, placed, 2)) {
+      if (isOverlapping(candidateRect, placed, padding)) {
         hasCollision = true;
         break;
       }
@@ -991,15 +1076,16 @@ const findPositionWithArchimedeanSpiral = (centerX, centerY, width, height, plac
 };
 
 /**
- * 多角度径向移位算法：在标签与中心位置的真实角方向附近（±15度扇形区域）内，通过螺旋搜索找到可放置的空余位置
+ * 多角度径向移位算法（旧版）：在标签与中心位置的真实角方向附近（±15度扇形区域）内，通过螺旋搜索找到可放置的空余位置
  */
-const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placedLabels) => {
-  const sectorHalfAngle = 15;
+const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placedLabels, opts = {}) => {
+  const sectorHalfAngle = opts.sectorHalfAngle ?? 15;
   const minAngle = bearing - sectorHalfAngle;
   const maxAngle = bearing + sectorHalfAngle;
   const startRadius = 5;
-  const radiusIncrement = 5;
-  const angleStep = 5;
+  const radiusIncrement = opts.radiusIncrement ?? 5;
+  const angleStep = opts.angleStep ?? 5;
+  const padding = opts.overlapPadding ?? 2;
 
   let radius = startRadius;
   let angle = minAngle;
@@ -1018,7 +1104,7 @@ const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placed
 
     let hasCollision = false;
     for (const placed of placedLabels) {
-      if (isOverlapping(candidateRect, placed, 2)) {
+      if (isOverlapping(candidateRect, placed, padding)) {
         hasCollision = true;
         break;
       }
@@ -1037,19 +1123,75 @@ const findPositionWithSpiral = (centerX, centerY, bearing, width, height, placed
 };
 
 /**
- * 单角度径向移位算法：对于每个非中心地点标签，直接按照标签与中心位置的真实角方向，一直沿着这个角度往外移动，找到可以放置的空余位置
+ * 多角度径向移位算法（新版）：在真实方位角附近 ±sectorHalfAngle° 扇形内，按半径层向外搜索。
+ * 同一半径上先试真实方向角，再交替向正、负方向扩展（+δ、−δ、+2δ、−2δ…），避免旧实现从 minAngle 扫到 maxAngle 造成的 minAngle 侧偏置。
+ * δ 由弧长步长 arcLengthStep / radius 换算，使大半径时角步更细、沿圆周的名义位移更接近恒定；小半径时对角步设上限，避免一步跨过整个扇区。
+ * 注意：对比旧版多角度算法，将会获得更高的紧凑度与方向保真度，但是计算量将会变大，因此目前不使用该方案。
  */
-const findPositionWithSingleAngle = (centerX, centerY, bearing, width, height, placedLabels) => {
+ const findPositionWithSpiral2 = (centerX, centerY, bearing, width, height, placedLabels) => {
+  const sectorHalfAngle = 15;
   const startRadius = 5;
   const radiusIncrement = 5;
-  
-  // 将角度转换为弧度
-  const angleRad = (bearing * Math.PI) / 180;
-  
+  /** 沿圆周的名义采样间距（像素），角步长 ≈ arcLengthStep / radius */
+  const arcLengthStep = 6;
+  /** 小半径时限制单次角步，防止弧长换算出的角度过大而漏检 */
+  const maxAngularStepDeg = 6;
+
   let radius = startRadius;
 
   while (true) {
-    // 沿着真实角度方向计算位置
+    let dThetaDeg = (arcLengthStep / Math.max(radius, 1)) * (180 / Math.PI);
+    dThetaDeg = Math.min(dThetaDeg, maxAngularStepDeg);
+
+    const testAngle = (angleDeg) => {
+      const angleRad = (angleDeg * Math.PI) / 180;
+      const x = centerX + radius * Math.sin(angleRad);
+      const y = centerY - radius * Math.cos(angleRad);
+      const candidateRect = {
+        x: x - width / 2,
+        y: y - height / 2,
+        width: width,
+        height: height,
+      };
+      for (const placed of placedLabels) {
+        if (isOverlapping(candidateRect, placed, 2)) {
+          return null;
+        }
+      }
+      return { x, y };
+    };
+
+    let pos = testAngle(bearing);
+    if (pos) return pos;
+
+    for (let k = 1; ; k++) {
+      const delta = k * dThetaDeg;
+      if (delta > sectorHalfAngle) break;
+
+      pos = testAngle(bearing + delta);
+      if (pos) return pos;
+      pos = testAngle(bearing - delta);
+      if (pos) return pos;
+    }
+
+    radius += radiusIncrement;
+  }
+};
+
+
+/**
+ * 单角度径向移位算法：对于每个非中心地点标签，直接按照标签与中心位置的真实角方向，一直沿着这个角度往外移动，找到可以放置的空余位置
+ */
+const findPositionWithSingleAngle = (centerX, centerY, bearing, width, height, placedLabels, opts = {}) => {
+  const startRadius = 5;
+  const radiusIncrement = opts.radiusIncrement ?? 5;
+  const padding = opts.overlapPadding ?? 2;
+
+  const angleRad = (bearing * Math.PI) / 180;
+
+  let radius = startRadius;
+
+  while (true) {
     const x = centerX + radius * Math.sin(angleRad);
     const y = centerY - radius * Math.cos(angleRad);
 
@@ -1060,21 +1202,18 @@ const findPositionWithSingleAngle = (centerX, centerY, bearing, width, height, p
       height: height,
     };
 
-    // 检查是否与已放置的标签重叠
     let hasCollision = false;
     for (const placed of placedLabels) {
-      if (isOverlapping(candidateRect, placed, 2)) {
+      if (isOverlapping(candidateRect, placed, padding)) {
         hasCollision = true;
         break;
       }
     }
 
-    // 如果没有碰撞，返回这个位置
     if (!hasCollision) {
       return { x, y };
     }
 
-    // 如果有碰撞，增加半径继续往外移动
     radius += radiusIncrement;
   }
 };
@@ -1097,65 +1236,71 @@ const findNearestPoi = (pois, center) => {
 };
 
 const calculateJenks = (data, numClasses) => {
-  const n = data.length;
-  const mat1 = [];
-  const mat2 = [];
-  const classIndex = [];
+  if (!Array.isArray(data) || data.length === 0) return [];
+  const values = [...data].sort((a, b) => a - b);
+  const n = values.length;
+  const k = Math.max(1, Math.min(numClasses, n));
 
-  for (let i = 0; i <= n; i++) {
-    mat1[i] = [];
-    mat2[i] = [];
-    for (let j = 0; j <= numClasses; j++) {
-      mat1[i][j] = 0;
-      mat2[i][j] = 0;
-    }
+  const lower = Array.from({ length: n + 1 }, () => Array(k + 1).fill(0));
+  const variance = Array.from({ length: n + 1 }, () => Array(k + 1).fill(Infinity));
+
+  for (let i = 1; i <= k; i++) {
+    lower[1][i] = 1;
+    variance[1][i] = 0;
   }
-
-  for (let i = 1; i <= numClasses; i++) {
-    mat1[1][i] = 1;
-    mat2[1][i] = 0;
-    for (let j = 2; j <= n; j++) {
-      mat2[j][i] = Infinity;
-    }
-  }
-
-  let v = 0;
   for (let l = 2; l <= n; l++) {
-    let s1 = 0;
-    let s2 = 0;
+    lower[l][1] = 1;
+  }
+
+  for (let l = 2; l <= n; l++) {
+    let sum = 0;
+    let sumSquares = 0;
     let w = 0;
+    let varianceWithin = 0;
+
     for (let m = 1; m <= l; m++) {
-      const i3 = l - m + 1;
-      const val = data[i3 - 1];
-      s2 += val * val;
-      s1 += val;
-      w += 1;
-      const v1 = s2 - (s1 * s1) / w;
-      let i4 = i3 - 1;
-      if (i4 !== 0) {
-        for (let j = 2; j <= numClasses; j++) {
-          if (mat2[l][j] >= v1 + mat2[i4][j - 1]) {
-            mat1[l][j] = i3;
-            mat2[l][j] = v1 + mat2[i4][j - 1];
+      const lowerClassLimit = l - m + 1;
+      const val = values[lowerClassLimit - 1];
+
+      w++;
+      sum += val;
+      sumSquares += val * val;
+      varianceWithin = sumSquares - (sum * sum) / w;
+
+      const prev = lowerClassLimit - 1;
+      if (prev !== 0) {
+        for (let j = 2; j <= k; j++) {
+          const candidate = varianceWithin + variance[prev][j - 1];
+          if (candidate < variance[l][j]) {
+            lower[l][j] = lowerClassLimit;
+            variance[l][j] = candidate;
           }
         }
       }
     }
-    mat1[l][1] = 1;
-    mat2[l][1] = v;
+
+    variance[l][1] = varianceWithin;
   }
 
-  let k = n;
-  for (let j = numClasses; j >= 1; j--) {
-    classIndex[j - 1] = mat1[k][j] - 1;
-    k = mat1[k][j] - 1;
+  // 返回 k 个递增断点（每个类别的上界），兼容现有分类逻辑。
+  const breaks = new Array(k);
+  breaks[k - 1] = values[n - 1];
+
+  let count = n;
+  for (let j = k; j >= 2; j--) {
+    const idx = lower[count][j] - 2;
+    breaks[j - 2] = values[Math.max(0, idx)];
+    count = lower[count][j] - 1;
   }
 
-  const jenksBreaks = [];
-  for (let i = 0; i < classIndex.length; i++) {
-    jenksBreaks.push(data[classIndex[i]]);
+  // 兜底：防止极端数据下断点非递增导致大量类别塌缩。
+  for (let i = 1; i < breaks.length; i++) {
+    if (breaks[i] < breaks[i - 1]) {
+      breaks[i] = breaks[i - 1];
+    }
   }
-  return jenksBreaks;
+
+  return breaks;
 };
 
 // 计算颜色类别索引（优化版本：使用预计算的缓存值）
@@ -1295,8 +1440,23 @@ const initPoisPyramid = (data) => {
  * @returns {Array} 布局结果数组 [{poi, text, x, y, width, height, fontSize, bearing}, ...]
  */
 const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisplayName, centerLabelRect = null) => {
-  // 获取算法设置
   const algorithm = poiStore.algorithmSettings.algorithm || 'multi-angle';
+  const algo = poiStore.algorithmSettings;
+  const multiOpts = {
+    sectorHalfAngle: algo.multiAngle?.sectorHalfAngle ?? 15,
+    radiusIncrement: algo.multiAngle?.radiusIncrement ?? 5,
+    angleStep: algo.multiAngle?.angleStep ?? 5,
+    overlapPadding: algo.multiAngle?.overlapPadding ?? 2,
+  };
+  const singleOpts = {
+    radiusIncrement: algo.singleAngle?.radiusIncrement ?? 5,
+    overlapPadding: algo.singleAngle?.overlapPadding ?? 2,
+  };
+  const archOpts = {
+    spiralB: algo.archimedean?.spiralB ?? 4,
+    angleStep: algo.archimedean?.angleStep ?? 0.15,
+    overlapPadding: algo.archimedean?.overlapPadding ?? 2,
+  };
   const layoutResults = [];
   const placedLabels = [];
   
@@ -1374,26 +1534,25 @@ const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisp
     // 5. 根据算法设置选择使用哪个算法查找位置
     let position;
     if (algorithm === 'single-angle') {
-      // 使用单角度径向移位算法
       position = findPositionWithSingleAngle(
         centerX,
         centerY,
         bearing,
         width,
         height,
-        placedLabels
+        placedLabels,
+        singleOpts,
       );
     } else if (algorithm === 'archimedean') {
-      // 使用阿基米德螺线算法（忽略真实方位角，只按顺序沿螺线布局）
       position = findPositionWithArchimedeanSpiral(
         centerX,
         centerY,
         width,
         height,
-        placedLabels
+        placedLabels,
+        archOpts,
       );
     } else {
-      // 使用多角度径向移位算法（默认）
       position = findPositionWithSpiral(
         centerX,
         centerY,
@@ -1401,7 +1560,7 @@ const layoutTagCloud = (pois, center, centerX, centerY, fontSettings, getPoiDisp
         width,
         height,
         placedLabels,
-        centerLabelRect
+        multiOpts,
       );
     }
     
@@ -2251,44 +2410,49 @@ const updateLabelFonts = () => {
   
   // 临时禁用canvas的渲染，避免逐个更新时触发重绘
   const wasRenderOnAddRemove = canvasInstance.renderOnAddRemove;
+  const wasRequestRenderAll = canvasInstance.requestRenderAll;
   canvasInstance.renderOnAddRemove = false;
+  // Fabric 在 obj.set(...) 时会触发 canvas.requestRenderAll()（requestAnimationFrame 异步重绘）
+  // 如果不禁用，会导致这里的批量更新期间出现“先重绘一次、末尾再 renderAll 一次”的现象。
+  canvasInstance.requestRenderAll = () => {};
   
-  // 批量更新所有对象的字体和字重
-  canvasInstance.forEachObject((obj, i) => {
-    if (i === 0) return; // 跳过中心点
-    
-    // 检查是否需要更新
-    const needsFontFamilyUpdate = obj.fontFamily !== fontSettings.fontFamily;
-    const needsFontWeightUpdate = obj.fontWeight !== fontSettings.fontWeight;
-    
-    if (needsFontFamilyUpdate || needsFontWeightUpdate) {
-      // 使用set方法批量更新属性，确保Fabric.js正确更新内部状态
-      // 注意：字体和字重改变可能影响文本尺寸，需要重新计算边界框
-      const updates = {};
-      if (needsFontFamilyUpdate) {
-        updates.fontFamily = fontSettings.fontFamily;
-      }
-      if (needsFontWeightUpdate) {
-        updates.fontWeight = fontSettings.fontWeight;
-      }
-      // 确保移除轮廓（切换字体时不应该有轮廓）
-      // 无条件清除轮廓，避免字体切换时出现轮廓
-      updates.strokeWidth = 0;
+  try {
+    // 批量更新所有对象的字体和字重
+    canvasInstance.forEachObject((obj, i) => {
+      if (i === 0) return; // 跳过中心点
       
-      // 批量更新属性（不触发渲染）
-      obj.set(updates);
-      // 确保对象状态已更新（字体改变可能影响文本尺寸，需要重新计算）
-      obj.setCoords();
-      hasUpdates = true;
-      updatedCount++;
+      // 检查是否需要更新
+      const needsFontFamilyUpdate = obj.fontFamily !== fontSettings.fontFamily;
+      const needsFontWeightUpdate = obj.fontWeight !== fontSettings.fontWeight;
+      
+      if (needsFontFamilyUpdate || needsFontWeightUpdate) {
+        // 注意：字体和字重改变可能影响文本尺寸，需要重新计算边界框
+        const updates = {};
+        if (needsFontFamilyUpdate) {
+          updates.fontFamily = fontSettings.fontFamily;
+        }
+        if (needsFontWeightUpdate) {
+          updates.fontWeight = fontSettings.fontWeight;
+        }
+        // 无条件清除轮廓，避免字体切换时出现轮廓
+        updates.strokeWidth = 0;
+        
+        // 批量更新属性（期间禁用 requestRenderAll，避免“二次刷新”）
+        obj.set(updates);
+        // 确保对象状态已更新（字体改变可能影响文本尺寸，需要重新计算）
+        obj.setCoords();
+        hasUpdates = true;
+        updatedCount++;
+      }
+    });
+    
+    if (hasUpdates) {
+      canvasInstance.renderAll();
     }
-  });
-  
-  // 恢复canvas的渲染设置
-  canvasInstance.renderOnAddRemove = wasRenderOnAddRemove;
-  
-  if (hasUpdates) {
-    canvasInstance.renderAll();
+  } finally {
+    // 恢复canvas的渲染设置
+    canvasInstance.renderOnAddRemove = wasRenderOnAddRemove;
+    canvasInstance.requestRenderAll = wasRequestRenderAll;
   }
 };
 
@@ -2355,28 +2519,43 @@ const handleExportConfirm = () => {
   }
 };
 
-// 生成图例的SVG元素
-const generateLegendSVG = (canvasWidth, canvasHeight) => {
-  // 图例在原始canvas中的位置（右上角，距离边缘16px）
-  const legendRight = 16;
-  const legendTop = 16;
-  const legendMinWidth = 180;
-  
-  // 计算图例位置和尺寸
-  const legendX = canvasWidth - legendRight - legendMinWidth;
-  const legendY = legendTop;
-  const legendWidth = legendMinWidth;
-  const padding = 12;
-  const titleFontSize = 14;
-  const colorBarHeight = 24;
-  const colorBarGap = 2;
-  const textFontSize = 12;
-  const radius = 8;
-  
+// 生成图例的 SVG（坐标与导出用 viewBox 一致，锚定整张 SVG 的右上角，而非仅逻辑画布 0…W）
+const generateLegendSVG = (exportViewBox) => {
+  const canvasW = exportViewBox.width;
+  /** 图例宽度约为画布水平范围的 20%，并限制在合理区间，避免极小/极大导出时比例失调 */
+  const refLegendW = 180;
+  const legendRight = Math.max(8, Math.min(28, Math.round(canvasW * 0.02)));
+  const legendTop = legendRight;
+  const innerMargin = 8;
+  const maxLegendW = Math.max(0, canvasW - legendRight - innerMargin);
+  const desiredLegendW = Math.round(canvasW * 0.2);
+  /** 有空间时略抬高下限以保证可读；画布很窄时不超过 maxLegendW */
+  const minLegendW = Math.min(90, maxLegendW);
+  const legendWidth = Math.min(
+    maxLegendW,
+    Math.max(minLegendW, desiredLegendW),
+  );
+  const scale = legendWidth / refLegendW;
+
+  const legendX =
+    exportViewBox.x + exportViewBox.width - legendRight - legendWidth;
+  const legendY = exportViewBox.y + legendTop;
+  const padding = Math.max(6, Math.round(12 * scale));
+  const titleFontSize = Math.max(10, Math.round(14 * scale));
+  const colorBarHeight = Math.max(14, Math.round(24 * scale));
+  const colorBarGap = Math.max(1, Math.round(2 * scale));
+  const textFontSize = Math.max(9, Math.round(12 * scale));
+  const radius = Math.max(4, Math.round(8 * scale));
+  const strokeW = Math.max(0.5, Math.min(2, scale));
+
+  const titleGap = Math.max(4, Math.round(8 * scale));
+  const blockGap = Math.max(4, Math.round(8 * scale));
+  const boundaryPad = Math.max(2, Math.round(4 * scale));
+
   // 计算图例高度
-  const titleHeight = titleFontSize + 8;
-  const colorBarArea = colorBarHeight + 8;
-  const textHeight = textFontSize + 8;
+  const titleHeight = titleFontSize + titleGap;
+  const colorBarArea = colorBarHeight + blockGap;
+  const textHeight = textFontSize + blockGap;
   const legendHeight = padding * 2 + titleHeight + colorBarArea + textHeight;
   
   // 获取语言设置
@@ -2393,7 +2572,7 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
   const hasBoundaries = boundaries.length > 0 && allowRenderCloud.value;
   
   // 如果有距离标签，需要增加高度
-  const boundaryTextHeight = hasBoundaries ? textFontSize + 4 : 0;
+  const boundaryTextHeight = hasBoundaries ? textFontSize + boundaryPad : 0;
   const legendHeightWithBoundaries = legendHeight + boundaryTextHeight;
   
   // 构建SVG元素
@@ -2403,7 +2582,7 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
   legendSVG += `<g id="distance-legend">`;
   
   // 绘制圆角矩形背景
-  legendSVG += `<rect x="${legendX}" y="${legendY}" width="${legendWidth}" height="${legendHeightWithBoundaries}" rx="${radius}" ry="${radius}" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
+  legendSVG += `<rect x="${legendX}" y="${legendY}" width="${legendWidth}" height="${legendHeightWithBoundaries}" rx="${radius}" ry="${radius}" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.1)" stroke-width="${strokeW}"/>`;
   
   // 转义XML特殊字符
   const escapeXML = (str) => {
@@ -2428,13 +2607,13 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
     if (color.startsWith('rgb')) {
       fillColor = color;
     }
-    legendSVG += `<rect x="${currentX}" y="${colorBarY}" width="${colorBarWidth}" height="${colorBarHeight}" fill="${fillColor}" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>`;
+    legendSVG += `<rect x="${currentX}" y="${colorBarY}" width="${colorBarWidth}" height="${colorBarHeight}" fill="${fillColor}" stroke="rgba(255,255,255,0.2)" stroke-width="${strokeW}"/>`;
     currentX += colorBarWidth + colorBarGap;
   });
   
   // 在色块下面一行绘制距离标签
   if (hasBoundaries) {
-    const boundaryTextY = colorBarY + colorBarHeight + 4 + textFontSize;
+    const boundaryTextY = colorBarY + colorBarHeight + boundaryPad + textFontSize;
     
     // 绘制第一个标签 "0"（在第一个色块的左边界）
     legendSVG += `<text x="${legendX + padding}" y="${boundaryTextY}" font-family="sans-serif" font-size="${textFontSize}" fill="rgba(255,255,255,0.8)" text-anchor="start">0</text>`;
@@ -2461,26 +2640,81 @@ const generateLegendSVG = (canvasWidth, canvasHeight) => {
   return legendSVG;
 };
 
+/** 方案 A：与逻辑画布 0…W×0…H 对齐的 viewBox，并包含所有标签墨迹（含 origin 中心时向上溢出的部分） */
+const computeSVGExportViewBox = (canvas, padding = 12) => {
+  const w = canvas.getWidth();
+  const h = canvas.getHeight();
+  let minX = 0;
+  let minY = 0;
+  let maxX = w;
+  let maxY = h;
+  canvas.forEachObject((obj) => {
+    if (obj.excludeFromExport) return;
+    const b = obj.getBoundingRect();
+    minX = Math.min(minX, b.left);
+    minY = Math.min(minY, b.top);
+    maxX = Math.max(maxX, b.left + b.width);
+    maxY = Math.max(maxY, b.top + b.height);
+  });
+  minX -= padding;
+  minY -= padding;
+  maxX += padding;
+  maxY += padding;
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+};
+
 // 导出为SVG
 const exportAsSVG = () => {
   if (!canvasInstance) return;
-  
-  let svgString = canvasInstance.toSVG();
-  
-  if (includeLegend.value) {
-    const canvasWidth = canvasInstance.getWidth();
-    const canvasHeight = canvasInstance.getHeight();
-    const legendSVG = generateLegendSVG(canvasWidth, canvasHeight);
-    svgString = svgString.replace(/<\/svg>\s*$/, `${legendSVG}</svg>`);
+
+  const savedVpt = [...canvasInstance.viewportTransform];
+  const savedSvgVpTransform = canvasInstance.svgViewportTransformation;
+  try {
+    canvasInstance.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    canvasInstance.svgViewportTransformation = false;
+    vpt = [1, 0, 0, 1, 0, 0];
+
+    const viewBox = computeSVGExportViewBox(canvasInstance);
+    // 根 svg 的 width/height 与 viewBox 宽高比一致，避免默认 xMidYMid meet 把内容居中导致图例偏离画布右上角
+    let svgString = canvasInstance.toSVG({
+      viewBox,
+      width: String(viewBox.width),
+      height: String(viewBox.height),
+    });
+    svgString = svgString.replace(
+      /\s+xml:space="preserve">/,
+      ' preserveAspectRatio="xMinYMin meet" xml:space="preserve">',
+    );
+
+    // Fabric 纯色背景固定为 rect(0,0,100%,100%)，与扩大的 viewBox 不同步时会出现白条，改为与 viewBox 同域
+    svgString = svgString.replace(
+      /<rect x="0" y="0" width="100%" height="100%"/,
+      `<rect x="${viewBox.x}" y="${viewBox.y}" width="${viewBox.width}" height="${viewBox.height}"`,
+    );
+
+    if (includeLegend.value) {
+      const legendSVG = generateLegendSVG(viewBox);
+      svgString = svgString.replace(/<\/svg>\s*$/, `${legendSVG}</svg>`);
+    }
+
+    const blob = new Blob([svgString], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'tag-cloud.svg';
+    link.click();
+    URL.revokeObjectURL(url);
+  } finally {
+    canvasInstance.svgViewportTransformation = savedSvgVpTransform;
+    canvasInstance.setViewportTransform(savedVpt);
+    vpt = [...savedVpt];
+    canvasInstance.renderAll();
   }
-  
-  const blob = new Blob([svgString], { type: 'image/svg+xml' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'tag-cloud.svg';
-  link.click();
-  URL.revokeObjectURL(url);
 };
 
 // 在canvas上绘制图例
@@ -2647,17 +2881,16 @@ const exportAsRaster = async (format = 'png', exportWidth = 800, exportHeight = 
 };
 
 onMounted(() => {
-  // 初始化canvas尺寸（只执行一次，固定大小）
   initCanvasSize();
-  // 初始化高德地图和Driving实例
   initAMapDriving();
-  // 初始化canvas，默认显示并使用设定好的背景色
   nextTick(() => {
     if (canvasRef.value) {
       initCanvas();
     }
+    requestAnimationFrame(() => {
+      bindCanvasWrapperResize();
+    });
   });
-  // 不再监听窗口大小变化，canvas尺寸固定
 });
 
 // 监听清除标签云事件
@@ -2790,18 +3023,26 @@ watch([showRank, showTime], () => {
   if (allowRenderCloud.value) renderCloud();
 });
 
-// 监听算法设置变化（需要重新绘制，因为布局算法变化）
+/** 算法参数连续变更时合并为一次重绘，降低布局计算频率 */
+const ALGORITHM_RELAYOUT_DEBOUNCE_MS = 320;
+let algorithmRelayoutDebounceTimer = null;
+
+function scheduleRelayoutForAlgorithmSettings() {
+  if (isClearing.value) return;
+  if (!allowRenderCloud.value) return;
+  clearTimeout(algorithmRelayoutDebounceTimer);
+  algorithmRelayoutDebounceTimer = setTimeout(() => {
+    algorithmRelayoutDebounceTimer = null;
+    renderCloud(false);
+  }, ALGORITHM_RELAYOUT_DEBOUNCE_MS);
+}
+
 watch(
-  () => poiStore.algorithmSettings.algorithm,
+  () => poiStore.algorithmSettings,
   () => {
-    // 如果正在清除，不触发重新渲染
-    if (isClearing.value) return;
-    
-    if (allowRenderCloud.value) {
-      // 算法变化需要重新绘制（布局变化）
-      renderCloud(false);
-    }
+    scheduleRelayoutForAlgorithmSettings();
   },
+  { deep: true },
 );
 
 watch(isMobile, (m) => {
@@ -2812,7 +3053,14 @@ watch(isMobile, (m) => {
   syncTagcloudImmersiveBodyClass();
 });
 
+defineExpose({
+  relayoutAfterShow: resizeCanvasToWrapper,
+});
+
 onBeforeUnmount(() => {
+  clearTimeout(algorithmRelayoutDebounceTimer);
+  algorithmRelayoutDebounceTimer = null;
+  unbindCanvasWrapperResize();
   resetMobileCanvasRotate90();
   if (canvasInstance) canvasInstance.dispose();
   if (typeof document !== 'undefined') {
@@ -2830,7 +3078,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  min-width: 650px;
+  min-width: 0;
   width: 100%;
   height: 100%;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
@@ -2948,13 +3196,44 @@ canvas {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+  flex-wrap: nowrap;
+  gap: 12px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) rgba(255, 255, 255, 0.06);
+}
+
+.panel-head::-webkit-scrollbar {
+  height: 5px;
+}
+
+.panel-head::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+}
+
+.panel-head::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+}
+
+.panel-head::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
   gap: 16px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.toolbar-left :deep(.el-button-group) {
+  flex-shrink: 0;
 }
 
 .toolbar-options {
@@ -2962,6 +3241,9 @@ canvas {
   align-items: center;
   gap: 12px;
   color: #fff;
+  flex-wrap: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .toolbar-options :deep(.el-checkbox__label) {
@@ -2987,8 +3269,9 @@ canvas {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 200px;
-  flex-shrink: 0;
+  min-width: 0;
+  flex: 1 1 160px;
+  max-width: 320px;
 }
 
 .label-count-number {
@@ -2999,7 +3282,10 @@ canvas {
 }
 
 .label-progress-bar {
-  width: 140px;
+  flex: 1 1 72px;
+  width: auto;
+  min-width: 72px;
+  max-width: 140px;
 }
 
 .label-progress-bar :deep(.el-progress__text) {

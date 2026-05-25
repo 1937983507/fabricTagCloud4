@@ -84,9 +84,20 @@
             <div
               v-for="(color, index) in currentRibbon"
               :key="`ribbon-${index}`"
-              class="ribbon-color-item"
-              :style="{ background: color }"
-            ></div>
+              class="ribbon-color-editor-item"
+            >
+              <el-color-picker
+                :model-value="localSettings.palette?.[index]"
+                @active-change="(value) => handleRibbonColorInput(index, value, false)"
+                @change="(value) => handleRibbonColorInput(index, value, true)"
+                show-alpha
+                size="small"
+              />
+              <div
+                class="ribbon-color-item"
+                :style="{ background: color }"
+              ></div>
+            </div>
           </div>
         </div>
 
@@ -130,7 +141,7 @@
               v-for="(scheme, index) in availableRibbons"
               :key="`ribbon-${index}`"
               class="ribbon-scheme-item"
-              :class="{ active: currentRibbonIndex === index }"
+              :class="{ active: currentRibbonIndex >= 0 && currentRibbonIndex === index }"
               @click="handleRibbonSchemeSelect(index)"
             >
               <div class="ribbon-scheme-colors">
@@ -214,7 +225,7 @@ watch(
             const defaultIndex = Math.min(2, availableRibbons.value.length - 1);
             currentRibbonIndex.value = defaultIndex;
             if (availableRibbons.value.length > 0) {
-              poiStore.updateColorSettings({
+              poiStore.updateColorSettingsLight({
                 palette: availableRibbons.value[defaultIndex],
                 discreteCount: newCount,
               });
@@ -253,30 +264,28 @@ watch(
   { immediate: true, deep: true }
 );
 
-// 背景色变化 - 立即更新
+// 背景色变化/确认 - 仅提交背景色
 const handleBackgroundChange = (color) => {
   if (!color) return;
   // 确保localSettings同步
   localSettings.value.background = color;
-  // 立即更新store和canvas
-  poiStore.updateColorSettings({
-    background: color,
-  });
+  // 仅更新背景色，避免触发与标签颜色相关的全量数据更新
+  poiStore.updateBackgroundColor(color);
 };
 
 // 中心标签颜色变化 - 立即更新
 const handleCenterLabelColorChange = (color) => {
   if (!color) return;
   localSettings.value.centerLabelColor = color;
-  poiStore.updateColorSettings({
-    centerLabelColor: color,
-  });
+  poiStore.updateCenterLabelColor(color);
 };
 
 // 配色模式切换
 const handleColorModeChange = (mode) => {
   localSettings.value.colorMode = mode;
-  poiStore.updateColorSettings({
+  // 切换单色/复色只需要更新 colorSettings，让画布根据新模式刷新颜色即可
+  // 不需要触发 poiList 的全量映射（否则切换会明显卡顿）
+  poiStore.updateColorSettingsLight({
     colorMode: mode,
   });
 };
@@ -285,9 +294,7 @@ const handleColorModeChange = (mode) => {
 const handleSingleColorChange = (color) => {
   if (!color) return;
   localSettings.value.singleColor = color;
-  poiStore.updateColorSettings({
-    singleColor: color,
-  });
+  poiStore.updateSingleColor(color);
 };
 
 // 颜色翻转 - 使用防抖
@@ -297,7 +304,7 @@ const handleColorFlip = () => {
   flipTimer = setTimeout(() => {
     const reversed = [...currentRibbon.value].reverse();
     localSettings.value.palette = reversed;
-    poiStore.updateColorSettings({
+    poiStore.updateColorSettingsLight({
       palette: reversed,
       inverted: !localSettings.value.inverted,
     });
@@ -329,10 +336,41 @@ const handleRibbonSchemeSelect = (index) => {
   currentRibbonIndex.value = index;
   const selectedScheme = availableRibbons.value[index];
   localSettings.value.palette = selectedScheme;
-  poiStore.updateColorSettings({
+  poiStore.updateColorSettingsLight({
     palette: selectedScheme,
     discreteCount: colorDiscreteCount.value,
   });
+};
+
+let ribbonPaletteSyncTimer = null;
+const commitRibbonPalette = (palette) => {
+  poiStore.updatePalette(palette);
+};
+
+// 复色色带颜色输入：拖动时节流同步，确认时立即同步
+const handleRibbonColorInput = (index, color, immediate = false) => {
+  if (!color || localSettings.value.colorMode !== 'multi') return;
+  const nextPalette = [...(localSettings.value.palette || [])];
+  if (index < 0 || index >= nextPalette.length) return;
+  nextPalette[index] = color;
+  localSettings.value.palette = nextPalette;
+  // 手动改色后取消预设方案高亮，直到用户再次选择预设方案
+  currentRibbonIndex.value = -1;
+
+  if (immediate) {
+    if (ribbonPaletteSyncTimer) {
+      clearTimeout(ribbonPaletteSyncTimer);
+      ribbonPaletteSyncTimer = null;
+    }
+    commitRibbonPalette(nextPalette);
+    return;
+  }
+
+  if (ribbonPaletteSyncTimer) clearTimeout(ribbonPaletteSyncTimer);
+  ribbonPaletteSyncTimer = setTimeout(() => {
+    commitRibbonPalette(nextPalette);
+    ribbonPaletteSyncTimer = null;
+  }, 50);
 };
 
 // 初始化时确保使用第三个配色方案（如果当前palette不匹配任何方案）
@@ -354,7 +392,7 @@ onMounted(() => {
         const defaultIndex = Math.min(2, availableRibbons.value.length - 1);
         const defaultScheme = availableRibbons.value[defaultIndex];
         currentRibbonIndex.value = defaultIndex;
-        poiStore.updateColorSettings({
+        poiStore.updateColorSettingsLight({
           palette: defaultScheme,
           discreteCount: colorDiscreteCount.value,
         });
@@ -454,12 +492,21 @@ onMounted(() => {
   border: 1px solid #e4e7ed;
 }
 
+.ribbon-color-editor-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
 .ribbon-color-item {
   flex: 1;
-  height: 32px;
+  min-width: 28px;
+  height: 28px;
   border-radius: 4px;
   border: 1px solid rgba(0, 0, 0, 0.1);
-  min-width: 40px;
 }
 
 /* 离散设置 */
@@ -602,6 +649,10 @@ onMounted(() => {
   .ribbon-color-item {
     min-width: 0;
     height: 28px;
+  }
+
+  .ribbon-color-editor-item {
+    gap: 6px;
   }
 
   .discrete-settings {

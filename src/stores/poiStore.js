@@ -7,6 +7,25 @@ const DATA_SOURCE = 'json'; // 可以改为 'csv' 切换回CSV模式
 const CSV_DATA_URL = `${import.meta.env.BASE_URL}data/chinapoi.csv`;
 const JSON_DATA_URL = `${import.meta.env.BASE_URL}data/chinapoi.json`;
 
+/** 各布局算法参数的出厂默认值（与 TagCloudCanvas 内硬编码起点一致，供面板恢复默认与初始化） */
+export const ALGORITHM_PARAM_DEFAULTS = {
+  multiAngle: {
+    sectorHalfAngle: 15,
+    radiusIncrement: 5,
+    angleStep: 5,
+    overlapPadding: 2,
+  },
+  singleAngle: {
+    radiusIncrement: 5,
+    overlapPadding: 2,
+  },
+  archimedean: {
+    spiralB: 4,
+    angleStep: 0.15,
+    overlapPadding: 2,
+  },
+};
+
 /**
  * CSV 导入：替换会话内 POI（供对话框直接调用，避免仅依赖 store action 挂载）
  */
@@ -71,7 +90,10 @@ export const usePoiStore = defineStore('poiStore', {
       discreteCount: 5,
     },
     algorithmSettings: {
-      algorithm: 'multi-angle', // 'multi-angle' 多角度径向移位算法, 'single-angle' 单角度径向移位算法
+      algorithm: 'multi-angle', // 'multi-angle' | 'single-angle' | 'archimedean'
+      multiAngle: { ...ALGORITHM_PARAM_DEFAULTS.multiAngle },
+      singleAngle: { ...ALGORITHM_PARAM_DEFAULTS.singleAngle },
+      archimedean: { ...ALGORITHM_PARAM_DEFAULTS.archimedean },
     },
     /**
      * CSV 导入元信息（null 表示当前为网站默认数据）
@@ -358,6 +380,13 @@ export const usePoiStore = defineStore('poiStore', {
         fontWeight: this.fontSettings.fontWeight,
       }));
     },
+    // 轻量更新：只改 fontSettings，不触发 poiList 全量映射（用于字重等仅影响渲染的配置）
+    updateFontSettingsLight(payload) {
+      this.fontSettings = {
+        ...this.fontSettings,
+        ...payload,
+      };
+    },
     updateColorSettings(payload) {
       this.colorSettings = {
         ...this.colorSettings,
@@ -368,10 +397,45 @@ export const usePoiStore = defineStore('poiStore', {
         fontColor: this.colorSettings.palette[index % this.colorSettings.palette.length],
       }));
     },
-    updateAlgorithmSettings(payload) {
-      this.algorithmSettings = {
-        ...this.algorithmSettings,
+    // 轻量更新：只改 colorSettings，不触发 poiList 全量映射（用于配色方案/色带等高频切换）
+    updateColorSettingsLight(payload) {
+      this.colorSettings = {
+        ...this.colorSettings,
         ...payload,
+      };
+    },
+    updateBackgroundColor(background) {
+      this.colorSettings = {
+        ...this.colorSettings,
+        background,
+      };
+    },
+    updateCenterLabelColor(centerLabelColor) {
+      this.colorSettings = {
+        ...this.colorSettings,
+        centerLabelColor,
+      };
+    },
+    updateSingleColor(singleColor) {
+      this.colorSettings = {
+        ...this.colorSettings,
+        singleColor,
+      };
+    },
+    updatePalette(palette) {
+      this.colorSettings = {
+        ...this.colorSettings,
+        palette,
+      };
+    },
+    updateAlgorithmSettings(payload) {
+      const prev = this.algorithmSettings;
+      this.algorithmSettings = {
+        ...prev,
+        ...payload,
+        multiAngle: { ...prev.multiAngle, ...(payload.multiAngle ?? {}) },
+        singleAngle: { ...prev.singleAngle, ...(payload.singleAngle ?? {}) },
+        archimedean: { ...prev.archimedean, ...(payload.archimedean ?? {}) },
       };
     },
     setSelectionContext(context) {
