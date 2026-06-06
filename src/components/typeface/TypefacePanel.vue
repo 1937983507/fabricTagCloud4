@@ -132,7 +132,11 @@
             :key="font"
             class="font-chip"
             :style="{ fontFamily: font }"
-            :class="{ active: poiStore.fontSettings.fontFamily === font }"
+            :class="{ 
+              active: poiStore.fontSettings.fontFamily === font,
+              unavailable: !checkFontAvailable(font)
+            }"
+            :disabled="!checkFontAvailable(font)"
             @click="handleFamilyChange(font)"
           >
             <span class="font-name">{{ font }}</span>
@@ -141,6 +145,12 @@
               class="font-active-badge"
             >
               使用中
+            </span>
+            <span 
+              v-else-if="!checkFontAvailable(font)" 
+              class="font-missing-badge"
+            >
+              未安装
             </span>
           </button>
         </div>
@@ -155,6 +165,35 @@ import { usePoiStore } from '@/stores/poiStore';
 import { useMobileLayout } from '@/composables/useMobileLayout';
 
 const poiStore = usePoiStore();
+
+// 字体可用性缓存
+const fontAvailabilityCache = reactive({});
+const checkFontAvailable = (font) => {
+  if (font === 'sans-serif' || font === 'serif' || font === 'monospace') return true;
+  if (fontAvailabilityCache[font] !== undefined) return fontAvailabilityCache[font];
+  
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  // 加入中英文字符以提高检测准确度
+  const text = 'abcdefghijklmnopqrstuvwxyz0123456789汉字測試';
+  
+  context.font = '72px monospace';
+  const baselineSize = context.measureText(text).width;
+  
+  context.font = `72px "${font}", monospace`;
+  const newSize = context.measureText(text).width;
+  
+  context.font = '72px sans-serif';
+  const baselineSans = context.measureText(text).width;
+  
+  context.font = `72px "${font}", sans-serif`;
+  const newSans = context.measureText(text).width;
+  
+  const available = newSize !== baselineSize || newSans !== baselineSans;
+  fontAvailabilityCache[font] = available;
+  return available;
+};
+
 const { isMobile } = useMobileLayout();
 
 const levelLabels = computed(() =>
@@ -514,6 +553,19 @@ const handleCenterLabelModeChange = () => {
   box-shadow: 0 2px 12px rgba(64, 158, 255, 0.25);
 }
 
+.font-chip.unavailable {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #f5f7fa;
+  border-color: #ebeef5;
+}
+
+.font-chip.unavailable:hover {
+  border-color: #ebeef5;
+  box-shadow: none;
+  transform: none;
+}
+
 .font-name {
   font-size: 14px;
   color: #303133;
@@ -527,6 +579,18 @@ const handleCenterLabelModeChange = () => {
   font-size: 10px;
   padding: 2px 6px;
   background: #409eff;
+  color: #fff;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.font-missing-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #909399;
   color: #fff;
   border-radius: 10px;
   font-weight: 500;

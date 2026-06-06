@@ -112,7 +112,7 @@
                 placeholder="选择中心点来源"
               >
                 <el-option label="自动定位" value="auto" />
-                <el-option label="文本输入" value="place" />
+                <el-option label="地名输入" value="place" />
                 <el-option label="经纬度输入" value="coord" />
               </el-select>
               <div
@@ -271,7 +271,7 @@
                 placeholder="选择中心点来源"
               >
                 <el-option label="自动定位" value="auto" />
-                <el-option label="文本输入" value="place" />
+                <el-option label="地名输入" value="place" />
                 <el-option label="经纬度输入" value="coord" />
               </el-select>
               <div

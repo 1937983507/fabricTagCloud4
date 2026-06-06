@@ -2249,27 +2249,45 @@ const closePoiInfo = () => {
   selectedPoi.value = null;
 };
 
-// 图例悬停高亮
+// 图例悬停高亮：使用降低其他标签透明度的方式来突出当前类别
 const handleLegendHover = (color) => {
   if (!canvasInstance) return;
   canvasInstance.forEachObject((obj) => {
+    // 中心标签（没有 oiId）始终保持不透明
+    if (!obj.poiId) {
+      obj.set({ opacity: 1, strokeWidth: obj.strokeWidth || 5 }); // 保持原有的描边，中心标签本身可能有自己的strokeWidth
+      return;
+    }
+
     if (obj.fill === color) {
       obj.set({
-        strokeWidth: obj.fontSize / 12,
-        stroke: 'rgba(255,255,255,0.8)',
+        opacity: 1,
+        strokeWidth: 0, // 确保没有遗留的描边
       });
     } else {
-      obj.set({ strokeWidth: 0 });
+      // 降低非当前类别文字的透明度（调高到 0.4，避免太暗）
+      obj.set({ 
+        opacity: 0.4,
+        strokeWidth: 0,
+      });
     }
   });
   canvasInstance.renderAll();
 };
 
-// 图例离开
+// 图例离开：恢复所有标签的正常状态
 const handleLegendLeave = () => {
   if (!canvasInstance) return;
   canvasInstance.forEachObject((obj) => {
-    obj.set({ strokeWidth: 0 });
+    if (!obj.poiId) {
+      obj.set({ opacity: 1 });
+      return;
+    }
+    
+    obj.set({ 
+      opacity: 1,
+      strokeWidth: 0,
+    });
   });
   canvasInstance.renderAll();
 };

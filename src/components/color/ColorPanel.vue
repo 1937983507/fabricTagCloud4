@@ -3,18 +3,19 @@
     <!-- 背景配色 -->
     <div class="config-section">
       <div class="section-header">
-        <span class="section-title">背景配色</span>
+        <span class="section-title">背景配色：</span>
+         <el-switch
+         class="dark-bg-switch"
+            v-model="isDarkBackground"
+            active-text="暗"
+            inactive-text="明"
+          />
         <span class="section-desc">设置标签云的背景颜色</span>
       </div>
       <div class="section-content">
         <div class="color-item">
           <span class="label">当前背景颜色：</span>
-          <el-color-picker
-            v-model="localSettings.background"
-            @change="handleBackgroundChange"
-            @active-change="handleBackgroundChange"
-            show-alpha
-          />
+         
           <span class="color-preview" :style="{ background: localSettings.background }"></span>
         </div>
       </div>
@@ -172,6 +173,61 @@ const localSettings = ref({ ...poiStore.colorSettings });
 const colorDiscreteCount = ref(5);
 const discreteMethod = ref('quantile');
 const currentRibbonIndex = ref(2); // 默认使用第三个配色方案（索引2）
+const centerLabelColorManual = ref(false);
+const LIGHT_BG = '#ffffff';
+const DARK_BG = '#000000';
+const RECOMMENDED_SCHEME_COUNT = 5;
+const LIGHT_RECOMMENDED_RIBBON_BASES = [
+   ['rgb(210,11,99)', 'rgb(5,74,197)', 'rgb(137,7,142)', 'rgba(73,150,7,0.94)', 'rgba(116,47,219,0.95)', 'rgb(238,142,28)', 'rgb(0,150,160)'],
+  ['rgb(42,118,190)', 'rgb(230,126,34)', 'rgb(39,174,96)', 'rgb(142,68,173)', 'rgb(192,57,43)', 'rgb(22,160,133)', 'rgb(127,140,141)'],
+ 
+  ['rgb(182,42,56)', 'rgb(15,146,159)', 'rgb(194,152,27)', 'rgb(128,94,151)', 'rgb(38,110,69)', 'rgb(45,90,150)', 'rgb(150,92,48)'],
+  ['rgb(224,77,115)', 'rgb(79,194,152)', 'rgb(172,132,216)', 'rgb(242,158,92)', 'rgb(72,179,202)', 'rgb(122,151,64)', 'rgb(184,85,64)'],
+  ['rgb(15,82,186)', 'rgb(229,57,53)', 'rgb(46,204,113)', 'rgb(156,39,176)', 'rgb(245,127,23)', 'rgb(0,150,136)', 'rgb(96,125,139)'],
+];
+const DARK_RECOMMENDED_RIBBON_BASES = [
+   ['rgb(250,143,164)', 'rgba(255,246,148,0.97)', 'rgb(247,177,253)', 'rgb(170,245,245)', 'rgb(91,238,72)', 'rgb(255,163,76)', 'rgb(86,148,255)'],
+  ['rgba(255,71,71,0.93)', 'rgb(252,110,255)', 'rgb(254,247,124)', 'rgb(101,246,227)', 'rgb(175,163,252)', 'rgb(96,244,112)', 'rgb(255,166,72)'],
+   ['rgb(85,180,255)', 'rgb(255,170,70)', 'rgb(90,220,150)', 'rgb(210,140,255)', 'rgb(255,115,120)', 'rgb(90,220,230)', 'rgb(255,220,105)'],
+  ['rgb(105,190,245)', 'rgb(255,166,84)', 'rgb(118,224,168)', 'rgb(188,132,255)', 'rgb(255,214,94)', 'rgb(255,112,140)', 'rgb(98,218,226)'],
+  ['rgb(242,98,106)', 'rgb(114,224,182)', 'rgb(216,176,233)', 'rgb(249,212,97)', 'rgb(125,172,203)', 'rgb(255,158,115)', 'rgb(165,220,130)'],
+ 
+  
+];
+
+const getRecommendedRibbons = (isDark, count) => {
+  const bases = isDark ? DARK_RECOMMENDED_RIBBON_BASES : LIGHT_RECOMMENDED_RIBBON_BASES;
+  return bases.map((scheme) => scheme.slice(0, count));
+};
+
+const isDarkBackground = computed({
+  get: () => localSettings.value.background === DARK_BG,
+  set: (value) => {
+    const background = value ? DARK_BG : LIGHT_BG;
+    const centerLabelColor = value ? LIGHT_BG : DARK_BG;
+    const shouldSwapRecommendedRibbon =
+      localSettings.value.colorMode === 'multi' &&
+      currentRibbonIndex.value >= 0 &&
+      currentRibbonIndex.value < RECOMMENDED_SCHEME_COUNT;
+    const nextRecommendedRibbon = shouldSwapRecommendedRibbon
+      ? getRecommendedRibbons(value, colorDiscreteCount.value)[currentRibbonIndex.value]
+      : null;
+    localSettings.value.background = background;
+    if (!centerLabelColorManual.value) {
+      localSettings.value.centerLabelColor = centerLabelColor;
+      poiStore.updateCenterLabelColor(centerLabelColor);
+    }
+    if (nextRecommendedRibbon) {
+      localSettings.value.palette = nextRecommendedRibbon;
+    }
+    poiStore.updateBackgroundColor(background);
+    if (nextRecommendedRibbon) {
+      poiStore.updateColorSettingsLight({
+        palette: nextRecommendedRibbon,
+      });
+    }
+  },
+});
 
 // 当前色带
 const currentRibbon = computed(() => {
@@ -182,7 +238,9 @@ const currentRibbon = computed(() => {
 const availableRibbons = computed(() => {
   const count = colorDiscreteCount.value;
   const schemes = ribbonColorSchemes[count - 3] || [];
-  return schemes.map(scheme => scheme.map(c => `rgb(${c.join(',')})`));
+  const existingSchemes = schemes.map(scheme => scheme.map(c => `rgb(${c.join(',')})`));
+  const recommendedSchemes = getRecommendedRibbons(isDarkBackground.value, count);
+  return [...recommendedSchemes, ...existingSchemes];
 });
 
 // 初始化：根据当前palette找到对应的色带索引，如果没有匹配则使用第一个方案
@@ -264,18 +322,12 @@ watch(
   { immediate: true, deep: true }
 );
 
-// 背景色变化/确认 - 仅提交背景色
-const handleBackgroundChange = (color) => {
-  if (!color) return;
-  // 确保localSettings同步
-  localSettings.value.background = color;
-  // 仅更新背景色，避免触发与标签颜色相关的全量数据更新
-  poiStore.updateBackgroundColor(color);
-};
+// 背景色变化已由开关在 setter 中处理
 
 // 中心标签颜色变化 - 立即更新
 const handleCenterLabelColorChange = (color) => {
   if (!color) return;
+  centerLabelColorManual.value = true;
   localSettings.value.centerLabelColor = color;
   poiStore.updateCenterLabelColor(color);
 };
@@ -412,7 +464,9 @@ onMounted(() => {
   padding: 0px;
   background: #f5f7fa;
 }
-
+.dark-bg-switch{
+  left:-80px
+}
 .config-section {
   background: #fff;
   border-radius: 8px;

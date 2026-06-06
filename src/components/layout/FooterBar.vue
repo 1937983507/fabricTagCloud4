@@ -3,7 +3,7 @@
     <div class="footer-content">
       <div class="footer-left">
         <div class="footer-brand">
-          <img src="/img/logo.png" alt="Logo" class="footer-logo" />
+          <img src="/img/logo-new.png" alt="Logo" class="footer-logo" />
           <div class="footer-stats">
             <div class="stats-item">
               <span class="stats-label">累计访问量：</span>
