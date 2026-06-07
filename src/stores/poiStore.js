@@ -76,7 +76,7 @@ export const usePoiStore = defineStore('poiStore', {
       centerLabelMode: 'nearest', // 中心标签模式：'nearest' 使用最近地点名，'center' 显示"中心位置"
     },
     colorSettings: {
-      background: '#0c1024',
+      background: '#000000',
       // 中心标签颜色（默认白色）
       centerLabelColor: '#ffffff',
       // 文字配色模式：'multi' 为复色（色带），'single' 为单色

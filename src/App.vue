@@ -307,7 +307,7 @@ const createIntro = () => {
     : '<div style="text-align:center;line-height:1.6;"><div style="font-size:20px;margin-bottom:12px;">✨ 引导完成！</div><div style="color:#64748b;margin-bottom:16px;">需要再看一遍：打开顶部<span style="color:#399ceb;">菜单</span>，在侧栏中点击<span style="color:#399ceb;">「引导教程」</span>。</div><div style="font-size:12px;color:#94a3b8;margin-top:12px;">祝您使用愉快！</div></div>';
 
   const welcomeIntro = addCheckboxToIntro(
-    '<div style="text-align:center;padding:8px 0;"><div style="margin-bottom:12px;"><img src="/img/logo.png" alt="Logo" style="height:40px;object-fit:contain;" /></div><div style="font-size:16px;font-weight:600;color:#1f2333;margin-bottom:8px;">欢迎来到地名标签云网站！</div><div style="font-size:13px;color:#64748b;">让我们带您浏览主要功能，快速上手使用。</div></div>',
+    '<div style="text-align:center;padding:8px 0;"><div style="margin-bottom:12px;"><img src="/img/logo-new.png" alt="Logo" style="height:40px;object-fit:contain;" /></div><div style="font-size:16px;font-weight:600;color:#1f2333;margin-bottom:8px;">欢迎来到地名标签云网站！</div><div style="font-size:13px;color:#64748b;">让我们带您浏览主要功能，快速上手使用。</div></div>',
   );
 
   /** 移动端：欢迎 → 菜单 → 内容 / 字体 / 配色 / 算法 各一步 → 完成 */

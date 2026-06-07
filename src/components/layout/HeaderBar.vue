@@ -1,7 +1,7 @@
 <template>
   <header class="header">
     <div class="logo-area">
-      <img src="/img/logo.png" alt="Logo" class="logo-img" />
+      <img src="/img/logo-new.png" alt="Logo" class="logo-img" />
     </div>
 
     <!-- PC：中间导航文字按钮 + 右侧图标 -->
